@@ -10,6 +10,7 @@ export interface RigorScore {
 
 export interface RecommendedSchool {
   name: string;
+  url: string;
   type: "reach" | "match" | "safety";
   region: RegionType;
   campusSize: CampusSizeType;

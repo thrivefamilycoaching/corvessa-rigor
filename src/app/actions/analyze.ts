@@ -73,6 +73,7 @@ export async function analyzeDocuments(formData: FormData): Promise<AnalysisResu
           "recommendedSchools": [
             {
               "name": "<college name>",
+              "url": "<official college website URL, e.g., https://www.stanford.edu>",
               "type": "<reach|match|safety>",
               "region": "<Northeast|Mid-Atlantic|South|Midwest|West>",
               "campusSize": "<Micro|Small|Medium|Large|Mega>",
@@ -202,6 +203,7 @@ Return ONLY a JSON object with this structure:
   "schools": [
     {
       "name": "<college name>",
+      "url": "<official college website URL, e.g., https://www.stanford.edu>",
       "type": "<reach|match|safety>",
       "region": "<Northeast|Mid-Atlantic|South|Midwest|West>",
       "campusSize": "<Micro|Small|Medium|Large|Mega>",

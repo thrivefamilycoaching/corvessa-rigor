@@ -388,7 +388,14 @@ function SchoolCard({ school }: { school: RecommendedSchool }) {
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <h5 className="font-medium">{school.name}</h5>
+            <a
+              href={school.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium hover:underline hover:text-primary transition-colors"
+            >
+              {school.name}
+            </a>
             <Badge variant={getTypeBadgeVariant(school.type)} className="text-xs">
               {getTypeIcon(school.type)}
               <span className="ml-1">{getTypeLabel(school.type)}</span>
