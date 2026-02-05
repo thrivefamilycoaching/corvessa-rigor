@@ -78,6 +78,7 @@ export async function analyzeDocuments(formData: FormData): Promise<AnalysisResu
               "region": "<Northeast|Mid-Atlantic|South|Midwest|West>",
               "campusSize": "<Micro|Small|Medium|Large|Mega>",
               "enrollment": <approximate undergraduate enrollment number>,
+              "testPolicy": "<Test Optional|Test Required|Test Blind>",
               "matchReasoning": "<2-3 sentence explanation connecting the school's specific academic strengths to the student's transcript>"
             }
           ],
@@ -86,9 +87,10 @@ export async function analyzeDocuments(formData: FormData): Promise<AnalysisResu
               "subject": "<subject area like Math, Science, English, etc>",
               "offered": ["<courses offered by school>"],
               "taken": ["<courses student took>"],
-              "missed": ["<rigorous courses available but not taken>"]
+              "missed": ["<rigorous courses that were available AND grade-appropriate but not taken - leave empty if student hasn't reached the grade level for advanced courses>"]
             }
-          ]
+          ],
+          "studentGradeLevel": "<9th|10th|11th|12th - the student's current grade level>"
         }
 
         Categories to evaluate for scorecard:
@@ -102,6 +104,10 @@ export async function analyzeDocuments(formData: FormData): Promise<AnalysisResu
         - Conduct a NATIONAL search across the entire United States - do NOT limit to any single state or region
         - Suggest 8-10 colleges that specifically value independent school rigor and challenging curricula
         - Include a mix of reach (3), match (4), and safety (3) schools
+        - Include "testPolicy" for each school: "Test Optional", "Test Required", or "Test Blind"
+          * Test Optional: SAT/ACT scores considered if submitted but not required
+          * Test Required: SAT/ACT scores mandatory for all applicants
+          * Test Blind: SAT/ACT scores not considered even if submitted
 
         GEOGRAPHIC DIVERSITY (REQUIRED):
         - Include schools from at least 4 different US regions:
@@ -127,8 +133,13 @@ export async function analyzeDocuments(formData: FormData): Promise<AnalysisResu
         - For independent/prep school students, mention schools known to value rigorous secondary preparation
 
         For gapAnalysis:
+        - First, determine the student's current grade level from their transcript (9th, 10th, 11th, or 12th grade)
         - Compare what the school offers vs what the student took in each major subject area
-        - Identify rigorous courses (AP, IB, Honors) that were available but not taken
+        - IMPORTANT: Only flag courses as "missed" if:
+          * The student was in the appropriate grade level to take the course
+          * Do NOT flag 11th or 12th grade courses as missed for 9th or 10th grade students
+          * Only flag courses the student could have reasonably taken based on their current grade and prerequisites
+        - Identify rigorous courses (AP, IB, Honors) that were available AND grade-appropriate but not taken
         - Include at least: Math, Science, English, Social Studies, Foreign Language
 
         The narrative should be written in a professional tone suitable for a counselor letter,
@@ -208,10 +219,16 @@ Return ONLY a JSON object with this structure:
       "region": "<Northeast|Mid-Atlantic|South|Midwest|West>",
       "campusSize": "<Micro|Small|Medium|Large|Mega>",
       "enrollment": <number>,
+      "testPolicy": "<Test Optional|Test Required|Test Blind>",
       "matchReasoning": "<2-3 sentences>"
     }
   ]
 }
+
+TEST POLICY DEFINITIONS:
+- Test Optional: SAT/ACT scores considered if submitted but not required
+- Test Required: SAT/ACT scores mandatory for all applicants
+- Test Blind: SAT/ACT scores not considered even if submitted
 
 REGION DEFINITIONS:
 - Northeast: MA, NY, CT, RI, ME, VT, NH
