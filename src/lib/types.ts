@@ -1,5 +1,6 @@
 export type RegionType = "Northeast" | "Mid-Atlantic" | "South" | "Midwest" | "West";
 export type CampusSizeType = "Micro" | "Small" | "Medium" | "Large" | "Mega";
+export type TestPolicyType = "Test Optional" | "Test Required" | "Test Blind";
 
 export interface RigorScore {
   category: string;
@@ -16,6 +17,7 @@ export interface RecommendedSchool {
   campusSize: CampusSizeType;
   enrollment: number;
   matchReasoning: string;
+  testPolicy?: TestPolicyType;
 }
 
 export interface GapAnalysisItem {

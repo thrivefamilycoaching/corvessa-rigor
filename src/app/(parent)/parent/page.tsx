@@ -12,12 +12,12 @@ import {
   X,
   AlertCircle,
   ClipboardList,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { analyzeDocuments } from "@/app/actions/analyze";
 import type { AnalysisResult } from "@/lib/types";
 import { RigorScorecard } from "@/components/RigorScorecard";
-import { CounselorNarrative } from "@/components/CounselorNarrative";
 import { RecommendedSchools } from "@/components/RecommendedSchools";
 import { GapAnalysis } from "@/components/GapAnalysis";
 import { ReportExport } from "@/components/ReportExport";
@@ -28,7 +28,7 @@ interface TestScores {
   actComposite: string;
 }
 
-export default function CounselorCoPilot() {
+export default function CollegeCoPilot() {
   const [schoolProfile, setSchoolProfile] = useState<File | null>(null);
   const [transcript, setTranscript] = useState<File | null>(null);
   const [testScores, setTestScores] = useState<TestScores>({
@@ -38,7 +38,6 @@ export default function CounselorCoPilot() {
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [editedNarrative, setEditedNarrative] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
 
   const onDropSchoolProfile = useCallback((acceptedFiles: File[]) => {
@@ -77,7 +76,6 @@ export default function CounselorCoPilot() {
 
       const analysisResult = await analyzeDocuments(formData);
       setResult(analysisResult);
-      setEditedNarrative(analysisResult.narrative);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
@@ -105,12 +103,16 @@ export default function CounselorCoPilot() {
         <div className="mb-8 text-center">
           <div className="mb-2 flex items-center justify-center gap-3">
             <Compass className="h-10 w-10 text-primary" />
-            <h1 className="text-4xl font-bold tracking-tight">Counselor Co-Pilot</h1>
+            <h1 className="text-4xl font-bold tracking-tight">College Co-Pilot</h1>
           </div>
           <p className="mx-auto max-w-2xl text-muted-foreground">
-            Upload a school profile and student transcript to analyze course rigor,
-            discover recommended colleges, and generate a professional counselor narrative.
+            Upload the school profile, your child&apos;s transcript, and test scores
+            to analyze course rigor and to discover personalized college recommendations.
           </p>
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs text-muted-foreground">
+            <Shield className="h-3 w-3" />
+            Private Mode — Your data is never shared
+          </div>
         </div>
 
         {/* Upload Section */}
@@ -232,7 +234,7 @@ export default function CounselorCoPilot() {
                   </div>
                   <p className="mt-4 text-sm font-medium">Test Scores</p>
                   <p className="mb-4 mt-1 text-center text-xs text-muted-foreground">
-                    Optional — for context
+                    Optional — for scenario modeling
                   </p>
                 </div>
                 <div className="mt-4 space-y-3">
@@ -321,7 +323,7 @@ export default function CounselorCoPilot() {
           <section className="space-y-8">
             {/* Export Button */}
             <div className="flex justify-end">
-              <ReportExport result={result} editedNarrative={editedNarrative} />
+              <ReportExport result={result} editedNarrative={result.narrative} />
             </div>
 
             {/* Scorecard */}
@@ -356,15 +358,6 @@ export default function CounselorCoPilot() {
                 />
               </div>
             )}
-
-            {/* Counselor Narrative */}
-            <div>
-              <h2 className="mb-4 text-lg font-semibold">Generated Narrative</h2>
-              <CounselorNarrative
-                narrative={result.narrative}
-                onNarrativeChange={setEditedNarrative}
-              />
-            </div>
           </section>
         )}
 
@@ -375,8 +368,8 @@ export default function CounselorCoPilot() {
               <Compass className="mb-4 h-12 w-12 text-muted-foreground/50" />
               <h3 className="text-lg font-medium text-muted-foreground">No analysis yet</h3>
               <p className="max-w-sm text-sm text-muted-foreground/75">
-                Upload both a School Profile and Student Transcript to generate
-                a comprehensive rigor analysis, college recommendations, and counselor narrative.
+                Upload the school profile and your child&apos;s transcript to generate
+                a comprehensive rigor analysis and personalized college recommendations.
               </p>
             </CardContent>
           </Card>

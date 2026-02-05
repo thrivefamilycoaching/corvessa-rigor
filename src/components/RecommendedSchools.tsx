@@ -5,8 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { RecommendedSchool, RegionType, CampusSizeType } from "@/lib/types";
-import { REGIONS, CAMPUS_SIZES } from "@/lib/constants";
+import type { RecommendedSchool, RegionType, CampusSizeType, TestPolicyType } from "@/lib/types";
+import { REGIONS, CAMPUS_SIZES, TEST_POLICIES } from "@/lib/constants";
 import { getFilteredRecommendations } from "@/app/actions/analyze";
 import {
   GraduationCap,
@@ -18,6 +18,7 @@ import {
   Loader2,
   X,
   SlidersHorizontal,
+  FileCheck,
 } from "lucide-react";
 
 interface RecommendedSchoolsProps {
@@ -76,8 +77,10 @@ export function RecommendedSchools({
   const [schools, setSchools] = useState<RecommendedSchool[]>(initialSchools);
   const [selectedRegions, setSelectedRegions] = useState<RegionType[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<CampusSizeType[]>([]);
+  const [selectedPolicies, setSelectedPolicies] = useState<TestPolicyType[]>([]);
   const [pendingRegions, setPendingRegions] = useState<RegionType[]>([]);
   const [pendingSizes, setPendingSizes] = useState<CampusSizeType[]>([]);
+  const [pendingPolicies, setPendingPolicies] = useState<TestPolicyType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [filtersApplied, setFiltersApplied] = useState(false);
 
@@ -93,12 +96,18 @@ export function RecommendedSchools({
     );
   };
 
+  const togglePolicy = (policy: TestPolicyType) => {
+    setPendingPolicies((prev) =>
+      prev.includes(policy) ? prev.filter((p) => p !== policy) : [...prev, policy]
+    );
+  };
+
   const removeRegionChip = (region: RegionType) => {
     const newRegions = selectedRegions.filter((r) => r !== region);
     setSelectedRegions(newRegions);
     setPendingRegions(newRegions);
     // Re-filter with updated selections
-    applyFiltersWithValues(newRegions, selectedSizes);
+    applyFiltersWithValues(newRegions, selectedSizes, selectedPolicies);
   };
 
   const removeSizeChip = (size: CampusSizeType) => {
@@ -106,21 +115,31 @@ export function RecommendedSchools({
     setSelectedSizes(newSizes);
     setPendingSizes(newSizes);
     // Re-filter with updated selections
-    applyFiltersWithValues(selectedRegions, newSizes);
+    applyFiltersWithValues(selectedRegions, newSizes, selectedPolicies);
+  };
+
+  const removePolicyChip = (policy: TestPolicyType) => {
+    const newPolicies = selectedPolicies.filter((p) => p !== policy);
+    setSelectedPolicies(newPolicies);
+    setPendingPolicies(newPolicies);
+    // Re-filter with updated selections
+    applyFiltersWithValues(selectedRegions, selectedSizes, newPolicies);
   };
 
   const clearAllFilters = () => {
     setSelectedRegions([]);
     setSelectedSizes([]);
+    setSelectedPolicies([]);
     setPendingRegions([]);
     setPendingSizes([]);
+    setPendingPolicies([]);
     setSchools(initialSchools);
     setFiltersApplied(false);
   };
 
-  const applyFiltersWithValues = async (regions: RegionType[], sizes: CampusSizeType[]) => {
+  const applyFiltersWithValues = async (regions: RegionType[], sizes: CampusSizeType[], policies: TestPolicyType[]) => {
     // If no filters selected, show original results
-    if (regions.length === 0 && sizes.length === 0) {
+    if (regions.length === 0 && sizes.length === 0 && policies.length === 0) {
       setSchools(initialSchools);
       setFiltersApplied(false);
       return;
@@ -130,7 +149,8 @@ export function RecommendedSchools({
     const filteredExisting = initialSchools.filter((school) => {
       const regionMatch = regions.length === 0 || regions.includes(school.region);
       const sizeMatch = sizes.length === 0 || sizes.includes(school.campusSize);
-      return regionMatch && sizeMatch;
+      const policyMatch = policies.length === 0 || (school.testPolicy && policies.includes(school.testPolicy));
+      return regionMatch && sizeMatch && policyMatch;
     });
 
     // If we have enough matching schools, use them
@@ -164,12 +184,14 @@ export function RecommendedSchools({
   const applyFilters = () => {
     setSelectedRegions(pendingRegions);
     setSelectedSizes(pendingSizes);
-    applyFiltersWithValues(pendingRegions, pendingSizes);
+    setSelectedPolicies(pendingPolicies);
+    applyFiltersWithValues(pendingRegions, pendingSizes, pendingPolicies);
   };
 
   const hasFilterChanges =
     JSON.stringify(pendingRegions.sort()) !== JSON.stringify(selectedRegions.sort()) ||
-    JSON.stringify(pendingSizes.sort()) !== JSON.stringify(selectedSizes.sort());
+    JSON.stringify(pendingSizes.sort()) !== JSON.stringify(selectedSizes.sort()) ||
+    JSON.stringify(pendingPolicies.sort()) !== JSON.stringify(selectedPolicies.sort());
 
   const reachSchools = schools.filter((s) => s.type === "reach");
   const matchSchools = schools.filter((s) => s.type === "match");
@@ -242,6 +264,27 @@ export function RecommendedSchools({
             </div>
           </div>
 
+          {/* Test Policy Checkboxes */}
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-2">
+              Testing Policy (select multiple)
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {TEST_POLICIES.map((policy) => (
+                <label
+                  key={policy.value}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={pendingPolicies.includes(policy.value)}
+                    onCheckedChange={() => togglePolicy(policy.value)}
+                  />
+                  <span className="text-sm">{policy.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
           {/* Apply Button */}
           <div className="flex items-center gap-3 pt-2">
             <Button
@@ -258,7 +301,7 @@ export function RecommendedSchools({
                 "Apply Filters"
               )}
             </Button>
-            {(selectedRegions.length > 0 || selectedSizes.length > 0) && (
+            {(selectedRegions.length > 0 || selectedSizes.length > 0 || selectedPolicies.length > 0) && (
               <Button variant="ghost" size="sm" onClick={clearAllFilters}>
                 Clear All
               </Button>
@@ -272,7 +315,7 @@ export function RecommendedSchools({
         </div>
 
         {/* Active Filter Chips */}
-        {(selectedRegions.length > 0 || selectedSizes.length > 0) && (
+        {(selectedRegions.length > 0 || selectedSizes.length > 0 || selectedPolicies.length > 0) && (
           <div className="flex flex-wrap gap-2">
             <span className="text-xs text-muted-foreground self-center mr-1">
               Active:
@@ -304,6 +347,18 @@ export function RecommendedSchools({
                 </Badge>
               );
             })}
+            {selectedPolicies.map((policy) => (
+              <Badge
+                key={policy}
+                variant="secondary"
+                className="pl-2 pr-1 gap-1 cursor-pointer hover:bg-secondary/80"
+                onClick={() => removePolicyChip(policy)}
+              >
+                <FileCheck className="h-3 w-3" />
+                {policy}
+                <X className="h-3 w-3 ml-1" />
+              </Badge>
+            ))}
           </div>
         )}
 
