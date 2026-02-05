@@ -100,6 +100,14 @@ export async function analyzeDocuments(formData: FormData): Promise<AnalysisResu
         4. Foreign Language Depth (0-15): Years and level of foreign language study
         5. Academic Progression (0-15): Trend showing increasing challenge over time
 
+        CRITICAL SCORING RULE: Each category score must NEVER exceed its maxScore.
+        - AP/IB Course Load: score must be 0-25, never higher
+        - Honors Course Selection: score must be 0-20, never higher
+        - Core Subject Rigor: score must be 0-25, never higher
+        - Foreign Language Depth: score must be 0-15, never higher
+        - Academic Progression: score must be 0-15, never higher
+        If calculated points would exceed the maximum, cap at the maximum.
+
         For recommendedSchools:
         - Conduct a NATIONAL search across the entire United States - do NOT limit to any single state or region
         - Suggest 8-10 colleges that specifically value independent school rigor and challenging curricula
@@ -137,21 +145,35 @@ export async function analyzeDocuments(formData: FormData): Promise<AnalysisResu
         - For each subject, map the COMPLETE vertical curriculum track from the school profile
 
         VERTICAL CURRICULUM MAPPING (CRITICAL):
-        - In "offered", list ALL courses in the subject's progression (e.g., Algebra 1 → Geometry → Algebra 2 → Precalculus → Calculus)
+        - In "offered", list ALL courses in the subject's progression from lowest to highest
         - Include ALL honors/accelerated/AP variants available at each level
         - Example for Math: ["Algebra 1", "Honors Algebra 1", "Geometry", "Honors Geometry", "Algebra 2", "Accelerated Algebra 2", "Precalculus", "Honors Precalculus", "Calculus 1", "Advanced Calculus 2", "AP Calculus AB", "AP Calculus BC"]
 
-        PREREQUISITE-AWARE MISSED OPPORTUNITIES (CRITICAL):
-        - Only flag the NEXT logical rigorous step the student could have taken but didn't
-        - If student took "Accelerated Algebra 2", check if "Honors Precalculus" was available - if yes, flag it
-        - Do NOT flag "Advanced Calculus 2" if the student hasn't completed "Calculus 1" yet
-        - Do NOT say "All rigorous options taken" unless the student is at the TOP of the available track
-        - Example: A student in "Accelerated Algebra 2" has NOT taken all rigorous options if the school offers Honors Precalculus, AP Calculus AB, etc.
+        MISSED OPPORTUNITIES LOGIC (CRITICAL - READ CAREFULLY):
 
-        GRADE-LEVEL AWARENESS:
-        - Consider what courses the student COULD have taken by their current grade
-        - A 10th grader cannot be penalized for not taking senior-level courses
-        - But a 10th grader CAN be flagged for taking regular Geometry instead of Honors Geometry if available
+        Rule 1 - SAME-LEVEL RIGOR CHECK:
+        - If student took a Standard/Regular course when Honors/Accelerated version existed at SAME level, flag the Honors version
+        - Example: Student took "Geometry" but school offers "Honors Geometry" → flag "Honors Geometry"
+        - Example: Student took "Algebra 2" but school offers "Accelerated Algebra 2" → flag "Accelerated Algebra 2"
+
+        Rule 2 - NEXT-LEVEL RIGOR CHECK:
+        - Identify the next course in sequence that the student COULD take based on prerequisites met
+        - If student completed "Accelerated Algebra 2" and school offers "Honors Precalculus" → flag "Honors Precalculus"
+        - If student completed "Honors Precalculus" and school offers "AP Calculus AB" → flag "AP Calculus AB"
+
+        Rule 3 - NEVER SAY "All rigorous options taken" UNLESS:
+        - Student is taking the HIGHEST level course available in that subject track
+        - Example: Only say this for Math if student is in AP Calculus BC (the top of the track)
+        - If student is in "Accelerated Algebra 2" and school offers Honors Precalculus, Calculus, AP Calc → they have NOT taken all rigorous options
+
+        Rule 4 - DO NOT FLAG:
+        - Courses requiring prerequisites the student hasn't completed
+        - 11th/12th grade courses for 9th/10th graders
+        - Courses outside the student's current sequence path
+
+        APPLY CONSISTENTLY ACROSS ALL SUBJECTS:
+        - Math, Science, English, Social Studies, Foreign Language must all follow the same logic
+        - If you flag missed Honors options in Social Studies, you MUST also check for missed Honors options in Math, Science, etc.
 
         - Include at least: Math, Science, English, Social Studies, Foreign Language
 
