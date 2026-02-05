@@ -145,11 +145,17 @@ export function RecommendedSchools({
       return;
     }
 
-    // Try to filter existing schools first (OR within groups, AND between groups)
+    // Try to filter existing schools first
+    // Logic: OR within each filter group, AND between groups
+    // - Regions: show if school matches ANY selected region
+    // - Sizes: show if school matches ANY selected size
+    // - Policies: show if school matches ANY selected policy (defaults to "Test Optional" if not set)
     const filteredExisting = initialSchools.filter((school) => {
       const regionMatch = regions.length === 0 || regions.includes(school.region);
       const sizeMatch = sizes.length === 0 || sizes.includes(school.campusSize);
-      const policyMatch = policies.length === 0 || (school.testPolicy && policies.includes(school.testPolicy));
+      // Default to "Test Optional" if school has no policy set
+      const schoolPolicy = school.testPolicy || "Test Optional";
+      const policyMatch = policies.length === 0 || policies.includes(schoolPolicy);
       return regionMatch && sizeMatch && policyMatch;
     });
 
@@ -267,7 +273,7 @@ export function RecommendedSchools({
           {/* Test Policy Checkboxes */}
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-2">
-              Testing Policy (select multiple)
+              Testing Policy (select any that apply)
             </p>
             <div className="flex flex-wrap gap-3">
               {TEST_POLICIES.map((policy) => (
@@ -283,6 +289,9 @@ export function RecommendedSchools({
                 </label>
               ))}
             </div>
+            <p className="text-[10px] text-muted-foreground/70 mt-1.5">
+              Selecting multiple shows schools matching any selected policy
+            </p>
           </div>
 
           {/* Apply Button */}
@@ -437,7 +446,20 @@ export function RecommendedSchools({
   );
 }
 
+function getPolicyBadgeStyle(policy: string) {
+  switch (policy) {
+    case "Test Required":
+      return "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800";
+    case "Test Blind":
+      return "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800";
+    default: // Test Optional
+      return "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800";
+  }
+}
+
 function SchoolCard({ school }: { school: RecommendedSchool }) {
+  const testPolicy = school.testPolicy || "Test Optional";
+
   return (
     <div className="rounded-lg border p-4">
       <div className="flex items-start justify-between gap-3">
@@ -455,6 +477,10 @@ function SchoolCard({ school }: { school: RecommendedSchool }) {
               {getTypeIcon(school.type)}
               <span className="ml-1">{getTypeLabel(school.type)}</span>
             </Badge>
+            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${getPolicyBadgeStyle(testPolicy)}`}>
+              <FileCheck className="h-2.5 w-2.5" />
+              {testPolicy}
+            </span>
           </div>
           <div className="flex items-center gap-3 mb-2 text-xs text-muted-foreground flex-wrap">
             <span className="flex items-center gap-1">
