@@ -46,4 +46,5 @@ export interface FilteredRecommendationsRequest {
   overallScore: number;
   regions: RegionType[];
   sizes: CampusSizeType[];
+  policies: TestPolicyType[];
 }

@@ -34,7 +34,9 @@ export function RigorScorecard({
   schoolSummary,
   transcriptSummary,
 }: RigorScorecardProps) {
-  const overallPercentage = (overallScore / maxScore) * 100;
+  // Cap overall score at maxScore to prevent overflow
+  const cappedOverallScore = Math.min(overallScore, maxScore);
+  const overallPercentage = Math.min((cappedOverallScore / maxScore) * 100, 100);
   const badge = getScoreBadge(overallPercentage);
 
   return (
@@ -50,7 +52,7 @@ export function RigorScorecard({
         <CardContent>
           <div className="flex items-end justify-center gap-2 mb-4">
             <span className={`text-6xl font-bold ${getScoreColor(overallPercentage)}`}>
-              {overallScore}
+              {cappedOverallScore}
             </span>
             <span className="text-2xl text-muted-foreground mb-2">/ {maxScore}</span>
           </div>
@@ -65,13 +67,15 @@ export function RigorScorecard({
         </CardHeader>
         <CardContent className="space-y-4">
           {scores.map((score, index) => {
-            const percentage = (score.score / score.maxScore) * 100;
+            // Cap score at maxScore to prevent overflow
+            const cappedScore = Math.min(score.score, score.maxScore);
+            const percentage = Math.min((cappedScore / score.maxScore) * 100, 100);
             return (
               <div key={index} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">{score.category}</span>
                   <span className={`text-sm font-semibold ${getScoreColor(percentage)}`}>
-                    {score.score}/{score.maxScore}
+                    {cappedScore}/{score.maxScore}
                   </span>
                 </div>
                 <Progress value={percentage} className="h-2" />

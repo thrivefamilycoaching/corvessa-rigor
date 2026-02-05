@@ -175,6 +175,7 @@ export function RecommendedSchools({
         overallScore,
         regions,
         sizes,
+        policies,
       });
       setSchools(newSchools);
       setFiltersApplied(true);

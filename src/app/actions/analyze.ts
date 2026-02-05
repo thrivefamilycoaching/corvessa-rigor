@@ -134,12 +134,25 @@ export async function analyzeDocuments(formData: FormData): Promise<AnalysisResu
 
         For gapAnalysis:
         - First, determine the student's current grade level from their transcript (9th, 10th, 11th, or 12th grade)
-        - Compare what the school offers vs what the student took in each major subject area
-        - IMPORTANT: Only flag courses as "missed" if:
-          * The student was in the appropriate grade level to take the course
-          * Do NOT flag 11th or 12th grade courses as missed for 9th or 10th grade students
-          * Only flag courses the student could have reasonably taken based on their current grade and prerequisites
-        - Identify rigorous courses (AP, IB, Honors) that were available AND grade-appropriate but not taken
+        - For each subject, map the COMPLETE vertical curriculum track from the school profile
+
+        VERTICAL CURRICULUM MAPPING (CRITICAL):
+        - In "offered", list ALL courses in the subject's progression (e.g., Algebra 1 → Geometry → Algebra 2 → Precalculus → Calculus)
+        - Include ALL honors/accelerated/AP variants available at each level
+        - Example for Math: ["Algebra 1", "Honors Algebra 1", "Geometry", "Honors Geometry", "Algebra 2", "Accelerated Algebra 2", "Precalculus", "Honors Precalculus", "Calculus 1", "Advanced Calculus 2", "AP Calculus AB", "AP Calculus BC"]
+
+        PREREQUISITE-AWARE MISSED OPPORTUNITIES (CRITICAL):
+        - Only flag the NEXT logical rigorous step the student could have taken but didn't
+        - If student took "Accelerated Algebra 2", check if "Honors Precalculus" was available - if yes, flag it
+        - Do NOT flag "Advanced Calculus 2" if the student hasn't completed "Calculus 1" yet
+        - Do NOT say "All rigorous options taken" unless the student is at the TOP of the available track
+        - Example: A student in "Accelerated Algebra 2" has NOT taken all rigorous options if the school offers Honors Precalculus, AP Calculus AB, etc.
+
+        GRADE-LEVEL AWARENESS:
+        - Consider what courses the student COULD have taken by their current grade
+        - A 10th grader cannot be penalized for not taking senior-level courses
+        - But a 10th grader CAN be flagged for taking regular Geometry instead of Honors Geometry if available
+
         - Include at least: Math, Science, English, Social Studies, Foreign Language
 
         The narrative should be written in a professional tone suitable for a counselor letter,
@@ -202,6 +215,11 @@ export async function getFilteredRecommendations(
     ? `IMPORTANT: Only recommend schools with these enrollment sizes: ${request.sizes.map(s => `${s} (${sizeDescriptions[s]})`).join(" OR ")}. Do NOT include schools outside these size ranges.`
     : "Include a mix of Micro, Small, Medium, Large, and Mega schools.";
 
+  // Build policy constraint (OR logic within policies, but STRICT matching)
+  const policyConstraint = request.policies.length > 0 && request.policies.length < 3
+    ? `STRICT REQUIREMENT: Only recommend schools with these testing policies: ${request.policies.join(" OR ")}. Do NOT include schools with other testing policies. For example, if "Test Required" is specified, do NOT include Test Optional or Test Blind schools.`
+    : "Include schools with various testing policies (Test Optional, Test Required, Test Blind).";
+
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
     messages: [
@@ -246,6 +264,7 @@ SIZE DEFINITIONS:
 
 ${regionConstraint}
 ${sizeConstraint}
+${policyConstraint}
 
 Include a mix of reach (3), match (4), and safety (3) schools.
 Base recommendations on schools that value rigorous academic preparation.`,
