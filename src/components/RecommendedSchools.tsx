@@ -71,37 +71,78 @@ function formatEnrollment(enrollment: number): string {
 }
 
 /**
- * STRICT: Odds dictate category. No school is ever promoted to a higher
- * category than its odds allow. Backfill can only demote, never promote.
+ * MANDATORY 3-4-3 balanced list.
  *
- *   Reach:  odds < 25%
- *   Match:  odds 25–60%
- *   Safety: odds > 60%
+ * HARD RULE: Schools with odds < 25% are LOCKED as Reach — they can never
+ * be promoted to Match or Safety. This covers all sub-15% admit rate schools
+ * and Top 30 elites (the server caps their odds below 25%).
  *
- * Schools are grouped by their odds-based category, then sorted within
- * each group. No 3/4/3 forcing — the numbers are what the numbers are.
+ * Filling order: Reach first (3), then Match (4), then Safety (3).
+ * Demotion is allowed (Safety → Match, Match → Reach) to fill quotas.
+ * Promotion is NEVER allowed for locked Reach schools.
  */
 function balanceSchools(schools: RecommendedSchool[]): RecommendedSchool[] {
-  // STRICT re-categorize: odds alone decide category, no overrides
-  const categorized = schools.map((s) => {
-    const prob = Math.max(1, Math.min(95, s.acceptanceProbability ?? 50));
-    let type: "reach" | "match" | "safety";
-    if (prob > 60) type = "safety";
-    else if (prob >= 25) type = "match";
-    else type = "reach";
-    return { ...s, type, acceptanceProbability: prob };
-  });
+  const all = schools.map((s) => ({
+    ...s,
+    acceptanceProbability: Math.max(1, Math.min(95, s.acceptanceProbability ?? 50)),
+  }));
 
-  const reach = categorized
-    .filter((s) => s.type === "reach")
-    .sort((a, b) => (a.acceptanceProbability ?? 0) - (b.acceptanceProbability ?? 0));
-  const match = categorized
-    .filter((s) => s.type === "match")
-    .sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
-  const safety = categorized
-    .filter((s) => s.type === "safety")
-    .sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
+  // Sort ascending by odds (lowest first)
+  all.sort((a, b) => a.acceptanceProbability - b.acceptanceProbability);
 
+  // Locked Reach: odds < 25% — CANNOT be promoted, ever
+  const lockedReach = all.filter((s) => s.acceptanceProbability < 25);
+  // Flexible: odds >= 25% — can be assigned to Match or Safety
+  const flexible = all.filter((s) => s.acceptanceProbability >= 25);
+  // Sort flexible ascending by odds
+  flexible.sort((a, b) => a.acceptanceProbability - b.acceptanceProbability);
+
+  const reach: RecommendedSchool[] = [];
+  const match: RecommendedSchool[] = [];
+  const safety: RecommendedSchool[] = [];
+
+  // ── Step 1: Fill Reach (target 3) ──
+  // All locked reach schools go here first
+  for (const s of lockedReach) {
+    reach.push({ ...s, type: "reach" });
+  }
+  // If we still need more reach, demote lowest-odds flexible schools
+  while (reach.length < 3 && flexible.length > 0) {
+    const next = flexible.shift()!;
+    reach.push({ ...next, type: "reach" });
+  }
+
+  // ── Step 2: Fill Safety (target 3) from highest-odds flexible ──
+  const flexDescending = [...flexible].reverse();
+  const safetyNames = new Set<string>();
+  for (const s of flexDescending) {
+    if (safety.length >= 3) break;
+    safety.push({ ...s, type: "safety" });
+    safetyNames.add(s.name);
+  }
+
+  // ── Step 3: Fill Match (target 4) from remaining flexible ──
+  const remaining = flexible.filter((s) => !safetyNames.has(s.name));
+  for (const s of remaining) {
+    if (match.length >= 4) break;
+    match.push({ ...s, type: "match" });
+  }
+
+  // ── Step 4: Handle any leftover (more than 10 schools, or unplaced) ──
+  const usedNames = new Set([...reach, ...match, ...safety].map((s) => s.name));
+  const leftover = all.filter((s) => !usedNames.has(s.name));
+  for (const s of leftover) {
+    if (match.length < 4) match.push({ ...s, type: "match" });
+    else if (safety.length < 3) safety.push({ ...s, type: "safety" });
+    else reach.push({ ...s, type: "reach" });
+  }
+
+  // Sort within each bucket
+  reach.sort((a, b) => (a.acceptanceProbability ?? 0) - (b.acceptanceProbability ?? 0));
+  match.sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
+  safety.sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
+
+  // Display order: Reach → Match → Safety
   return [...reach, ...match, ...safety];
 }
 
