@@ -42,7 +42,7 @@ export async function getFilteredRecommendations(
     messages: [
       {
         role: "system",
-        content: `You are an expert college admissions counselor. Based on a student's profile, recommend 8-10 colleges.
+        content: `You are an expert college admissions counselor. Based on a student's profile, recommend EXACTLY 10 colleges.
 
 Return ONLY a JSON object with this structure:
 {
@@ -65,7 +65,10 @@ ACCEPTANCE PROBABILITY:
 - Calculate an exact percentage for each school (integer, e.g., 62)
 - Weigh GPA, rigor score, and test scores against each school's freshman profile
 - Cap at 95% maximum, floor at 1% for Ivy-plus/ultra-selective schools
-- Reach: typically 5-25%, Match: 30-65%, Safety: 65-95%
+- CATEGORY THRESHOLDS (use acceptanceProbability to assign type):
+  * Reach: acceptanceProbability < 40%
+  * Match: acceptanceProbability 40%-70%
+  * Safety: acceptanceProbability > 70%
 
 TEST POLICY DEFINITIONS:
 - Test Optional: SAT/ACT scores considered if submitted but not required
@@ -99,7 +102,8 @@ TEST SCORE WEIGHTING:
 - For Test Required schools, weight test scores MORE heavily in categorization
 - For Test Optional/Blind schools, weight course rigor MORE heavily
 
-Include a mix of reach (3), match (4), and safety (3) schools.
+You MUST return EXACTLY 10 schools. No more, no fewer.
+Categorize by acceptanceProbability: Safety (>70%), Match (40-70%), Reach (<40%). Distribution: 3 Safety, 4 Match, 3 Reach. No exceptions.
 Base recommendations on schools that value rigorous academic preparation.`,
       },
       {

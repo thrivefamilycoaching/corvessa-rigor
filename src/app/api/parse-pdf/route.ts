@@ -118,13 +118,17 @@ export async function POST(request: NextRequest) {
         }
 
         RECALCULATED ACADEMIC CORE GPA (CRITICAL):
+        USE ONLY THESE DETERMINISTIC MAPPINGS — do not interpolate or estimate.
+        NEVER use the school-reported GPA — always recalculate from raw grades.
         - Extract raw grades from the transcript for these academic core subjects ONLY:
           * Math (Algebra, Geometry, Precalculus, Calculus, Statistics, etc.)
           * Science (Biology, Chemistry, Physics, Environmental Science, etc.)
           * English (English 9-12, Literature, Composition, etc.)
           * Social Studies (History, Government, Economics, Psychology, etc.)
           * World Languages (Spanish, French, Latin, Mandarin, etc.)
+        - EXCLUDE: PE, Health, Art, Music, Drama, Technology, Study Hall, Advisory, and all other non-academic electives
         - Convert letter grades to the standard 4.0 scale: A=4.0, A-=3.7, B+=3.3, B=3.0, B-=2.7, C+=2.3, C=2.0, C-=1.7, D+=1.3, D=1.0, F=0.0
+        - If the transcript uses percentage grades instead of letters, convert first: 90-100=A, 80-89=B, 70-79=C, 60-69=D, <60=F
         - Apply college weighting: add +0.5 for Honors courses, add +1.0 for AP/IB/Advanced courses
         - Calculate the weighted average across all academic core courses
         - Report the result rounded to 2 decimal places (e.g., 3.85, 4.23)
@@ -147,8 +151,9 @@ export async function POST(request: NextRequest) {
 
         For recommendedSchools:
         - Conduct a NATIONAL search across the entire United States - do NOT limit to any single state or region
-        - Suggest 8-10 colleges that specifically value independent school rigor and challenging curricula
-        - Include a mix of reach (3), match (4), and safety (3) schools
+        - You MUST return EXACTLY 10 schools. No more, no fewer.
+        - Categorize by acceptanceProbability: Safety (>70%), Match (40-70%), Reach (<40%). Distribution: 3 Safety, 4 Match, 3 Reach. No exceptions.
+        - Specifically value independent school rigor and challenging curricula
         - Include "testPolicy" for each school: "Test Optional", "Test Required", or "Test Blind"
           * Test Optional: SAT/ACT scores considered if submitted but not required
           * Test Required: SAT/ACT scores mandatory for all applicants
@@ -187,7 +192,10 @@ export async function POST(request: NextRequest) {
         - For Test Optional/Blind schools: weight GPA and rigor MORE heavily
         - HARD CAP: Maximum 95% (never guarantee admission, even for safeties)
         - HARD FLOOR: Minimum 1% for Ivy-plus and ultra-selective reaches (sub-10% acceptance rate schools)
-        - Typical ranges: Reach schools 5-25%, Match schools 30-65%, Safety schools 65-95%
+        - CATEGORY THRESHOLDS (use acceptanceProbability to assign type):
+          * Reach: acceptanceProbability < 40%
+          * Match: acceptanceProbability 40%-70%
+          * Safety: acceptanceProbability > 70%
         - Be precise — output an integer like 62, not a range
 
         TEST SCORE INTEGRATION (when provided):
@@ -266,7 +274,7 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
         },
       ],
       response_format: { type: "json_object" },
-      temperature: 0.7,
+      temperature: 0.3,
     });
 
     const content = response.choices[0]?.message?.content;

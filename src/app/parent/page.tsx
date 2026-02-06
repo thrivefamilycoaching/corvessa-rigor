@@ -13,6 +13,7 @@ import {
   AlertCircle,
   ClipboardList,
   Shield,
+  ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AnalysisResult } from "@/lib/types";
@@ -20,6 +21,7 @@ import { RigorScorecard } from "@/components/RigorScorecard";
 import { RecommendedSchools } from "@/components/RecommendedSchools";
 import { GapAnalysis } from "@/components/GapAnalysis";
 import { ReportExport } from "@/components/ReportExport";
+import Link from "next/link";
 
 interface TestScores {
   satReading: string;
@@ -132,6 +134,11 @@ export default function CollegeCoPilot() {
           <div className="mt-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs text-muted-foreground">
             <Shield className="h-3 w-3" />
             Private Mode — Your data is never shared
+          </div>
+          <div className="mt-2">
+            <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors">
+              View Counselor Dashboard <ArrowRight className="h-3 w-3" />
+            </Link>
           </div>
         </div>
 

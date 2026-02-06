@@ -12,9 +12,11 @@ import {
   X,
   AlertCircle,
   ClipboardList,
+  ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AnalysisResult } from "@/lib/types";
+import Link from "next/link";
 import { RigorScorecard } from "@/components/RigorScorecard";
 import { CounselorNarrative } from "@/components/CounselorNarrative";
 import { RecommendedSchools } from "@/components/RecommendedSchools";
@@ -131,6 +133,11 @@ export default function CounselorCoPilot() {
             Upload a school profile and student transcript to analyze course rigor,
             discover recommended colleges, and generate a professional counselor narrative.
           </p>
+          <div className="mt-2">
+            <Link href="/parent" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors">
+              View Parent Portal <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
         </div>
 
         {/* Upload Section */}
