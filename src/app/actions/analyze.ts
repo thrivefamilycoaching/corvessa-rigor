@@ -6,6 +6,7 @@ import type {
   RecommendedSchool,
   FilteredRecommendationsRequest,
 } from "@/lib/types";
+import { enrichSchoolsWithScorecardData } from "@/lib/scorecard";
 
 export async function getFilteredRecommendations(
   request: FilteredRecommendationsRequest
@@ -130,7 +131,14 @@ Provide college recommendations matching the specified filters. Include an exact
 
   try {
     const result = JSON.parse(content) as { schools: RecommendedSchool[] };
-    return result.schools;
+
+    // Enrich with real Scorecard API data
+    const enriched = await enrichSchoolsWithScorecardData(
+      result.schools,
+      request.testScores
+    );
+
+    return enriched;
   } catch {
     throw new Error("Failed to parse recommendations");
   }

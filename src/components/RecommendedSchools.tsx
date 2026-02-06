@@ -27,6 +27,7 @@ interface RecommendedSchoolsProps {
   schoolProfileSummary: string;
   overallScore: number;
   recalculatedGPA?: number;
+  testScores?: TestScores;
 }
 
 function getTypeIcon(type: RecommendedSchool["type"]) {
@@ -137,6 +138,7 @@ export function RecommendedSchools({
   schoolProfileSummary,
   overallScore,
   recalculatedGPA,
+  testScores,
 }: RecommendedSchoolsProps) {
   const [schools, setSchools] = useState<RecommendedSchool[]>(() => balanceSchools(initialSchools));
   const [selectedRegions, setSelectedRegions] = useState<RegionType[]>([]);
@@ -257,6 +259,7 @@ export function RecommendedSchools({
         regions,
         sizes,
         policies,
+        testScores,
       });
       setSchools(balanceSchools(newSchools));
       setFiltersApplied(true);

@@ -3,6 +3,7 @@ import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import type { AnalysisResult, TestScores } from "@/lib/types";
+import { enrichSchoolsWithScorecardData } from "@/lib/scorecard";
 
 // Resolve worker path via Next.js optimized URL constructor
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -296,6 +297,13 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
     }
 
     const analysis = JSON.parse(content) as AnalysisResult;
+
+    // Enrich school recommendations with real Scorecard API data
+    analysis.recommendedSchools = await enrichSchoolsWithScorecardData(
+      analysis.recommendedSchools,
+      testScores
+    );
+
     return NextResponse.json(analysis);
   } catch (error) {
     console.error("Analysis error:", error);

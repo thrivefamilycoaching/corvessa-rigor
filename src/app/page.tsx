@@ -382,6 +382,11 @@ export default function CounselorCoPilot() {
                   schoolProfileSummary={result.schoolProfileSummary}
                   overallScore={result.scorecard.overallScore}
                   recalculatedGPA={result.recalculatedGPA}
+                  testScores={{
+                    satReading: testScores.satReading ? parseInt(testScores.satReading) : undefined,
+                    satMath: testScores.satMath ? parseInt(testScores.satMath) : undefined,
+                    actComposite: testScores.actComposite ? parseInt(testScores.actComposite) : undefined,
+                  }}
                 />
               </div>
             )}
