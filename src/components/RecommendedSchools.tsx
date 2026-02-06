@@ -71,17 +71,19 @@ function formatEnrollment(enrollment: number): string {
 }
 
 /**
- * Re-categorize schools based on acceptanceProbability thresholds:
- *   Safety: > 70%
- *   Match:  40%-70%
- *   Reach:  < 40%
- * Then enforce exactly 3 Safety, 4 Match, 3 Reach (10 total).
- * If a bucket overflows, excess schools spill into the adjacent bucket.
+ * STRICT: Odds dictate category. No school is ever promoted to a higher
+ * category than its odds allow. Backfill can only demote, never promote.
+ *
+ *   Reach:  odds < 25%
+ *   Match:  odds 25–60%
+ *   Safety: odds > 60%
+ *
+ * Schools are grouped by their odds-based category, then sorted within
+ * each group. No 3/4/3 forcing — the numbers are what the numbers are.
  */
 function balanceSchools(schools: RecommendedSchool[]): RecommendedSchool[] {
-  // Step 1: Re-categorize every school — ODDS DICTATE CATEGORY
-  // Reach: < 25%  |  Match: 25–60%  |  Safety: > 60%
-  const recategorized = schools.map((s) => {
+  // STRICT re-categorize: odds alone decide category, no overrides
+  const categorized = schools.map((s) => {
     const prob = Math.max(1, Math.min(95, s.acceptanceProbability ?? 50));
     let type: "reach" | "match" | "safety";
     if (prob > 60) type = "safety";
@@ -90,45 +92,15 @@ function balanceSchools(schools: RecommendedSchool[]): RecommendedSchool[] {
     return { ...s, type, acceptanceProbability: prob };
   });
 
-  // Sort descending by probability
-  recategorized.sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
-
-  const safetyPool = recategorized.filter((s) => s.type === "safety");
-  const matchPool = recategorized.filter((s) => s.type === "match");
-  const reachPool = recategorized.filter((s) => s.type === "reach");
-
-  const TARGET_SAFETY = 3;
-  const TARGET_MATCH = 4;
-  const TARGET_REACH = 3;
-
-  const safety: RecommendedSchool[] = safetyPool.slice(0, TARGET_SAFETY);
-  const match: RecommendedSchool[] = matchPool.slice(0, TARGET_MATCH);
-  const reach: RecommendedSchool[] = reachPool.slice(0, TARGET_REACH);
-
-  // Step 2: Backfill any bucket that's short
-  const used = new Set([...safety, ...match, ...reach].map((s) => s.name));
-  const remaining = recategorized.filter((s) => !used.has(s.name));
-
-  // Backfill safety from overflow match (highest prob first)
-  while (safety.length < TARGET_SAFETY && remaining.length > 0) {
-    const next = remaining.shift()!;
-    safety.push({ ...next, type: "safety" });
-  }
-  // Backfill match from remaining
-  while (match.length < TARGET_MATCH && remaining.length > 0) {
-    const next = remaining.shift()!;
-    match.push({ ...next, type: "match" });
-  }
-  // Backfill reach from remaining (lowest prob first)
-  while (reach.length < TARGET_REACH && remaining.length > 0) {
-    const next = remaining.pop()!;
-    reach.push({ ...next, type: "reach" });
-  }
-
-  // Sort each bucket: safety desc, match desc, reach asc (lowest prob first)
-  safety.sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
-  match.sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
-  reach.sort((a, b) => (a.acceptanceProbability ?? 0) - (b.acceptanceProbability ?? 0));
+  const reach = categorized
+    .filter((s) => s.type === "reach")
+    .sort((a, b) => (a.acceptanceProbability ?? 0) - (b.acceptanceProbability ?? 0));
+  const match = categorized
+    .filter((s) => s.type === "match")
+    .sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
+  const safety = categorized
+    .filter((s) => s.type === "safety")
+    .sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
 
   return [...reach, ...match, ...safety];
 }
