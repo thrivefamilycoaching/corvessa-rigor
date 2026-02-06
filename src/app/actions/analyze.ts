@@ -12,8 +12,11 @@ import type {
   TestScores,
 } from "@/lib/types";
 
-// Use the official Unpkg CDN worker matching the installed pdfjs-dist version
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// Resolve worker path via URL constructor so Next.js bundles it correctly
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
+  import.meta.url
+).toString();
 
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   try {

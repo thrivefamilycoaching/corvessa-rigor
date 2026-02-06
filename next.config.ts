@@ -2,8 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
-  serverExternalPackages: ["pdf-parse", "@napi-rs/canvas", "canvas"],
-  transpilePackages: ["pdfjs-dist"],
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "@napi-rs/canvas", "canvas"],
   turbopack: {},
   webpack: (config, { isServer }) => {
     config.module.rules.push({
