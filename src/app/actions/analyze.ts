@@ -161,6 +161,8 @@ Provide college recommendations matching the specified filters. Include an exact
       studentProfile,
       openai,
       studentDesc,
+      2,
+      { sizes: request.sizes, policies: request.policies },
     );
   } catch {
     throw new Error("Failed to parse recommendations");

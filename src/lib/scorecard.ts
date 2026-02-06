@@ -1,5 +1,58 @@
-import type { RecommendedSchool, TestScores } from "@/lib/types";
+import type { RecommendedSchool, TestScores, CampusSizeType, TestPolicyType } from "@/lib/types";
+import { isTestRequiredSchool } from "@/lib/constants";
 import OpenAI from "openai";
+
+// ── Filter Constraints ──────────────────────────────────────────────────────
+// Hard MUST conditions — schools that fail are discarded before categorization.
+
+export interface FilterConstraints {
+  sizes: CampusSizeType[];
+  policies: TestPolicyType[];
+}
+
+const SIZE_RANGES: Record<CampusSizeType, [number, number]> = {
+  Micro: [0, 2000],
+  Small: [2000, 5000],
+  Medium: [5000, 15000],
+  Large: [15000, 30000],
+  Mega: [30000, Infinity],
+};
+
+export function getEnrollmentSize(enrollment: number): CampusSizeType {
+  if (enrollment < 2000) return "Micro";
+  if (enrollment <= 5000) return "Small";
+  if (enrollment <= 15000) return "Medium";
+  if (enrollment <= 30000) return "Large";
+  return "Mega";
+}
+
+function matchesSizeFilter(enrollment: number, allowedSizes: CampusSizeType[]): boolean {
+  if (allowedSizes.length === 0) return true;
+  const actualSize = getEnrollmentSize(enrollment);
+  return allowedSizes.includes(actualSize);
+}
+
+function matchesPolicyFilter(schoolName: string, schoolPolicy: TestPolicyType | undefined, allowedPolicies: TestPolicyType[]): boolean {
+  if (allowedPolicies.length === 0) return true;
+  const effectivePolicy: TestPolicyType = isTestRequiredSchool(schoolName)
+    ? "Test Required"
+    : (schoolPolicy || "Test Optional");
+  return allowedPolicies.includes(effectivePolicy);
+}
+
+function applyHardFilters(schools: RecommendedSchool[], filters?: FilterConstraints): RecommendedSchool[] {
+  if (!filters || (filters.sizes.length === 0 && filters.policies.length === 0)) {
+    return schools;
+  }
+  return schools.filter((s) => {
+    const sizeOk = matchesSizeFilter(s.enrollment, filters.sizes);
+    const policyOk = matchesPolicyFilter(s.name, s.testPolicy, filters.policies);
+    if (!sizeOk || !policyOk) {
+      console.log(`[Filter] DISCARDED ${s.name}: enrollment=${s.enrollment} size=${getEnrollmentSize(s.enrollment)} policy=${s.testPolicy} — does not match filters`);
+    }
+    return sizeOk && policyOk;
+  });
+}
 
 // ── Student profile for personalized probability ─────────────────────────────
 
@@ -416,7 +469,8 @@ async function fetchFillSchools(
   openai: OpenAI,
   gaps: ReturnType<typeof get343Gaps>,
   studentDesc: string,
-  excludeNames: string[]
+  excludeNames: string[],
+  filters?: FilterConstraints
 ): Promise<RecommendedSchool[]> {
   const needs: string[] = [];
   if (gaps.needMatch > 0) {
@@ -436,6 +490,19 @@ async function fetchFillSchools(
   }
   if (needs.length === 0) return [];
 
+  // Build hard filter constraints for the GPT prompt
+  const filterLines: string[] = [];
+  if (filters?.sizes && filters.sizes.length > 0) {
+    const sizeDescs = filters.sizes.map((s) => {
+      const [min, max] = SIZE_RANGES[s];
+      return `${s} (${min.toLocaleString()}–${max === Infinity ? "∞" : max.toLocaleString()} students)`;
+    });
+    filterLines.push(`MANDATORY SIZE FILTER: Only recommend schools with enrollment in these ranges: ${sizeDescs.join(" OR ")}. Do NOT include schools outside these sizes.`);
+  }
+  if (filters?.policies && filters.policies.length > 0) {
+    filterLines.push(`MANDATORY POLICY FILTER: Only recommend schools with these testing policies: ${filters.policies.join(" OR ")}. Do NOT include schools with other policies.`);
+  }
+
   const totalNeeded =
     (gaps.needMatch > 0 ? gaps.needMatch + 2 : 0) +
     (gaps.needSafety > 0 ? gaps.needSafety + 2 : 0) +
@@ -454,9 +521,11 @@ Return a JSON object:
 
 REQUIREMENTS:
 ${needs.map((n) => `- ${n}`).join("\n")}
+${filterLines.length > 0 ? "\n" + filterLines.join("\n") : ""}
 
 DO NOT include ANY of these already-selected schools: ${excludeNames.join(", ")}
-Pick schools where the acceptance rate is the REAL published acceptance rate. Be accurate.`,
+Pick schools where the acceptance rate is the REAL published acceptance rate. Be accurate.
+The "enrollment" field MUST be the actual undergraduate enrollment number for that school.`,
         },
         {
           role: "user",
@@ -578,10 +647,17 @@ export async function enforce343Distribution(
   student: StudentProfile,
   openai: OpenAI,
   studentDescription: string,
-  maxRetries: number = 2
+  maxRetries: number = 2,
+  filters?: FilterConstraints
 ): Promise<RecommendedSchool[]> {
   // Step 1: Enrich initial schools with Scorecard data
   let allEnriched = await enrichSchoolsWithScorecardData(initialSchools, student);
+
+  // Step 1b: Apply hard filter constraints — discard BEFORE categorization
+  allEnriched = applyHardFilters(allEnriched, filters);
+  console.log(
+    `[343] After hard filters: ${allEnriched.length} schools remain`
+  );
 
   // Step 2: Check 3-4-3 distribution
   let gaps = get343Gaps(allEnriched);
@@ -593,7 +669,7 @@ export async function enforce343Distribution(
     return pick343(allEnriched);
   }
 
-  // Step 3: Fill missing slots with targeted GPT calls
+  // Step 3: Fill missing slots with targeted GPT calls (filter-aware)
   for (let attempt = 0; attempt < maxRetries && !gaps.isValid; attempt++) {
     const excludeNames = allEnriched.map((s) => s.name);
     console.log(
@@ -604,14 +680,17 @@ export async function enforce343Distribution(
       openai,
       gaps,
       studentDescription,
-      excludeNames
+      excludeNames,
+      filters
     );
     if (fillSchools.length === 0) {
       console.log("[343] No fill schools returned — stopping retries");
       break;
     }
 
-    const enrichedFill = await enrichSchoolsWithScorecardData(fillSchools, student);
+    // Enrich fill schools, then apply hard filters to them too
+    let enrichedFill = await enrichSchoolsWithScorecardData(fillSchools, student);
+    enrichedFill = applyHardFilters(enrichedFill, filters);
     allEnriched = [...allEnriched, ...enrichedFill];
 
     // Deduplicate by name (case-insensitive)
@@ -629,6 +708,6 @@ export async function enforce343Distribution(
     );
   }
 
-  // Step 4: Pick best 3-4-3 from expanded pool
+  // Step 4: Pick best from pool (may be < 10 if filters are narrow)
   return pick343(allEnriched);
 }

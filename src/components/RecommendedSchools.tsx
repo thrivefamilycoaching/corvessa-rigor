@@ -253,14 +253,22 @@ export function RecommendedSchools({
 
     // Try to filter existing schools first
     // Logic: OR within each filter group, AND between groups
-    // - Regions: show if school matches ANY selected region
-    // - Sizes: show if school matches ANY selected size
-    // - Policies: show if school matches ANY selected policy
+    // Size check uses ENROLLMENT NUMBER (hard validation), not GPT label
     const filteredExisting = initialSchools.filter((school) => {
       const regionMatch = regions.length === 0 || regions.includes(school.region);
-      const sizeMatch = sizes.length === 0 || sizes.includes(school.campusSize);
+      // Enrollment-based size validation
+      const sizeMatch = sizes.length === 0 || sizes.some((size) => {
+        const enrollment = school.enrollment ?? 0;
+        switch (size) {
+          case "Micro": return enrollment < 2000;
+          case "Small": return enrollment >= 2000 && enrollment <= 5000;
+          case "Medium": return enrollment > 5000 && enrollment <= 15000;
+          case "Large": return enrollment > 15000 && enrollment <= 30000;
+          case "Mega": return enrollment > 30000;
+          default: return false;
+        }
+      });
       // Use hard-coded override for known Test Required schools
-      // Otherwise use GPT-provided policy, defaulting to "Test Optional"
       const schoolPolicy: TestPolicyType = isTestRequiredSchool(school.name)
         ? "Test Required"
         : (school.testPolicy || "Test Optional");
@@ -334,11 +342,13 @@ export function RecommendedSchools({
   const matchSchools = schools.filter((s) => s.type === "match");
   const safetySchools = schools.filter((s) => s.type === "safety");
 
-  // UI verification: prevent render unless exact 3-4-3
+  // UI verification: 3-4-3 required when unfiltered; partial results OK when filters are active
   const is343Valid =
     reachSchools.length === 3 &&
     matchSchools.length === 4 &&
     safetySchools.length === 3;
+  const hasActiveFilters = selectedRegions.length > 0 || selectedSizes.length > 0 || selectedPolicies.length > 0;
+  const showLimitedWarning = !is343Valid && hasActiveFilters && schools.length > 0;
 
   return (
     <Card>
@@ -533,7 +543,7 @@ export function RecommendedSchools({
               No schools match the selected filters. Try adjusting your criteria.
             </p>
           </div>
-        ) : !is343Valid ? (
+        ) : !is343Valid && !hasActiveFilters ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <GraduationCap className="h-8 w-8 text-amber-500 mb-3" />
             <p className="text-sm text-muted-foreground">
@@ -544,6 +554,16 @@ export function RecommendedSchools({
           </div>
         ) : (
           <>
+            {/* Limited results warning when filters narrow the pool */}
+            {showLimitedWarning && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 p-3 mb-4">
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  Limited results found for your specific size/policy filters ({schools.length} schools).
+                  Try broadening your filters for a full 3/4/3 recommendation list.
+                </p>
+              </div>
+            )}
+
             {/* Reach Schools */}
             {reachSchools.length > 0 && (
               <div>
