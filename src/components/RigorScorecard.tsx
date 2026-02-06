@@ -11,6 +11,7 @@ interface RigorScorecardProps {
   scores: RigorScore[];
   schoolSummary: string;
   transcriptSummary: string;
+  recalculatedGPA?: number;
 }
 
 function getScoreColor(percentage: number): string {
@@ -27,12 +28,19 @@ function getScoreBadge(percentage: number): { label: string; variant: "default" 
   return { label: "Needs Improvement", variant: "destructive" };
 }
 
+function getGPAColor(gpa: number): string {
+  if (gpa >= 3.7) return "text-green-600 dark:text-green-400";
+  if (gpa >= 3.0) return "text-yellow-600 dark:text-yellow-400";
+  return "text-red-600 dark:text-red-400";
+}
+
 export function RigorScorecard({
   overallScore,
   maxScore,
   scores,
   schoolSummary,
   transcriptSummary,
+  recalculatedGPA,
 }: RigorScorecardProps) {
   // Cap overall score at maxScore to prevent overflow
   const cappedOverallScore = Math.min(overallScore, maxScore);
@@ -59,6 +67,30 @@ export function RigorScorecard({
           <Progress value={overallPercentage} className="h-3" />
         </CardContent>
       </Card>
+
+      {/* Recalculated Core GPA Badge */}
+      {recalculatedGPA != null && (
+        <Card className="border-2 border-primary/30 bg-primary/5">
+          <CardContent className="py-6">
+            <div className="flex items-center justify-center gap-4">
+              <div className="text-center">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                  Recalculated Core GPA
+                </p>
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className={`text-5xl font-bold ${getGPAColor(recalculatedGPA)}`}>
+                    {recalculatedGPA.toFixed(2)}
+                  </span>
+                  <span className="text-lg text-muted-foreground">/ 4.0</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Weighted — Academic Core Only (Math, Science, English, Social Studies, World Languages)
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Category Breakdown */}
       <Card>

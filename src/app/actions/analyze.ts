@@ -8,6 +8,7 @@ import type {
   RecommendedSchool,
   AnalysisResult,
   FilteredRecommendationsRequest,
+  TestScores,
 } from "@/lib/types";
 
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
@@ -29,6 +30,16 @@ export async function analyzeDocuments(formData: FormData): Promise<AnalysisResu
   if (!schoolProfileFile || !transcriptFile) {
     throw new Error("Both School Profile and Student Transcript are required");
   }
+
+  // Extract test scores from formData
+  const testScores: TestScores = {};
+  const satReading = formData.get("satReading");
+  const satMath = formData.get("satMath");
+  const actComposite = formData.get("actComposite");
+
+  if (satReading) testScores.satReading = parseInt(satReading as string);
+  if (satMath) testScores.satMath = parseInt(satMath as string);
+  if (actComposite) testScores.actComposite = parseInt(actComposite as string);
 
   // Extract text from PDFs
   const schoolProfileBuffer = Buffer.from(await schoolProfileFile.arrayBuffer());
@@ -67,6 +78,7 @@ export async function analyzeDocuments(formData: FormData): Promise<AnalysisResu
               }
             ]
           },
+          "recalculatedGPA": <number on 4.0 scale, up to 5.0 with weighting>,
           "narrative": "<A detailed 2-3 paragraph counselor narrative suitable for college applications>",
           "schoolProfileSummary": "<Brief summary of the school's offerings>",
           "transcriptSummary": "<Brief summary of the student's course history>",
@@ -79,6 +91,7 @@ export async function analyzeDocuments(formData: FormData): Promise<AnalysisResu
               "campusSize": "<Micro|Small|Medium|Large|Mega>",
               "enrollment": <approximate undergraduate enrollment number>,
               "testPolicy": "<Test Optional|Test Required|Test Blind>",
+              "acceptanceProbability": <number 1-95, exact percentage likelihood of acceptance>,
               "matchReasoning": "<2-3 sentence explanation connecting the school's specific academic strengths to the student's transcript>"
             }
           ],
@@ -92,6 +105,19 @@ export async function analyzeDocuments(formData: FormData): Promise<AnalysisResu
           ],
           "studentGradeLevel": "<9th|10th|11th|12th - the student's current grade level>"
         }
+
+        RECALCULATED ACADEMIC CORE GPA (CRITICAL):
+        - Extract raw grades from the transcript for these academic core subjects ONLY:
+          * Math (Algebra, Geometry, Precalculus, Calculus, Statistics, etc.)
+          * Science (Biology, Chemistry, Physics, Environmental Science, etc.)
+          * English (English 9-12, Literature, Composition, etc.)
+          * Social Studies (History, Government, Economics, Psychology, etc.)
+          * World Languages (Spanish, French, Latin, Mandarin, etc.)
+        - Convert letter grades to the standard 4.0 scale: A=4.0, A-=3.7, B+=3.3, B=3.0, B-=2.7, C+=2.3, C=2.0, C-=1.7, D+=1.3, D=1.0, F=0.0
+        - Apply college weighting: add +0.5 for Honors courses, add +1.0 for AP/IB/Advanced courses
+        - Calculate the weighted average across all academic core courses
+        - Report the result rounded to 2 decimal places (e.g., 3.85, 4.23)
+        - If grades cannot be extracted from the transcript, estimate based on course performance indicators
 
         Categories to evaluate for scorecard:
         1. AP/IB Course Load (0-25): How many advanced courses relative to availability
@@ -140,6 +166,29 @@ export async function analyzeDocuments(formData: FormData): Promise<AnalysisResu
         - Connect to evidence from the student's course selections (e.g., "Your strong STEM course load aligns with Georgia Tech's renowned engineering program")
         - For independent/prep school students, mention schools known to value rigorous secondary preparation
 
+        ACCEPTANCE PROBABILITY ENGINE (CRITICAL):
+        - For EACH recommended school, calculate an exact percentage likelihood of acceptance (acceptanceProbability)
+        - Formula weights:
+          * Recalculated GPA vs. school's median freshman GPA (primary factor — 77% of colleges prioritize grades)
+          * Rigor Score / 100 (secondary factor — 64% of colleges prioritize curriculum strength)
+          * SAT/ACT scores vs. school's middle 50% range (when provided)
+        - For Test Required schools: weight test scores MORE heavily
+        - For Test Optional/Blind schools: weight GPA and rigor MORE heavily
+        - HARD CAP: Maximum 95% (never guarantee admission, even for safeties)
+        - HARD FLOOR: Minimum 1% for Ivy-plus and ultra-selective reaches (sub-10% acceptance rate schools)
+        - Typical ranges: Reach schools 5-25%, Match schools 30-65%, Safety schools 65-95%
+        - Be precise — output an integer like 62, not a range
+
+        TEST SCORE INTEGRATION (when provided):
+        - If SAT or ACT scores are provided, use them to refine reach/match/safety categorization AND acceptance probability
+        - SAT Total 1500+ or ACT 34+: Student is competitive at highly selective schools
+        - SAT Total 1400-1499 or ACT 31-33: Student is competitive at very selective schools
+        - SAT Total 1300-1399 or ACT 28-30: Student is competitive at selective schools
+        - SAT Total 1200-1299 or ACT 24-27: Student is competitive at moderately selective schools
+        - Below these thresholds: Focus recommendations on schools where student's rigor can shine without test score emphasis
+        - For Test Required schools, weight test scores MORE heavily in reach/match/safety determination
+        - For Test Optional/Blind schools, weight course rigor MORE heavily
+
         For gapAnalysis:
         - First, determine the student's current grade level from their transcript (9th, 10th, 11th, or 12th grade)
         - For each subject, map the COMPLETE vertical curriculum track from the school profile
@@ -162,9 +211,11 @@ export async function analyzeDocuments(formData: FormData): Promise<AnalysisResu
         - If student completed "Honors Precalculus" and school offers "AP Calculus AB" → flag "AP Calculus AB"
 
         Rule 3 - NEVER SAY "All rigorous options taken" UNLESS:
-        - Student is taking the HIGHEST level course available in that subject track
-        - Example: Only say this for Math if student is in AP Calculus BC (the top of the track)
-        - If student is in "Accelerated Algebra 2" and school offers Honors Precalculus, Calculus, AP Calc → they have NOT taken all rigorous options
+        - Student is taking the ABSOLUTE HIGHEST level course available in that subject's entire track at the school
+        - Example: Only say this for Math if student is in AP Calculus BC (the very top of the track)
+        - If student is in "Accelerated Algebra 2" and school offers Honors Precalculus, Calculus, AP Calc → they have NOT taken all rigorous options → flag "Honors Precalculus" as the next logical missed opportunity
+        - If student is in "Honors Chemistry" but school offers "AP Chemistry" → flag "AP Chemistry"
+        - The missed array must be NON-EMPTY for any student who is not at the absolute top course in each track
 
         Rule 4 - DO NOT FLAG:
         - Courses requiring prerequisites the student hasn't completed
@@ -191,6 +242,14 @@ ${schoolProfileText}
 
 STUDENT TRANSCRIPT:
 ${transcriptText}
+
+${testScores.satReading || testScores.satMath || testScores.actComposite ? `---
+
+STUDENT TEST SCORES:
+${testScores.satReading && testScores.satMath ? `SAT: ${testScores.satReading} (Reading/Writing) + ${testScores.satMath} (Math) = ${testScores.satReading + testScores.satMath} Total` : ""}
+${testScores.actComposite ? `ACT Composite: ${testScores.actComposite}` : ""}
+
+Use these test scores to refine the reach/match/safety categorization of recommended schools.` : ""}
 
 Provide your comprehensive rigor analysis in the specified JSON format.`,
       },
@@ -260,10 +319,17 @@ Return ONLY a JSON object with this structure:
       "campusSize": "<Micro|Small|Medium|Large|Mega>",
       "enrollment": <number>,
       "testPolicy": "<Test Optional|Test Required|Test Blind>",
+      "acceptanceProbability": <number 1-95, exact percentage likelihood of acceptance>,
       "matchReasoning": "<2-3 sentences>"
     }
   ]
 }
+
+ACCEPTANCE PROBABILITY:
+- Calculate an exact percentage for each school (integer, e.g., 62)
+- Weigh GPA, rigor score, and test scores against each school's freshman profile
+- Cap at 95% maximum, floor at 1% for Ivy-plus/ultra-selective schools
+- Reach: typically 5-25%, Match: 30-65%, Safety: 65-95%
 
 TEST POLICY DEFINITIONS:
 - Test Optional: SAT/ACT scores considered if submitted but not required
@@ -288,6 +354,15 @@ ${regionConstraint}
 ${sizeConstraint}
 ${policyConstraint}
 
+TEST SCORE WEIGHTING:
+- If SAT or ACT scores are provided, use them to refine reach/match/safety categorization
+- SAT Total 1500+ or ACT 34+: Student is competitive at highly selective schools
+- SAT Total 1400-1499 or ACT 31-33: Student is competitive at very selective schools
+- SAT Total 1300-1399 or ACT 28-30: Student is competitive at selective schools
+- SAT Total 1200-1299 or ACT 24-27: Student is competitive at moderately selective schools
+- For Test Required schools, weight test scores MORE heavily in categorization
+- For Test Optional/Blind schools, weight course rigor MORE heavily
+
 Include a mix of reach (3), match (4), and safety (3) schools.
 Base recommendations on schools that value rigorous academic preparation.`,
       },
@@ -295,10 +370,13 @@ Base recommendations on schools that value rigorous academic preparation.`,
         role: "user",
         content: `Student Profile:
 - Rigor Score: ${request.overallScore}/100
+${request.recalculatedGPA ? `- Recalculated Core GPA: ${request.recalculatedGPA}/4.0 (weighted)` : ""}
 - School Context: ${request.schoolProfileSummary}
 - Academic Summary: ${request.transcriptSummary}
+${request.testScores?.satReading && request.testScores?.satMath ? `- SAT Score: ${request.testScores.satReading + request.testScores.satMath} (${request.testScores.satReading} R/W + ${request.testScores.satMath} Math)` : ""}
+${request.testScores?.actComposite ? `- ACT Composite: ${request.testScores.actComposite}` : ""}
 
-Provide college recommendations matching the specified filters.`,
+Provide college recommendations matching the specified filters. Include an exact acceptanceProbability (1-95%) for each school.${request.testScores?.satReading || request.testScores?.satMath || request.testScores?.actComposite ? " Use the test scores to refine reach/match/safety categorization and acceptance probability." : ""}`,
       },
     ],
     response_format: { type: "json_object" },

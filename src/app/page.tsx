@@ -75,6 +75,17 @@ export default function CounselorCoPilot() {
       formData.append("schoolProfile", schoolProfile);
       formData.append("transcript", transcript);
 
+      // Append test scores if provided
+      if (testScores.satReading) {
+        formData.append("satReading", testScores.satReading);
+      }
+      if (testScores.satMath) {
+        formData.append("satMath", testScores.satMath);
+      }
+      if (testScores.actComposite) {
+        formData.append("actComposite", testScores.actComposite);
+      }
+
       const analysisResult = await analyzeDocuments(formData);
       setResult(analysisResult);
       setEditedNarrative(analysisResult.narrative);
@@ -333,6 +344,7 @@ export default function CounselorCoPilot() {
                 scores={result.scorecard.scores}
                 schoolSummary={result.schoolProfileSummary}
                 transcriptSummary={result.transcriptSummary}
+                recalculatedGPA={result.recalculatedGPA}
               />
             </div>
 
@@ -353,6 +365,7 @@ export default function CounselorCoPilot() {
                   transcriptSummary={result.transcriptSummary}
                   schoolProfileSummary={result.schoolProfileSummary}
                   overallScore={result.scorecard.overallScore}
+                  recalculatedGPA={result.recalculatedGPA}
                 />
               </div>
             )}

@@ -97,6 +97,21 @@ export function ReportExport({ result, editedNarrative }: ReportExportProps) {
       doc.text(scoreText, margin, yPos);
       yPos += 15;
 
+      // Recalculated Core GPA
+      if (result.recalculatedGPA) {
+        addWrappedText("RECALCULATED CORE GPA", 12, true);
+        doc.setFontSize(28);
+        doc.setFont("helvetica", "bold");
+        doc.text(`${result.recalculatedGPA.toFixed(2)} / 4.0 (Weighted)`, margin, yPos);
+        yPos += 12;
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(100, 100, 100);
+        doc.text("Academic Core Only: Math, Science, English, Social Studies, World Languages", margin, yPos);
+        doc.setTextColor(0, 0, 0);
+        yPos += 10;
+      }
+
       // Score breakdown
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
@@ -141,7 +156,8 @@ export function ReportExport({ result, editedNarrative }: ReportExportProps) {
             yPos = 20;
           }
           const typeLabel = school.type.charAt(0).toUpperCase() + school.type.slice(1);
-          addWrappedText(`${school.name} (${typeLabel})`, 11, true);
+          const probText = school.acceptanceProbability ? ` — ${Math.max(1, Math.min(95, school.acceptanceProbability))}% acceptance likelihood` : "";
+          addWrappedText(`${school.name} (${typeLabel})${probText}`, 11, true);
 
           // Format campus size
           const sizeLabels: Record<string, string> = {

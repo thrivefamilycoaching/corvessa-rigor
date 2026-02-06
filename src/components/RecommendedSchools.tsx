@@ -5,8 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { RecommendedSchool, RegionType, CampusSizeType, TestPolicyType } from "@/lib/types";
-import { REGIONS, CAMPUS_SIZES, TEST_POLICIES } from "@/lib/constants";
+import type { RecommendedSchool, RegionType, CampusSizeType, TestPolicyType, TestScores } from "@/lib/types";
+import { REGIONS, CAMPUS_SIZES, TEST_POLICIES, isTestRequiredSchool } from "@/lib/constants";
 import { getFilteredRecommendations } from "@/app/actions/analyze";
 import {
   GraduationCap,
@@ -26,6 +26,7 @@ interface RecommendedSchoolsProps {
   transcriptSummary: string;
   schoolProfileSummary: string;
   overallScore: number;
+  recalculatedGPA?: number;
 }
 
 function getTypeIcon(type: RecommendedSchool["type"]) {
@@ -73,6 +74,7 @@ export function RecommendedSchools({
   transcriptSummary,
   schoolProfileSummary,
   overallScore,
+  recalculatedGPA,
 }: RecommendedSchoolsProps) {
   const [schools, setSchools] = useState<RecommendedSchool[]>(initialSchools);
   const [selectedRegions, setSelectedRegions] = useState<RegionType[]>([]);
@@ -149,12 +151,15 @@ export function RecommendedSchools({
     // Logic: OR within each filter group, AND between groups
     // - Regions: show if school matches ANY selected region
     // - Sizes: show if school matches ANY selected size
-    // - Policies: show if school matches ANY selected policy (defaults to "Test Optional" if not set)
+    // - Policies: show if school matches ANY selected policy
     const filteredExisting = initialSchools.filter((school) => {
       const regionMatch = regions.length === 0 || regions.includes(school.region);
       const sizeMatch = sizes.length === 0 || sizes.includes(school.campusSize);
-      // Default to "Test Optional" if school has no policy set
-      const schoolPolicy = school.testPolicy || "Test Optional";
+      // Use hard-coded override for known Test Required schools
+      // Otherwise use GPT-provided policy, defaulting to "Test Optional"
+      const schoolPolicy: TestPolicyType = isTestRequiredSchool(school.name)
+        ? "Test Required"
+        : (school.testPolicy || "Test Optional");
       const policyMatch = policies.length === 0 || policies.includes(schoolPolicy);
       return regionMatch && sizeMatch && policyMatch;
     });
@@ -173,6 +178,7 @@ export function RecommendedSchools({
         transcriptSummary,
         schoolProfileSummary,
         overallScore,
+        recalculatedGPA,
         regions,
         sizes,
         policies,
@@ -458,8 +464,22 @@ function getPolicyBadgeStyle(policy: string) {
   }
 }
 
+function getProbabilityColor(prob: number): string {
+  if (prob >= 65) return "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800";
+  if (prob >= 30) return "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800";
+  return "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800";
+}
+
 function SchoolCard({ school }: { school: RecommendedSchool }) {
-  const testPolicy = school.testPolicy || "Test Optional";
+  // Use hard-coded override for known Test Required schools
+  const testPolicy: TestPolicyType = isTestRequiredSchool(school.name)
+    ? "Test Required"
+    : (school.testPolicy || "Test Optional");
+
+  // Cap probability at 95%, floor at 1%
+  const probability = school.acceptanceProbability
+    ? Math.max(1, Math.min(95, school.acceptanceProbability))
+    : null;
 
   return (
     <div className="rounded-lg border p-4">
@@ -482,6 +502,11 @@ function SchoolCard({ school }: { school: RecommendedSchool }) {
               <FileCheck className="h-2.5 w-2.5" />
               {testPolicy}
             </span>
+            {probability != null && (
+              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${getProbabilityColor(probability)}`}>
+                {probability}% chance
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3 mb-2 text-xs text-muted-foreground flex-wrap">
             <span className="flex items-center gap-1">

@@ -18,6 +18,7 @@ export interface RecommendedSchool {
   enrollment: number;
   matchReasoning: string;
   testPolicy?: TestPolicyType;
+  acceptanceProbability?: number;
 }
 
 export interface GapAnalysisItem {
@@ -33,6 +34,7 @@ export interface AnalysisResult {
     maxScore: number;
     scores: RigorScore[];
   };
+  recalculatedGPA: number;
   narrative: string;
   schoolProfileSummary: string;
   transcriptSummary: string;
@@ -40,11 +42,19 @@ export interface AnalysisResult {
   gapAnalysis: GapAnalysisItem[];
 }
 
+export interface TestScores {
+  satReading?: number;
+  satMath?: number;
+  actComposite?: number;
+}
+
 export interface FilteredRecommendationsRequest {
   transcriptSummary: string;
   schoolProfileSummary: string;
   overallScore: number;
+  recalculatedGPA?: number;
   regions: RegionType[];
   sizes: CampusSizeType[];
   policies: TestPolicyType[];
+  testScores?: TestScores;
 }
