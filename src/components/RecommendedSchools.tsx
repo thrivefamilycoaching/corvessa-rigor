@@ -254,7 +254,7 @@ export function RecommendedSchools({
     // Try to filter existing schools first
     // Logic: OR within each filter group, AND between groups
     // Size check uses ENROLLMENT NUMBER (hard validation), not GPT label
-    const filteredExisting = initialSchools.filter((school) => {
+    let filteredExisting = initialSchools.filter((school) => {
       const regionMatch = regions.length === 0 || regions.includes(school.region);
       // Enrollment-based size validation
       const sizeMatch = sizes.length === 0 || sizes.some((size) => {
@@ -276,6 +276,24 @@ export function RecommendedSchools({
       return regionMatch && sizeMatch && policyMatch;
     });
 
+    // Per-bucket fallback: if size filters cause any bucket to have 0 schools,
+    // relax the size filter for that bucket so the report still loads
+    if (sizes.length > 0) {
+      const buckets: RecommendedSchool["type"][] = ["reach", "match", "safety"];
+      for (const bucket of buckets) {
+        const bucketHas = filteredExisting.some((s) => s.type === bucket);
+        const originalHas = initialSchools.some((s) => s.type === bucket);
+        if (!bucketHas && originalHas) {
+          // Re-include schools for this bucket with only region filter (no size filter)
+          const fallbackSchools = initialSchools.filter((school) => {
+            const regionMatch = regions.length === 0 || regions.includes(school.region);
+            return school.type === bucket && regionMatch;
+          });
+          filteredExisting = [...filteredExisting, ...fallbackSchools];
+        }
+      }
+    }
+
     // If we have enough matching schools, balance and use them
     if (filteredExisting.length >= 10) {
       setSchools(balanceSchools(filteredExisting));
@@ -296,24 +314,30 @@ export function RecommendedSchools({
       return;
     }
 
-    // Too few matches — fetch new recommendations from GPT-4o
+    // Too few matches — fetch new recommendations from GPT-4o with 15s timeout
     setIsLoading(true);
     try {
-      const newSchools = await getFilteredRecommendations({
-        transcriptSummary,
-        schoolProfileSummary,
-        overallScore,
-        recalculatedGPA,
-        regions,
-        sizes,
-        policies,
-        testScores,
-      });
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Search timed out")), 15000)
+      );
+      const newSchools = await Promise.race([
+        getFilteredRecommendations({
+          transcriptSummary,
+          schoolProfileSummary,
+          overallScore,
+          recalculatedGPA,
+          regions,
+          sizes,
+          policies,
+          testScores,
+        }),
+        timeout,
+      ]);
       setSchools(balanceSchools(newSchools));
       setFiltersApplied(true);
     } catch (error) {
       console.error("Failed to fetch filtered recommendations:", error);
-      // Backfill from initial schools if GPT call fails
+      // On timeout or error, backfill from initial schools
       const filteredNames = new Set(filteredExisting.map((s) => s.name));
       const backfillCandidates = initialSchools
         .filter((s) => !filteredNames.has(s.name))
