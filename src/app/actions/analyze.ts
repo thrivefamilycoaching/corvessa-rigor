@@ -1,5 +1,6 @@
 "use server";
 
+import "@ungap/with-resolvers";
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import OpenAI from "openai";
 import type {
@@ -11,12 +12,8 @@ import type {
   TestScores,
 } from "@/lib/types";
 
-// Set the worker source to the local file — do NOT use CDN (blocked in Vercel serverless)
-if (typeof pdfjs.GlobalWorkerOptions !== "undefined") {
-  pdfjs.GlobalWorkerOptions.workerSrc = require.resolve(
-    "pdfjs-dist/legacy/build/pdf.worker.min.mjs"
-  );
-}
+// Use the official Unpkg CDN worker matching the installed pdfjs-dist version
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   try {
