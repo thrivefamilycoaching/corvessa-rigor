@@ -28,6 +28,16 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   return textParts.join("\n");
 }
 
+/** Trim redundant whitespace and repeated header lines to reduce token count. */
+function trimPdfText(raw: string): string {
+  return raw
+    .split("\n")
+    .map((line) => line.replace(/\s{2,}/g, " ").trim())
+    .filter((line) => line.length > 0)
+    .filter((line, i, arr) => i === 0 || line !== arr[i - 1]) // dedupe consecutive identical lines
+    .join("\n");
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -57,8 +67,8 @@ export async function POST(request: NextRequest) {
     const transcriptBuffer = Buffer.from(await transcriptFile.arrayBuffer());
 
     const [schoolProfileText, transcriptText] = await Promise.all([
-      extractTextFromPDF(schoolProfileBuffer),
-      extractTextFromPDF(transcriptBuffer),
+      extractTextFromPDF(schoolProfileBuffer).then(trimPdfText),
+      extractTextFromPDF(transcriptBuffer).then(trimPdfText),
     ]);
 
     // Initialize OpenAI client
@@ -68,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     // Generate analysis using OpenAI
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
