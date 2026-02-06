@@ -236,36 +236,26 @@ export function calculatePersonalizedOdds(
     }
   }
 
-  // ── Elite/low-admit cap: 15% max for sub-15% admit rate schools ──
+  // ── Low-admit cap: 18% max for sub-15% admit rate schools ──
   if (admissionRate < 0.15) {
-    odds = Math.min(odds, 15);
+    odds = Math.min(odds, 18);
   }
 
   // Clamp to [1, 95]
   return Math.round(Math.max(1, Math.min(95, odds)));
 }
 
-// ── Deterministic classification (strict math, no LLM) ──────────────────────
-// Reach: < 20%   |   Match: 20–60%   |   Safety: > 60%
+// ── Deterministic classification — ODDS DICTATE CATEGORY, NOTHING ELSE ──────
+// The AI does NOT decide categories. Only the number decides.
+//   Reach:  < 25%
+//   Match:  25–60%
+//   Safety: > 60%
 
-function classifyCollege(
-  schoolName: string,
-  personalizedOdds: number,
-  admissionRate: number | null
+function classifyFromOdds(
+  personalizedOdds: number
 ): "reach" | "match" | "safety" {
-  // RULE 0 — Protected Reach List overrides everything
-  if (isProtectedReach(schoolName)) {
-    return "reach";
-  }
-
-  // RULE 1 — Sub-15% admission rate is ALWAYS reach
-  if (admissionRate != null && admissionRate < 0.15) {
-    return "reach";
-  }
-
-  // RULE 2 — Use personalized odds for classification
   if (personalizedOdds > 60) return "safety";
-  if (personalizedOdds >= 20) return "match";
+  if (personalizedOdds >= 25) return "match";
   return "reach";
 }
 
@@ -316,32 +306,21 @@ export async function enrichSchoolsWithScorecardData(
       return school;
     }
 
-    // Protected Reach List — force reach + 15% cap, no exceptions
-    if (isProtectedReach(school.name)) {
-      const rawOdds = calculatePersonalizedOdds(scorecard, student);
-      const finalProb = Math.max(1, Math.min(15, rawOdds));
-      console.log(`[Scorecard] ${school.name}: PROTECTED REACH — forced reach, your odds=${finalProb}%`);
-      return {
-        ...school,
-        acceptanceProbability: finalProb,
-        type: "reach" as const,
-      };
-    }
-
     const personalizedOdds = calculatePersonalizedOdds(scorecard, student);
     if (personalizedOdds < 0) {
       console.log(`[Scorecard] ${school.name}: calculation failed — keeping GPT estimate`);
       return school;
     }
 
-    // Sub-15% admission rate schools also capped at 15%
+    // Sub-15% admit rate OR protected reach → cap at 18%, forced Reach
     let finalOdds = personalizedOdds;
-    if (admissionRate < 0.15 && finalOdds > 15) {
-      console.log(`[Scorecard] ${school.name}: sub-15% admit rate cap (${finalOdds}% → 15%)`);
-      finalOdds = 15;
+    if (admissionRate < 0.15 || isProtectedReach(school.name)) {
+      finalOdds = Math.min(finalOdds, 18);
+      console.log(`[Scorecard] ${school.name}: LOW-ADMIT/PROTECTED cap → odds=${finalOdds}% (reach)`);
     }
 
-    const type = classifyCollege(school.name, finalOdds, admissionRate);
+    // CATEGORY IS STRICTLY DICTATED BY ODDS — no AI override
+    const type = classifyFromOdds(finalOdds);
 
     console.log(
       `[Scorecard] ${school.name}: admit_rate=${(admissionRate * 100).toFixed(1)}% → YOUR ODDS=${finalOdds}% (${type})`
