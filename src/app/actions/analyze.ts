@@ -6,7 +6,7 @@ import type {
   RecommendedSchool,
   FilteredRecommendationsRequest,
 } from "@/lib/types";
-import { enrichSchoolsWithScorecardData } from "@/lib/scorecard";
+import { enforce343Distribution } from "@/lib/scorecard";
 
 export async function getFilteredRecommendations(
   request: FilteredRecommendationsRequest
@@ -132,17 +132,36 @@ Provide college recommendations matching the specified filters. Include an exact
   try {
     const result = JSON.parse(content) as { schools: RecommendedSchool[] };
 
-    // Enrich with personalized Scorecard API data
-    const enriched = await enrichSchoolsWithScorecardData(
-      result.schools,
-      {
-        testScores: request.testScores,
-        gpa: request.recalculatedGPA,
-        rigorScore: request.overallScore,
-      }
-    );
+    // Enforce 3-4-3 distribution with Scorecard API enrichment + targeted fill
+    const studentProfile = {
+      testScores: request.testScores,
+      gpa: request.recalculatedGPA,
+      rigorScore: request.overallScore,
+    };
+    const studentDesc = [
+      `Student Profile:`,
+      request.recalculatedGPA
+        ? `- GPA: ${request.recalculatedGPA} (weighted)`
+        : "",
+      `- Rigor Score: ${request.overallScore}/100`,
+      request.testScores?.satReading && request.testScores?.satMath
+        ? `- SAT: ${request.testScores.satReading + request.testScores.satMath}`
+        : "",
+      request.testScores?.actComposite
+        ? `- ACT: ${request.testScores.actComposite}`
+        : "",
+      `- School Context: ${request.schoolProfileSummary}`,
+      `- Academic Summary: ${request.transcriptSummary}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
 
-    return enriched;
+    return enforce343Distribution(
+      result.schools,
+      studentProfile,
+      openai,
+      studentDesc,
+    );
   } catch {
     throw new Error("Failed to parse recommendations");
   }

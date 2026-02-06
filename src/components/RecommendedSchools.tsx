@@ -308,6 +308,12 @@ export function RecommendedSchools({
   const matchSchools = schools.filter((s) => s.type === "match");
   const safetySchools = schools.filter((s) => s.type === "safety");
 
+  // UI verification: prevent render unless exact 3-4-3
+  const is343Valid =
+    reachSchools.length === 3 &&
+    matchSchools.length === 4 &&
+    safetySchools.length === 3;
+
   return (
     <Card>
       <CardHeader className="space-y-4">
@@ -499,6 +505,15 @@ export function RecommendedSchools({
             <GraduationCap className="h-8 w-8 text-muted-foreground/50 mb-3" />
             <p className="text-sm text-muted-foreground">
               No schools match the selected filters. Try adjusting your criteria.
+            </p>
+          </div>
+        ) : !is343Valid ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <GraduationCap className="h-8 w-8 text-amber-500 mb-3" />
+            <p className="text-sm text-muted-foreground">
+              Unable to generate a balanced 3/4/3 recommendation list
+              ({reachSchools.length} reach, {matchSchools.length} match, {safetySchools.length} safety).
+              Please try again or adjust your filters.
             </p>
           </div>
         ) : (

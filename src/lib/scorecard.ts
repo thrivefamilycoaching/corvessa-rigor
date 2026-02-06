@@ -1,4 +1,5 @@
 import type { RecommendedSchool, TestScores } from "@/lib/types";
+import OpenAI from "openai";
 
 // ── Student profile for personalized probability ─────────────────────────────
 
@@ -380,4 +381,211 @@ export async function enrichSchoolsWithScorecardData(
   });
 
   return enriched;
+}
+
+// ── 3-4-3 Distribution Enforcement ──────────────────────────────────────────
+// Server-side guarantee: exactly 3 Reach, 4 Match, 3 Safety.
+// If initial enrichment doesn't produce 3-4-3, fetch targeted fill schools
+// from GPT and enrich them. Repeat up to 2 times.
+
+export function get343Gaps(schools: RecommendedSchool[]) {
+  const reach = schools.filter((s) => s.type === "reach").length;
+  const match = schools.filter((s) => s.type === "match").length;
+  const safety = schools.filter((s) => s.type === "safety").length;
+  return {
+    hasReach: reach,
+    hasMatch: match,
+    hasSafety: safety,
+    needReach: Math.max(0, 3 - reach),
+    needMatch: Math.max(0, 4 - match),
+    needSafety: Math.max(0, 3 - safety),
+    isValid: reach >= 3 && match >= 4 && safety >= 3,
+  };
+}
+
+async function fetchFillSchools(
+  openai: OpenAI,
+  gaps: ReturnType<typeof get343Gaps>,
+  studentDesc: string,
+  excludeNames: string[]
+): Promise<RecommendedSchool[]> {
+  const needs: string[] = [];
+  if (gaps.needMatch > 0) {
+    needs.push(
+      `${gaps.needMatch + 2} schools with 30–55% acceptance rates (moderate selectivity — MATCH candidates)`
+    );
+  }
+  if (gaps.needSafety > 0) {
+    needs.push(
+      `${gaps.needSafety + 2} schools with acceptance rates above 55% (less selective — SAFETY candidates)`
+    );
+  }
+  if (gaps.needReach > 0) {
+    needs.push(
+      `${gaps.needReach + 1} highly selective schools with acceptance rates below 25% (REACH candidates)`
+    );
+  }
+  if (needs.length === 0) return [];
+
+  const totalNeeded =
+    (gaps.needMatch > 0 ? gaps.needMatch + 2 : 0) +
+    (gaps.needSafety > 0 ? gaps.needSafety + 2 : 0) +
+    (gaps.needReach > 0 ? gaps.needReach + 1 : 0);
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are a college admissions expert. Recommend EXACTLY ${totalNeeded} colleges matching these acceptance rate targets.
+
+Return a JSON object:
+{ "schools": [{ "name": "<name>", "url": "<url>", "type": "<reach|match|safety>", "region": "<Northeast|Mid-Atlantic|South|Midwest|West>", "campusSize": "<Micro|Small|Medium|Large|Mega>", "enrollment": <number>, "testPolicy": "<Test Optional|Test Required|Test Blind>", "acceptanceProbability": <1-95>, "matchReasoning": "<2-3 sentences>" }] }
+
+REQUIREMENTS:
+${needs.map((n) => `- ${n}`).join("\n")}
+
+DO NOT include ANY of these already-selected schools: ${excludeNames.join(", ")}
+Pick schools where the acceptance rate is the REAL published acceptance rate. Be accurate.`,
+        },
+        {
+          role: "user",
+          content: studentDesc,
+        },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.8,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) return [];
+
+    const result = JSON.parse(content) as { schools: RecommendedSchool[] };
+    return result.schools ?? [];
+  } catch (err) {
+    console.log("[343-Fill] GPT fill call failed:", err);
+    return [];
+  }
+}
+
+function pick343(pool: RecommendedSchool[]): RecommendedSchool[] {
+  const reach = pool
+    .filter((s) => s.type === "reach")
+    .sort((a, b) => (a.acceptanceProbability ?? 0) - (b.acceptanceProbability ?? 0));
+  const match = pool
+    .filter((s) => s.type === "match")
+    .sort((a, b) => (a.acceptanceProbability ?? 0) - (b.acceptanceProbability ?? 0));
+  const safety = pool
+    .filter((s) => s.type === "safety")
+    .sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
+
+  const result: RecommendedSchool[] = [];
+  const usedNames = new Set<string>();
+
+  // Loop 1: Fill Reach (exactly 3)
+  for (const s of reach) {
+    if (result.filter((r) => r.type === "reach").length >= 3) break;
+    result.push(s);
+    usedNames.add(s.name);
+  }
+
+  // Loop 2: Fill Match (exactly 4)
+  for (const s of match) {
+    if (usedNames.has(s.name)) continue;
+    if (result.filter((r) => r.type === "match").length >= 4) break;
+    result.push(s);
+    usedNames.add(s.name);
+  }
+
+  // Loop 3: Fill Safety (exactly 3)
+  for (const s of safety) {
+    if (usedNames.has(s.name)) continue;
+    if (result.filter((r) => r.type === "safety").length >= 3) break;
+    result.push(s);
+    usedNames.add(s.name);
+  }
+
+  // Backfill if pool didn't have enough of a category
+  if (result.length < 10) {
+    const unused = pool
+      .filter((s) => !usedNames.has(s.name))
+      .sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
+    for (const s of unused) {
+      if (result.length >= 10) break;
+      const mCount = result.filter((r) => r.type === "match").length;
+      const sCount = result.filter((r) => r.type === "safety").length;
+      const rCount = result.filter((r) => r.type === "reach").length;
+      const assignType: "reach" | "match" | "safety" =
+        mCount < 4 ? "match" : sCount < 3 ? "safety" : rCount < 3 ? "reach" : "match";
+      result.push({ ...s, type: assignType });
+      usedNames.add(s.name);
+    }
+  }
+
+  console.log(
+    `[343] Final: ${result.filter((s) => s.type === "reach").length}R/${result.filter((s) => s.type === "match").length}M/${result.filter((s) => s.type === "safety").length}S = ${result.length} schools`
+  );
+
+  return result;
+}
+
+export async function enforce343Distribution(
+  initialSchools: RecommendedSchool[],
+  student: StudentProfile,
+  openai: OpenAI,
+  studentDescription: string,
+  maxRetries: number = 2
+): Promise<RecommendedSchool[]> {
+  // Step 1: Enrich initial schools with Scorecard data
+  let allEnriched = await enrichSchoolsWithScorecardData(initialSchools, student);
+
+  // Step 2: Check 3-4-3 distribution
+  let gaps = get343Gaps(allEnriched);
+  console.log(
+    `[343] Initial distribution: ${gaps.hasReach}R/${gaps.hasMatch}M/${gaps.hasSafety}S`
+  );
+
+  if (gaps.isValid) {
+    return pick343(allEnriched);
+  }
+
+  // Step 3: Fill missing slots with targeted GPT calls
+  for (let attempt = 0; attempt < maxRetries && !gaps.isValid; attempt++) {
+    const excludeNames = allEnriched.map((s) => s.name);
+    console.log(
+      `[343] Fill attempt ${attempt + 1}: need +${gaps.needReach}R/+${gaps.needMatch}M/+${gaps.needSafety}S`
+    );
+
+    const fillSchools = await fetchFillSchools(
+      openai,
+      gaps,
+      studentDescription,
+      excludeNames
+    );
+    if (fillSchools.length === 0) {
+      console.log("[343] No fill schools returned — stopping retries");
+      break;
+    }
+
+    const enrichedFill = await enrichSchoolsWithScorecardData(fillSchools, student);
+    allEnriched = [...allEnriched, ...enrichedFill];
+
+    // Deduplicate by name (case-insensitive)
+    const seen = new Set<string>();
+    allEnriched = allEnriched.filter((s) => {
+      const key = s.name.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    gaps = get343Gaps(allEnriched);
+    console.log(
+      `[343] After fill ${attempt + 1}: ${gaps.hasReach}R/${gaps.hasMatch}M/${gaps.hasSafety}S (pool=${allEnriched.length})`
+    );
+  }
+
+  // Step 4: Pick best 3-4-3 from expanded pool
+  return pick343(allEnriched);
 }

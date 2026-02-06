@@ -3,7 +3,7 @@ import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import type { AnalysisResult, TestScores } from "@/lib/types";
-import { enrichSchoolsWithScorecardData } from "@/lib/scorecard";
+import { enforce343Distribution } from "@/lib/scorecard";
 
 // Disable all Vercel caching — always fetch fresh Scorecard data
 export const dynamic = "force-dynamic";
@@ -301,14 +301,31 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
 
     const analysis = JSON.parse(content) as AnalysisResult;
 
-    // Enrich school recommendations with personalized Scorecard API data
-    analysis.recommendedSchools = await enrichSchoolsWithScorecardData(
+    // Enforce 3-4-3 distribution with Scorecard API enrichment + targeted fill
+    const studentProfile = {
+      testScores,
+      gpa: analysis.recalculatedGPA,
+      rigorScore: analysis.scorecard?.overallScore,
+    };
+    const studentDesc = [
+      `Student Profile:`,
+      `- GPA: ${analysis.recalculatedGPA ?? "N/A"} (weighted)`,
+      `- Rigor Score: ${analysis.scorecard?.overallScore ?? "N/A"}/100`,
+      testScores.satReading && testScores.satMath
+        ? `- SAT: ${testScores.satReading + testScores.satMath}`
+        : "",
+      testScores.actComposite ? `- ACT: ${testScores.actComposite}` : "",
+      `- School Context: ${analysis.schoolProfileSummary}`,
+      `- Academic Summary: ${analysis.transcriptSummary}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    analysis.recommendedSchools = await enforce343Distribution(
       analysis.recommendedSchools,
-      {
-        testScores,
-        gpa: analysis.recalculatedGPA,
-        rigorScore: analysis.scorecard?.overallScore,
-      }
+      studentProfile,
+      openai,
+      studentDesc,
     );
 
     return NextResponse.json(analysis);
