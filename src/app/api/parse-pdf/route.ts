@@ -5,6 +5,9 @@ import OpenAI from "openai";
 import type { AnalysisResult, TestScores } from "@/lib/types";
 import { enrichSchoolsWithScorecardData } from "@/lib/scorecard";
 
+// Disable all Vercel caching — always fetch fresh Scorecard data
+export const dynamic = "force-dynamic";
+
 // Resolve worker path via Next.js optimized URL constructor
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/legacy/build/pdf.worker.min.mjs",

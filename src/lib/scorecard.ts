@@ -15,9 +15,11 @@ interface ScorecardResponse {
   results: ScorecardSchool[];
 }
 
-// ── Elite school list ────────────────────────────────────────────────────────
+// ── Protected Reach List ("Duke Guard") ──────────────────────────────────────
+// These schools are ALWAYS forced to "reach" with max 15% probability,
+// regardless of any other calculation. No exceptions.
 
-const ELITE_SCHOOLS = [
+const PROTECTED_REACH_LIST = [
   "Harvard",
   "Yale",
   "Princeton",
@@ -37,11 +39,18 @@ const ELITE_SCHOOLS = [
   "UChicago",
   "Northwestern",
   "Johns Hopkins",
+  "Georgetown",
+  "Rice",
+  "Vanderbilt",
+  "Notre Dame",
+  "Emory",
+  "Washington University",
+  "WashU",
 ];
 
-export function isEliteSchool(name: string): boolean {
+export function isProtectedReach(name: string): boolean {
   const lower = name.toLowerCase();
-  return ELITE_SCHOOLS.some((elite) => lower.includes(elite.toLowerCase()));
+  return PROTECTED_REACH_LIST.some((p) => lower.includes(p.toLowerCase()));
 }
 
 // ── Name variants for API search ─────────────────────────────────────────────
@@ -202,46 +211,55 @@ export function calculateProbability(
   return Math.round(Math.max(1, Math.min(95, probability)));
 }
 
-// ── Tiered categorization ────────────────────────────────────────────────────
+// ── Deterministic classification (strict math, no LLM) ──────────────────────
 
-function categorizeSchool(
-  probability: number,
+function classifyCollege(
+  schoolName: string,
   admissionRate: number | null,
   scorecard: ScorecardSchool | null,
   testScores?: TestScores
 ): "reach" | "match" | "safety" {
-  if (scorecard && admissionRate != null) {
-    const sat25R = scorecard["latest.admissions.sat_scores.25th_percentile.critical_reading"];
-    const sat25M = scorecard["latest.admissions.sat_scores.25th_percentile.math"];
+  // RULE 0 — Protected Reach List overrides everything
+  if (isProtectedReach(schoolName)) {
+    return "reach";
+  }
+
+  // RULE 1 — Sub-15% admission rate is ALWAYS reach
+  if (admissionRate != null && admissionRate < 0.15) {
+    return "reach";
+  }
+
+  // RULE 2 — Check student stats vs school's 75th percentile for safety
+  if (admissionRate != null && admissionRate > 0.50 && scorecard) {
     const sat75R = scorecard["latest.admissions.sat_scores.75th_percentile.critical_reading"];
     const sat75M = scorecard["latest.admissions.sat_scores.75th_percentile.math"];
-
     const studentSATTotal =
       testScores?.satReading && testScores?.satMath
         ? testScores.satReading + testScores.satMath
         : null;
 
-    if (studentSATTotal && sat25R != null && sat25M != null && sat75R != null && sat75M != null) {
-      const school25 = sat25R + sat25M;
+    if (studentSATTotal && sat75R != null && sat75M != null) {
       const school75 = sat75R + sat75M;
-
-      // Reach: below 25th percentile OR admission rate < 20%
-      if (studentSATTotal < school25 || admissionRate < 0.20) {
-        return "reach";
-      }
-      // Safety: above 75th percentile AND admission rate > 50%
-      if (studentSATTotal > school75 && admissionRate > 0.50) {
+      if (studentSATTotal > school75) {
         return "safety";
       }
-      // Match: everything else (within 25th–75th)
-      return "match";
     }
   }
 
-  // Fallback to probability-based categorization
-  if (probability > 70) return "safety";
-  if (probability >= 40) return "match";
-  return "reach";
+  // RULE 3 — Sub-20% admission rate is reach (even if not on protected list)
+  if (admissionRate != null && admissionRate < 0.20) {
+    return "reach";
+  }
+
+  // RULE 4 — Fallback: use admission rate bands
+  if (admissionRate != null) {
+    if (admissionRate > 0.50) return "safety";
+    if (admissionRate >= 0.20) return "match";
+    return "reach";
+  }
+
+  // No data — default to match
+  return "match";
 }
 
 // ── Main enrichment function ─────────────────────────────────────────────────
@@ -277,9 +295,24 @@ export async function enrichSchoolsWithScorecardData(
     const admissionRate =
       scorecard["latest.admissions.admission_rate.overall"];
 
+    // Required logging: show live government data in Vercel logs
+    console.log("FETCHED DATA FOR:", school.name, "ADMIT RATE:", admissionRate);
+
     if (admissionRate == null) {
       console.log(`[Scorecard] ${school.name}: no admission rate data — keeping GPT estimate`);
       return school;
+    }
+
+    // Protected Reach List — force reach + 15% cap, no exceptions
+    if (isProtectedReach(school.name)) {
+      const cappedProb = Math.min(calculateProbability(scorecard, testScores), 15);
+      const finalProb = Math.max(1, cappedProb);
+      console.log(`[Scorecard] ${school.name}: PROTECTED REACH — forced reach, probability=${finalProb}%`);
+      return {
+        ...school,
+        acceptanceProbability: finalProb,
+        type: "reach" as const,
+      };
     }
 
     const probability = calculateProbability(scorecard, testScores);
@@ -288,14 +321,14 @@ export async function enrichSchoolsWithScorecardData(
       return school;
     }
 
-    // Apply elite cap
+    // Sub-15% admission rate schools also capped at 15%
     let finalProbability = probability;
-    if (isEliteSchool(school.name) && finalProbability > 15) {
-      console.log(`[Scorecard] ${school.name}: elite cap applied (${finalProbability}% → 15%)`);
+    if (admissionRate < 0.15 && finalProbability > 15) {
+      console.log(`[Scorecard] ${school.name}: sub-15% admit rate cap (${finalProbability}% → 15%)`);
       finalProbability = 15;
     }
 
-    const type = categorizeSchool(finalProbability, admissionRate, scorecard, testScores);
+    const type = classifyCollege(school.name, admissionRate, scorecard, testScores);
 
     console.log(
       `[Scorecard] ${school.name}: admission=${(admissionRate * 100).toFixed(1)}% → probability=${finalProbability}% (${type})`
