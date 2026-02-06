@@ -14,7 +14,6 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { analyzeDocuments } from "@/app/actions/analyze";
 import type { AnalysisResult } from "@/lib/types";
 import { RigorScorecard } from "@/components/RigorScorecard";
 import { CounselorNarrative } from "@/components/CounselorNarrative";
@@ -86,12 +85,17 @@ export default function CounselorCoPilot() {
         formData.append("actComposite", testScores.actComposite);
       }
 
-      const analysisResult = await analyzeDocuments(formData);
+      const res = await fetch("/api/parse-pdf", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Analysis failed");
+      }
+      const analysisResult = data as AnalysisResult;
       setResult(analysisResult);
       setEditedNarrative(analysisResult.narrative);
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
-      if (message.includes("PDF") || message.includes("parse") || message.includes("module")) {
+      if (message.includes("PDF") || message.includes("parse") || message.includes("module") || message.includes("Document processing")) {
         setError("Document processing failed in the cloud environment. Please try refreshing or ensuring the files are standard PDFs.");
       } else {
         setError(message || "An unexpected error occurred");
