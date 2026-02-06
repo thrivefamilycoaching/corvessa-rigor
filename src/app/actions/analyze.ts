@@ -1,6 +1,6 @@
 "use server";
 
-import { PDFParse } from "pdf-parse";
+import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import OpenAI from "openai";
 import type {
   RegionType,
@@ -11,15 +11,33 @@ import type {
   TestScores,
 } from "@/lib/types";
 
+// Set the worker source to the local file — do NOT use CDN (blocked in Vercel serverless)
+if (typeof pdfjs.GlobalWorkerOptions !== "undefined") {
+  pdfjs.GlobalWorkerOptions.workerSrc = require.resolve(
+    "pdfjs-dist/legacy/build/pdf.worker.min.mjs"
+  );
+}
+
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   try {
-    const parser = new PDFParse({ data: buffer });
-    const result = await parser.getText();
-    await parser.destroy();
-    return result.text;
+    const data = new Uint8Array(buffer);
+    const doc = await pdfjs.getDocument({ data, useSystemFonts: true }).promise;
+    const textParts: string[] = [];
+
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items
+        .map((item) => ("str" in item ? (item as { str: string }).str : ""))
+        .join(" ");
+      textParts.push(pageText);
+    }
+
+    doc.destroy();
+    return textParts.join("\n");
   } catch (error) {
     console.error("PDF parsing error:", error);
-    throw new Error("Failed to parse PDF file");
+    throw new Error("Failed to parse PDF file. Please ensure it is a standard, non-encrypted PDF.");
   }
 }
 

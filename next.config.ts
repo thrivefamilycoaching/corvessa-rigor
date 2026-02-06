@@ -2,9 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
-  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "@napi-rs/canvas"],
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "@napi-rs/canvas", "canvas"],
   turbopack: {},
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.module.rules.push({
       test: /\.mjs$/,
       include: /node_modules\/pdfjs-dist/,
@@ -15,6 +15,14 @@ const nextConfig: NextConfig = {
       include: /node_modules\/pdfjs-dist/,
       type: "json",
     });
+    // Alias canvas to @napi-rs/canvas for pdfjs-dist compatibility on serverless
+    if (isServer) {
+      config.resolve = config.resolve || {};
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        canvas: "@napi-rs/canvas",
+      };
+    }
     return config;
   },
 };

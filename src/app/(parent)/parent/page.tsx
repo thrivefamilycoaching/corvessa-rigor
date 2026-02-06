@@ -88,7 +88,12 @@ export default function CollegeCoPilot() {
       const analysisResult = await analyzeDocuments(formData);
       setResult(analysisResult);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+      const message = err instanceof Error ? err.message : "";
+      if (message.includes("PDF") || message.includes("parse") || message.includes("module")) {
+        setError("Document processing failed in the cloud environment. Please try refreshing or ensuring the files are standard PDFs.");
+      } else {
+        setError(message || "An unexpected error occurred");
+      }
     } finally {
       setIsProcessing(false);
     }
