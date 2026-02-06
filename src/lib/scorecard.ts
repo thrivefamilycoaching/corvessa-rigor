@@ -1,5 +1,13 @@
 import type { RecommendedSchool, TestScores } from "@/lib/types";
 
+// ── Student profile for personalized probability ─────────────────────────────
+
+export interface StudentProfile {
+  testScores?: TestScores;
+  gpa?: number;        // recalculated weighted GPA (0–5.0)
+  rigorScore?: number; // overall rigor score (0–100)
+}
+
 // ── College Scorecard API types ──────────────────────────────────────────────
 
 interface ScorecardSchool {
@@ -145,22 +153,51 @@ export async function lookupSchool(
   return null;
 }
 
-// ── Probability calculation ──────────────────────────────────────────────────
+// ── Personalized probability calculation ─────────────────────────────────────
+// This calculates the STUDENT'S chance of admission — not the school's
+// acceptance rate. It uses admission rate as a base, then adjusts up/down
+// based on how the student's GPA, rigor, and SAT compare to the school.
 
-export function calculateProbability(
+export function calculatePersonalizedOdds(
   scorecard: ScorecardSchool,
-  testScores?: TestScores
+  student: StudentProfile
 ): number {
   const admissionRate =
     scorecard["latest.admissions.admission_rate.overall"];
 
-  // If no admission rate data, we can't calculate
   if (admissionRate == null) return -1;
 
-  // Layer 1: Base probability from admission rate (as percentage)
-  let probability = admissionRate * 100;
+  // ── Base: school admission rate as percentage ──
+  let odds = admissionRate * 100;
 
-  // Layer 2: SAT adjustment
+  // ── GPA adjustment (heavy weight) ──
+  // Estimate school's midpoint GPA from selectivity:
+  //   sub-10% admit → ~3.95, 10-20% → ~3.85, 20-40% → ~3.6, 40-60% → ~3.3, 60%+ → ~3.0
+  const studentGPA = student.gpa ?? 3.0;
+  let schoolMidGPA: number;
+  if (admissionRate < 0.10) schoolMidGPA = 3.95;
+  else if (admissionRate < 0.20) schoolMidGPA = 3.85;
+  else if (admissionRate < 0.40) schoolMidGPA = 3.60;
+  else if (admissionRate < 0.60) schoolMidGPA = 3.30;
+  else schoolMidGPA = 3.00;
+
+  const gpaDelta = studentGPA - schoolMidGPA;
+  // Each 0.1 GPA above/below midpoint shifts odds by ~8%
+  // Above midpoint: boost; below midpoint: significant decrease
+  if (gpaDelta > 0) {
+    odds *= 1 + gpaDelta * 0.8; // +0.5 GPA above mid → 1.4x multiplier
+  } else {
+    odds *= Math.max(0.15, 1 + gpaDelta * 1.2); // -0.5 GPA below mid → 0.4x multiplier
+  }
+
+  // ── Rigor score adjustment (moderate weight) ──
+  // Rigor score 0–100. Schools that value rigor give an edge.
+  const rigorScore = student.rigorScore ?? 50;
+  // Normalize: 50 = neutral, 80+ = strong boost, <30 = penalty
+  const rigorDelta = (rigorScore - 50) / 100; // range: -0.5 to +0.5
+  odds *= 1 + rigorDelta * 0.5; // max ±25% adjustment from rigor
+
+  // ── SAT adjustment (when available) ──
   const sat25R = scorecard["latest.admissions.sat_scores.25th_percentile.critical_reading"];
   const sat75R = scorecard["latest.admissions.sat_scores.75th_percentile.critical_reading"];
   const sat25M = scorecard["latest.admissions.sat_scores.25th_percentile.math"];
@@ -168,56 +205,53 @@ export function calculateProbability(
 
   const hasScorecardSAT = sat25R != null && sat75R != null && sat25M != null && sat75M != null;
   const studentSATTotal =
-    testScores?.satReading && testScores?.satMath
-      ? testScores.satReading + testScores.satMath
+    student.testScores?.satReading && student.testScores?.satMath
+      ? student.testScores.satReading + student.testScores.satMath
       : null;
 
   if (hasScorecardSAT && studentSATTotal) {
     const school25 = sat25R! + sat25M!;
     const school75 = sat75R! + sat75M!;
-
-    let multiplier: number;
+    const schoolMid = (school25 + school75) / 2;
 
     if (studentSATTotal < school25) {
-      // Below 25th percentile: 0.3–0.7 (linear interpolation)
-      // At 0 → 0.3, at school25 → 0.7
+      // Well below school range — significant penalty
       const ratio = Math.max(0, studentSATTotal / school25);
-      multiplier = 0.3 + ratio * 0.4;
-    } else if (studentSATTotal <= school75) {
-      // Within 25th–75th: 0.7–1.5 (linear interpolation)
-      const range = school75 - school25;
+      odds *= 0.3 + ratio * 0.4; // 0.3x to 0.7x
+    } else if (studentSATTotal <= schoolMid) {
+      // Below midpoint but within range — slight penalty
+      const range = schoolMid - school25;
       const ratio = range > 0 ? (studentSATTotal - school25) / range : 0.5;
-      multiplier = 0.7 + ratio * 0.8;
+      odds *= 0.7 + ratio * 0.3; // 0.7x to 1.0x
+    } else if (studentSATTotal <= school75) {
+      // Above midpoint within range — boost
+      const range = school75 - schoolMid;
+      const ratio = range > 0 ? (studentSATTotal - schoolMid) / range : 0.5;
+      odds *= 1.0 + ratio * 0.5; // 1.0x to 1.5x
     } else {
-      // Above 75th: 1.5–2.5 (linear interpolation, capped)
+      // Above 75th percentile — strong boost
       const overshoot = studentSATTotal - school75;
-      const scale = Math.min(overshoot / 200, 1); // 200 points above 75th → max boost
-      multiplier = 1.5 + scale * 1.0;
+      const scale = Math.min(overshoot / 200, 1);
+      odds *= 1.5 + scale * 1.0; // 1.5x to 2.5x
     }
-
-    probability *= multiplier;
-  } else if (!studentSATTotal) {
-    // No student SAT: slight boost (GPT already matched on rigor)
-    probability *= 1.1;
   }
-  // If school has no SAT data but student does, skip SAT adjustment (admission-rate-only)
 
-  // Layer 4: Elite cap — 15% max for elite schools or sub-15% admission rate
+  // ── Elite/low-admit cap: 15% max for sub-15% admit rate schools ──
   if (admissionRate < 0.15) {
-    probability = Math.min(probability, 15);
+    odds = Math.min(odds, 15);
   }
 
   // Clamp to [1, 95]
-  return Math.round(Math.max(1, Math.min(95, probability)));
+  return Math.round(Math.max(1, Math.min(95, odds)));
 }
 
 // ── Deterministic classification (strict math, no LLM) ──────────────────────
+// Reach: < 20%   |   Match: 20–60%   |   Safety: > 60%
 
 function classifyCollege(
   schoolName: string,
-  admissionRate: number | null,
-  scorecard: ScorecardSchool | null,
-  testScores?: TestScores
+  personalizedOdds: number,
+  admissionRate: number | null
 ): "reach" | "match" | "safety" {
   // RULE 0 — Protected Reach List overrides everything
   if (isProtectedReach(schoolName)) {
@@ -229,44 +263,17 @@ function classifyCollege(
     return "reach";
   }
 
-  // RULE 2 — Check student stats vs school's 75th percentile for safety
-  if (admissionRate != null && admissionRate > 0.50 && scorecard) {
-    const sat75R = scorecard["latest.admissions.sat_scores.75th_percentile.critical_reading"];
-    const sat75M = scorecard["latest.admissions.sat_scores.75th_percentile.math"];
-    const studentSATTotal =
-      testScores?.satReading && testScores?.satMath
-        ? testScores.satReading + testScores.satMath
-        : null;
-
-    if (studentSATTotal && sat75R != null && sat75M != null) {
-      const school75 = sat75R + sat75M;
-      if (studentSATTotal > school75) {
-        return "safety";
-      }
-    }
-  }
-
-  // RULE 3 — Sub-20% admission rate is reach (even if not on protected list)
-  if (admissionRate != null && admissionRate < 0.20) {
-    return "reach";
-  }
-
-  // RULE 4 — Fallback: use admission rate bands
-  if (admissionRate != null) {
-    if (admissionRate > 0.50) return "safety";
-    if (admissionRate >= 0.20) return "match";
-    return "reach";
-  }
-
-  // No data — default to match
-  return "match";
+  // RULE 2 — Use personalized odds for classification
+  if (personalizedOdds > 60) return "safety";
+  if (personalizedOdds >= 20) return "match";
+  return "reach";
 }
 
 // ── Main enrichment function ─────────────────────────────────────────────────
 
 export async function enrichSchoolsWithScorecardData(
   schools: RecommendedSchool[],
-  testScores?: TestScores
+  student: StudentProfile
 ): Promise<RecommendedSchool[]> {
   const apiKey = process.env.COLLEGE_SCORECARD_API_KEY;
 
@@ -275,7 +282,13 @@ export async function enrichSchoolsWithScorecardData(
     return schools;
   }
 
-  console.log(`[Scorecard] Enriching ${schools.length} schools with real data...`);
+  console.log(
+    `[Scorecard] Enriching ${schools.length} schools | Student GPA=${student.gpa ?? "N/A"} Rigor=${student.rigorScore ?? "N/A"} SAT=${
+      student.testScores?.satReading && student.testScores?.satMath
+        ? student.testScores.satReading + student.testScores.satMath
+        : "N/A"
+    }`
+  );
 
   // Parallel lookups for all schools
   const lookupResults = await Promise.allSettled(
@@ -305,9 +318,9 @@ export async function enrichSchoolsWithScorecardData(
 
     // Protected Reach List — force reach + 15% cap, no exceptions
     if (isProtectedReach(school.name)) {
-      const cappedProb = Math.min(calculateProbability(scorecard, testScores), 15);
-      const finalProb = Math.max(1, cappedProb);
-      console.log(`[Scorecard] ${school.name}: PROTECTED REACH — forced reach, probability=${finalProb}%`);
+      const rawOdds = calculatePersonalizedOdds(scorecard, student);
+      const finalProb = Math.max(1, Math.min(15, rawOdds));
+      console.log(`[Scorecard] ${school.name}: PROTECTED REACH — forced reach, your odds=${finalProb}%`);
       return {
         ...school,
         acceptanceProbability: finalProb,
@@ -315,28 +328,28 @@ export async function enrichSchoolsWithScorecardData(
       };
     }
 
-    const probability = calculateProbability(scorecard, testScores);
-    if (probability < 0) {
+    const personalizedOdds = calculatePersonalizedOdds(scorecard, student);
+    if (personalizedOdds < 0) {
       console.log(`[Scorecard] ${school.name}: calculation failed — keeping GPT estimate`);
       return school;
     }
 
     // Sub-15% admission rate schools also capped at 15%
-    let finalProbability = probability;
-    if (admissionRate < 0.15 && finalProbability > 15) {
-      console.log(`[Scorecard] ${school.name}: sub-15% admit rate cap (${finalProbability}% → 15%)`);
-      finalProbability = 15;
+    let finalOdds = personalizedOdds;
+    if (admissionRate < 0.15 && finalOdds > 15) {
+      console.log(`[Scorecard] ${school.name}: sub-15% admit rate cap (${finalOdds}% → 15%)`);
+      finalOdds = 15;
     }
 
-    const type = classifyCollege(school.name, admissionRate, scorecard, testScores);
+    const type = classifyCollege(school.name, finalOdds, admissionRate);
 
     console.log(
-      `[Scorecard] ${school.name}: admission=${(admissionRate * 100).toFixed(1)}% → probability=${finalProbability}% (${type})`
+      `[Scorecard] ${school.name}: admit_rate=${(admissionRate * 100).toFixed(1)}% → YOUR ODDS=${finalOdds}% (${type})`
     );
 
     return {
       ...school,
-      acceptanceProbability: finalProbability,
+      acceptanceProbability: finalOdds,
       type,
     };
   });

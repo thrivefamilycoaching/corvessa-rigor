@@ -79,12 +79,13 @@ function formatEnrollment(enrollment: number): string {
  * If a bucket overflows, excess schools spill into the adjacent bucket.
  */
 function balanceSchools(schools: RecommendedSchool[]): RecommendedSchool[] {
-  // Step 1: Re-categorize every school by probability
+  // Step 1: Re-categorize every school by personalized odds
+  // Reach: < 20%  |  Match: 20–60%  |  Safety: > 60%
   const recategorized = schools.map((s) => {
     const prob = Math.max(1, Math.min(95, s.acceptanceProbability ?? 50));
     let type: "reach" | "match" | "safety";
-    if (prob > 70) type = "safety";
-    else if (prob >= 40) type = "match";
+    if (prob > 60) type = "safety";
+    else if (prob >= 20) type = "match";
     else type = "reach";
     return { ...s, type, acceptanceProbability: prob };
   });
@@ -552,8 +553,8 @@ function getPolicyBadgeStyle(policy: string) {
 }
 
 function getProbabilityColor(prob: number): string {
-  if (prob > 70) return "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800";
-  if (prob >= 40) return "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800";
+  if (prob > 60) return "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800";
+  if (prob >= 20) return "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800";
   return "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800";
 }
 
@@ -591,7 +592,7 @@ function SchoolCard({ school }: { school: RecommendedSchool }) {
             </span>
             {probability != null && (
               <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${getProbabilityColor(probability)}`}>
-                {probability}% chance
+                Your Odds: {probability}%
               </span>
             )}
           </div>

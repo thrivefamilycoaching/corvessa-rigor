@@ -301,10 +301,14 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
 
     const analysis = JSON.parse(content) as AnalysisResult;
 
-    // Enrich school recommendations with real Scorecard API data
+    // Enrich school recommendations with personalized Scorecard API data
     analysis.recommendedSchools = await enrichSchoolsWithScorecardData(
       analysis.recommendedSchools,
-      testScores
+      {
+        testScores,
+        gpa: analysis.recalculatedGPA,
+        rigorScore: analysis.scorecard?.overallScore,
+      }
     );
 
     return NextResponse.json(analysis);

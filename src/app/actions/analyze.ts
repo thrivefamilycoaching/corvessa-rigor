@@ -132,10 +132,14 @@ Provide college recommendations matching the specified filters. Include an exact
   try {
     const result = JSON.parse(content) as { schools: RecommendedSchool[] };
 
-    // Enrich with real Scorecard API data
+    // Enrich with personalized Scorecard API data
     const enriched = await enrichSchoolsWithScorecardData(
       result.schools,
-      request.testScores
+      {
+        testScores: request.testScores,
+        gpa: request.recalculatedGPA,
+        rigorScore: request.overallScore,
+      }
     );
 
     return enriched;
