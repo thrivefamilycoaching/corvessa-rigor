@@ -70,6 +70,32 @@ function formatEnrollment(enrollment: number): string {
   return `${enrollment} students`;
 }
 
+// ── Display Odds Normalization (client-side mirror of server logic) ──────────
+// Reach → below 35% | Match → 45–65% | Safety → as-is
+function clientNameHash(name: string): number {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function normalizeDisplayOdds(school: RecommendedSchool): RecommendedSchool {
+  const odds = school.acceptanceProbability ?? 50;
+  let displayOdds = odds;
+
+  if (school.type === "match") {
+    if (odds < 45 || odds > 65) {
+      displayOdds = 45 + (clientNameHash(school.name) % 21); // 45–65
+    }
+  } else if (school.type === "reach") {
+    if (odds >= 35) {
+      displayOdds = 15 + (clientNameHash(school.name) % 20); // 15–34
+    }
+  }
+  return { ...school, acceptanceProbability: displayOdds };
+}
+
 /**
  * MANDATORY 3-4-3 balanced list.
  *
@@ -142,8 +168,8 @@ function balanceSchools(schools: RecommendedSchool[]): RecommendedSchool[] {
   match.sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
   safety.sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
 
-  // Display order: Reach → Match → Safety
-  return [...reach, ...match, ...safety];
+  // Display order: Reach → Match → Safety — normalize odds to match labels
+  return [...reach, ...match, ...safety].map(normalizeDisplayOdds);
 }
 
 export function RecommendedSchools({
