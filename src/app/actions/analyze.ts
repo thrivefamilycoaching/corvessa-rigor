@@ -12,11 +12,8 @@ import type {
   TestScores,
 } from "@/lib/types";
 
-// Resolve worker path via URL constructor so Next.js bundles it correctly
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
-  import.meta.url
-).toString();
+// Use CDN worker to bypass Vercel's file-tracing limitations
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/legacy/build/pdf.worker.min.mjs`;
 
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   try {
