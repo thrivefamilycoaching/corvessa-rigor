@@ -69,6 +69,68 @@ function formatEnrollment(enrollment: number): string {
   return `${enrollment} students`;
 }
 
+/**
+ * Re-categorize schools based on acceptanceProbability thresholds:
+ *   Safety: > 70%
+ *   Match:  40%-70%
+ *   Reach:  < 40%
+ * Then enforce exactly 3 Safety, 4 Match, 3 Reach (10 total).
+ * If a bucket overflows, excess schools spill into the adjacent bucket.
+ */
+function balanceSchools(schools: RecommendedSchool[]): RecommendedSchool[] {
+  // Step 1: Re-categorize every school by probability
+  const recategorized = schools.map((s) => {
+    const prob = Math.max(1, Math.min(95, s.acceptanceProbability ?? 50));
+    let type: "reach" | "match" | "safety";
+    if (prob > 70) type = "safety";
+    else if (prob >= 40) type = "match";
+    else type = "reach";
+    return { ...s, type, acceptanceProbability: prob };
+  });
+
+  // Sort descending by probability
+  recategorized.sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
+
+  const safetyPool = recategorized.filter((s) => s.type === "safety");
+  const matchPool = recategorized.filter((s) => s.type === "match");
+  const reachPool = recategorized.filter((s) => s.type === "reach");
+
+  const TARGET_SAFETY = 3;
+  const TARGET_MATCH = 4;
+  const TARGET_REACH = 3;
+
+  const safety: RecommendedSchool[] = safetyPool.slice(0, TARGET_SAFETY);
+  const match: RecommendedSchool[] = matchPool.slice(0, TARGET_MATCH);
+  const reach: RecommendedSchool[] = reachPool.slice(0, TARGET_REACH);
+
+  // Step 2: Backfill any bucket that's short
+  const used = new Set([...safety, ...match, ...reach].map((s) => s.name));
+  const remaining = recategorized.filter((s) => !used.has(s.name));
+
+  // Backfill safety from overflow match (highest prob first)
+  while (safety.length < TARGET_SAFETY && remaining.length > 0) {
+    const next = remaining.shift()!;
+    safety.push({ ...next, type: "safety" });
+  }
+  // Backfill match from remaining
+  while (match.length < TARGET_MATCH && remaining.length > 0) {
+    const next = remaining.shift()!;
+    match.push({ ...next, type: "match" });
+  }
+  // Backfill reach from remaining (lowest prob first)
+  while (reach.length < TARGET_REACH && remaining.length > 0) {
+    const next = remaining.pop()!;
+    reach.push({ ...next, type: "reach" });
+  }
+
+  // Sort each bucket: safety desc, match desc, reach asc (lowest prob first)
+  safety.sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
+  match.sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
+  reach.sort((a, b) => (a.acceptanceProbability ?? 0) - (b.acceptanceProbability ?? 0));
+
+  return [...reach, ...match, ...safety];
+}
+
 export function RecommendedSchools({
   schools: initialSchools,
   transcriptSummary,
@@ -76,7 +138,7 @@ export function RecommendedSchools({
   overallScore,
   recalculatedGPA,
 }: RecommendedSchoolsProps) {
-  const [schools, setSchools] = useState<RecommendedSchool[]>(initialSchools);
+  const [schools, setSchools] = useState<RecommendedSchool[]>(() => balanceSchools(initialSchools));
   const [selectedRegions, setSelectedRegions] = useState<RegionType[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<CampusSizeType[]>([]);
   const [selectedPolicies, setSelectedPolicies] = useState<TestPolicyType[]>([]);
@@ -135,14 +197,14 @@ export function RecommendedSchools({
     setPendingRegions([]);
     setPendingSizes([]);
     setPendingPolicies([]);
-    setSchools(initialSchools);
+    setSchools(balanceSchools(initialSchools));
     setFiltersApplied(false);
   };
 
   const applyFiltersWithValues = async (regions: RegionType[], sizes: CampusSizeType[], policies: TestPolicyType[]) => {
     // If no filters selected, show original results
     if (regions.length === 0 && sizes.length === 0 && policies.length === 0) {
-      setSchools(initialSchools);
+      setSchools(balanceSchools(initialSchools));
       setFiltersApplied(false);
       return;
     }
@@ -164,14 +226,27 @@ export function RecommendedSchools({
       return regionMatch && sizeMatch && policyMatch;
     });
 
-    // If we have enough matching schools, use them
-    if (filteredExisting.length >= 5) {
-      setSchools(filteredExisting);
+    // If we have enough matching schools, balance and use them
+    if (filteredExisting.length >= 10) {
+      setSchools(balanceSchools(filteredExisting));
       setFiltersApplied(true);
       return;
     }
 
-    // Otherwise, fetch new recommendations from GPT-4o
+    // If we have some matches but fewer than 10, backfill from initial schools
+    // by adding the highest-probability non-duplicate schools
+    if (filteredExisting.length >= 5) {
+      const filteredNames = new Set(filteredExisting.map((s) => s.name));
+      const backfillCandidates = initialSchools
+        .filter((s) => !filteredNames.has(s.name))
+        .sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
+      const backfilled = [...filteredExisting, ...backfillCandidates.slice(0, 10 - filteredExisting.length)];
+      setSchools(balanceSchools(backfilled));
+      setFiltersApplied(true);
+      return;
+    }
+
+    // Too few matches — fetch new recommendations from GPT-4o
     setIsLoading(true);
     try {
       const newSchools = await getFilteredRecommendations({
@@ -183,11 +258,17 @@ export function RecommendedSchools({
         sizes,
         policies,
       });
-      setSchools(newSchools);
+      setSchools(balanceSchools(newSchools));
       setFiltersApplied(true);
     } catch (error) {
       console.error("Failed to fetch filtered recommendations:", error);
-      setSchools(filteredExisting);
+      // Backfill from initial schools if GPT call fails
+      const filteredNames = new Set(filteredExisting.map((s) => s.name));
+      const backfillCandidates = initialSchools
+        .filter((s) => !filteredNames.has(s.name))
+        .sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
+      const backfilled = [...filteredExisting, ...backfillCandidates.slice(0, 10 - filteredExisting.length)];
+      setSchools(balanceSchools(backfilled));
       setFiltersApplied(true);
     } finally {
       setIsLoading(false);
@@ -381,7 +462,10 @@ export function RecommendedSchools({
         {/* Results Summary */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span>{schools.length} schools</span>
-          {filtersApplied && <span>matching your filters</span>}
+          <span className="text-muted-foreground/60">
+            ({reachSchools.length} reach, {matchSchools.length} match, {safetySchools.length} safety)
+          </span>
+          {filtersApplied && <span>— filtered</span>}
         </div>
       </CardHeader>
 
@@ -465,8 +549,8 @@ function getPolicyBadgeStyle(policy: string) {
 }
 
 function getProbabilityColor(prob: number): string {
-  if (prob >= 65) return "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800";
-  if (prob >= 30) return "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800";
+  if (prob > 70) return "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800";
+  if (prob >= 40) return "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800";
   return "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800";
 }
 
