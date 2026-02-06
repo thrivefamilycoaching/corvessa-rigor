@@ -23,42 +23,34 @@ interface ScorecardResponse {
   results: ScorecardSchool[];
 }
 
-// ── Protected Reach List ("Duke Guard") ──────────────────────────────────────
-// These schools are ALWAYS forced to "reach" with max 15% probability,
-// regardless of any other calculation. No exceptions.
+// ── Elite Protection List ─────────────────────────────────────────────────────
+// These schools can NEVER be labeled "Safety". They are capped at "Match" max,
+// and most will land in "Reach" due to low admit rates.
+// Prevents absurd results like "Vanderbilt — Safety — 97% chance".
 
-const PROTECTED_REACH_LIST = [
-  "Harvard",
-  "Yale",
-  "Princeton",
-  "Columbia",
-  "Brown",
-  "Dartmouth",
-  "Cornell",
-  "University of Pennsylvania",
-  "Penn",
-  "Duke",
-  "Stanford",
-  "MIT",
-  "Massachusetts Institute of Technology",
-  "Caltech",
-  "California Institute of Technology",
-  "University of Chicago",
-  "UChicago",
-  "Northwestern",
-  "Johns Hopkins",
-  "Georgetown",
-  "Rice",
-  "Vanderbilt",
-  "Notre Dame",
-  "Emory",
-  "Washington University",
-  "WashU",
+const ELITE_PROTECTED_LIST = [
+  // Ivies
+  "Harvard", "Yale", "Princeton", "Columbia", "Brown",
+  "Dartmouth", "Cornell", "University of Pennsylvania", "Penn",
+  // Elite privates
+  "Duke", "Stanford", "MIT", "Massachusetts Institute of Technology",
+  "Caltech", "California Institute of Technology",
+  "University of Chicago", "UChicago", "Northwestern", "Johns Hopkins",
+  "Georgetown", "Rice", "Vanderbilt", "Notre Dame", "Emory",
+  "Washington University", "WashU",
+  // Selective publics that should never be "Safety"
+  "Florida State", "University of Florida", "Georgia Tech",
+  "Georgia Institute of Technology", "University of Michigan",
+  "University of Virginia", "UVA", "University of North Carolina",
+  "UNC", "UCLA", "UC Berkeley", "University of California, Berkeley",
+  "University of Southern California", "USC",
+  "University of Notre Dame", "Tufts", "Carnegie Mellon", "CMU",
+  "Wake Forest", "Boston College", "New York University", "NYU",
 ];
 
-export function isProtectedReach(name: string): boolean {
+export function isEliteProtected(name: string): boolean {
   const lower = name.toLowerCase();
-  return PROTECTED_REACH_LIST.some((p) => lower.includes(p.toLowerCase()));
+  return ELITE_PROTECTED_LIST.some((p) => lower.includes(p.toLowerCase()));
 }
 
 // ── Name variants for API search ─────────────────────────────────────────────
@@ -245,18 +237,54 @@ export function calculatePersonalizedOdds(
   return Math.round(Math.max(1, Math.min(95, odds)));
 }
 
-// ── Deterministic classification — ODDS DICTATE CATEGORY, NOTHING ELSE ──────
-// The AI does NOT decide categories. Only the number decides.
-//   Reach:  < 25%
-//   Match:  25–60%
-//   Safety: > 60%
+// ── Deterministic classification — DATA OVERRIDES AI, NO EXCEPTIONS ──────────
+// The AI does NOT assign categories. Three layers of math decide:
+//
+// LAYER 1 — Admission rate floor (government data):
+//   admit_rate < 0.20        → FORCED Reach
+//   admit_rate 0.20–0.50     → Match ceiling (can be Reach if odds low)
+//   admit_rate > 0.50 + GPA > 3.5 → Safety eligible
+//
+// LAYER 2 — Odds-to-label sync (personalized odds DICTATE the label):
+//   odds < 25%  → Reach
+//   odds 25–60% → Match
+//   odds > 60%  → Safety
+//
+// LAYER 3 — Elite protection (never Safety for elite schools)
 
-function classifyFromOdds(
-  personalizedOdds: number
+function classifyDeterministic(
+  schoolName: string,
+  personalizedOdds: number,
+  admissionRate: number,
+  studentGPA: number
 ): "reach" | "match" | "safety" {
-  if (personalizedOdds > 60) return "safety";
-  if (personalizedOdds >= 25) return "match";
-  return "reach";
+  // LAYER 1 — Admission rate floor
+  if (admissionRate < 0.20) {
+    return "reach"; // Sub-20% admit rate is ALWAYS reach
+  }
+
+  // LAYER 2 — Odds dictate category
+  let category: "reach" | "match" | "safety";
+  if (personalizedOdds > 60) category = "safety";
+  else if (personalizedOdds >= 25) category = "match";
+  else category = "reach";
+
+  // Admission rate 0.20–0.50: ceiling is "match" (cannot be safety)
+  if (admissionRate <= 0.50 && category === "safety") {
+    category = "match";
+  }
+
+  // Admission rate > 0.50: safety only if student GPA > 3.5
+  if (admissionRate > 0.50 && category === "safety" && studentGPA <= 3.5) {
+    category = "match";
+  }
+
+  // LAYER 3 — Elite protection: never "safety"
+  if (isEliteProtected(schoolName) && category === "safety") {
+    category = "match";
+  }
+
+  return category;
 }
 
 // ── Main enrichment function ─────────────────────────────────────────────────
@@ -312,24 +340,32 @@ export async function enrichSchoolsWithScorecardData(
       return school;
     }
 
-    // Sub-15% admit rate OR protected reach → cap at 18%, forced Reach
     let finalOdds = personalizedOdds;
-    if (admissionRate < 0.15 || isProtectedReach(school.name)) {
+
+    // Sub-15% admit rate → hard cap at 18%
+    if (admissionRate < 0.15) {
       finalOdds = Math.min(finalOdds, 18);
-      console.log(`[Scorecard] ${school.name}: LOW-ADMIT/PROTECTED cap → odds=${finalOdds}% (reach)`);
     }
 
-    // CATEGORY IS STRICTLY DICTATED BY ODDS — no AI override
-    const type = classifyFromOdds(finalOdds);
+    // DETERMINISTIC CLASSIFICATION — data overrides AI, no exceptions
+    const studentGPA = student.gpa ?? 3.0;
+    const type = classifyDeterministic(school.name, finalOdds, admissionRate, studentGPA);
+
+    // FINAL SAFETY NET: if odds < 25%, label CANNOT be Safety or Match
+    // This prevents any "9% chance — Safety" anomalies
+    if (finalOdds < 25 && type !== "reach") {
+      console.log(`[Scorecard] ${school.name}: SAFETY NET — odds=${finalOdds}% too low for "${type}", forcing reach`);
+    }
+    const guardedType = finalOdds < 25 ? "reach" : type;
 
     console.log(
-      `[Scorecard] ${school.name}: admit_rate=${(admissionRate * 100).toFixed(1)}% → YOUR ODDS=${finalOdds}% (${type})`
+      `[Scorecard] ${school.name}: admit_rate=${(admissionRate * 100).toFixed(1)}% GPA=${studentGPA} → YOUR ODDS=${finalOdds}% (${guardedType})`
     );
 
     return {
       ...school,
       acceptanceProbability: finalOdds,
-      type,
+      type: guardedType,
     };
   });
 
