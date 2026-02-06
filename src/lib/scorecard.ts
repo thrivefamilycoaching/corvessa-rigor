@@ -23,34 +23,34 @@ interface ScorecardResponse {
   results: ScorecardSchool[];
 }
 
-// ── Elite Protection List ─────────────────────────────────────────────────────
-// These schools can NEVER be labeled "Safety". They are capped at "Match" max,
-// and most will land in "Reach" due to low admit rates.
-// Prevents absurd results like "Vanderbilt — Safety — 97% chance".
+// ── U.S. News 2026 Top 30 — MANDATORY REACH for 3.4 GPA ─────────────────────
+// If a school matches this list, it is ALWAYS "Reach" for any student with
+// GPA ≤ 3.7. No Match. No Safety. No exceptions. This is the rulebook.
 
-const ELITE_PROTECTED_LIST = [
-  // Ivies
-  "Harvard", "Yale", "Princeton", "Columbia", "Brown",
-  "Dartmouth", "Cornell", "University of Pennsylvania", "Penn",
-  // Elite privates
-  "Duke", "Stanford", "MIT", "Massachusetts Institute of Technology",
+const ELITE_TOP_30 = [
+  "Princeton", "MIT", "Massachusetts Institute of Technology",
+  "Harvard", "Stanford", "Yale",
+  "University of Chicago", "UChicago",
+  "Duke", "Johns Hopkins",
+  "Northwestern", "University of Pennsylvania", "Penn", "UPenn",
   "Caltech", "California Institute of Technology",
-  "University of Chicago", "UChicago", "Northwestern", "Johns Hopkins",
-  "Georgetown", "Rice", "Vanderbilt", "Notre Dame", "Emory",
-  "Washington University", "WashU",
-  // Selective publics that should never be "Safety"
-  "Florida State", "University of Florida", "Georgia Tech",
-  "Georgia Institute of Technology", "University of Michigan",
-  "University of Virginia", "UVA", "University of North Carolina",
-  "UNC", "UCLA", "UC Berkeley", "University of California, Berkeley",
+  "Cornell", "Brown", "Dartmouth", "Columbia",
+  "UC Berkeley", "University of California, Berkeley",
+  "Rice", "UCLA", "University of California, Los Angeles",
+  "Vanderbilt", "Carnegie Mellon", "CMU",
+  "University of Michigan", "Notre Dame", "University of Notre Dame",
+  "Washington University", "WashU", "WUSTL",
+  "Emory", "Georgetown",
+  "University of North Carolina", "UNC",
+  "University of Virginia", "UVA",
   "University of Southern California", "USC",
-  "University of Notre Dame", "Tufts", "Carnegie Mellon", "CMU",
-  "Wake Forest", "Boston College", "New York University", "NYU",
+  "UC San Diego", "University of California, San Diego",
+  "University of Florida",
 ];
 
-export function isEliteProtected(name: string): boolean {
+export function isTop30Elite(name: string): boolean {
   const lower = name.toLowerCase();
-  return ELITE_PROTECTED_LIST.some((p) => lower.includes(p.toLowerCase()));
+  return ELITE_TOP_30.some((e) => lower.includes(e.toLowerCase()));
 }
 
 // ── Name variants for API search ─────────────────────────────────────────────
@@ -238,19 +238,14 @@ export function calculatePersonalizedOdds(
 }
 
 // ── Deterministic classification — DATA OVERRIDES AI, NO EXCEPTIONS ──────────
-// The AI does NOT assign categories. Three layers of math decide:
 //
-// LAYER 1 — Admission rate floor (government data):
-//   admit_rate < 0.20        → FORCED Reach
-//   admit_rate 0.20–0.50     → Match ceiling (can be Reach if odds low)
-//   admit_rate > 0.50 + GPA > 3.5 → Safety eligible
+// RULE 1 — Top 30 Elite: MANDATORY REACH (GPA ≤ 3.7). Never Match or Safety.
+// RULE 2 — Admission rate < 0.25: FORCED REACH (any school, any student).
+// RULE 3 — Odds-to-label sync: <25% → Reach, 25-60% → Match, >60% → Safety.
+// RULE 4 — Admit rate 0.25–0.50: Match ceiling (cannot be Safety).
+// RULE 5 — Safety only if admit_rate > 0.50 AND GPA > 3.5.
 //
-// LAYER 2 — Odds-to-label sync (personalized odds DICTATE the label):
-//   odds < 25%  → Reach
-//   odds 25–60% → Match
-//   odds > 60%  → Safety
-//
-// LAYER 3 — Elite protection (never Safety for elite schools)
+// The AI picks school NAMES only. Math picks everything else.
 
 function classifyDeterministic(
   schoolName: string,
@@ -258,29 +253,34 @@ function classifyDeterministic(
   admissionRate: number,
   studentGPA: number
 ): "reach" | "match" | "safety" {
-  // LAYER 1 — Admission rate floor
-  if (admissionRate < 0.20) {
-    return "reach"; // Sub-20% admit rate is ALWAYS reach
+  // RULE 1 — Top 30 Elite: mandatory Reach for GPA ≤ 3.7
+  if (isTop30Elite(schoolName) && studentGPA <= 3.7) {
+    return "reach";
   }
 
-  // LAYER 2 — Odds dictate category
+  // RULE 2 — Sub-25% admission rate from Scorecard API: always Reach
+  if (admissionRate < 0.25) {
+    return "reach";
+  }
+
+  // RULE 3 — Odds dictate category
   let category: "reach" | "match" | "safety";
   if (personalizedOdds > 60) category = "safety";
   else if (personalizedOdds >= 25) category = "match";
   else category = "reach";
 
-  // Admission rate 0.20–0.50: ceiling is "match" (cannot be safety)
+  // RULE 4 — Admit rate 0.25–0.50: ceiling is Match
   if (admissionRate <= 0.50 && category === "safety") {
     category = "match";
   }
 
-  // Admission rate > 0.50: safety only if student GPA > 3.5
+  // RULE 5 — Safety only if admit_rate > 0.50 AND student GPA > 3.5
   if (admissionRate > 0.50 && category === "safety" && studentGPA <= 3.5) {
     category = "match";
   }
 
-  // LAYER 3 — Elite protection: never "safety"
-  if (isEliteProtected(schoolName) && category === "safety") {
+  // Top 30 elite can never be Safety, even with high GPA
+  if (isTop30Elite(schoolName) && category === "safety") {
     category = "match";
   }
 
@@ -347,8 +347,18 @@ export async function enrichSchoolsWithScorecardData(
       finalOdds = Math.min(finalOdds, 18);
     }
 
-    // DETERMINISTIC CLASSIFICATION — data overrides AI, no exceptions
+    // Top 30 Elite with GPA ≤ 3.7 → cap at 20% (guaranteed Reach)
     const studentGPA = student.gpa ?? 3.0;
+    if (isTop30Elite(school.name) && studentGPA <= 3.7) {
+      finalOdds = Math.min(finalOdds, 20);
+    }
+
+    // Sub-25% admit rate → cap at 24% (guaranteed Reach via <25% guard)
+    if (admissionRate < 0.25) {
+      finalOdds = Math.min(finalOdds, 24);
+    }
+
+    // DETERMINISTIC CLASSIFICATION — data overrides AI, no exceptions
     const type = classifyDeterministic(school.name, finalOdds, admissionRate, studentGPA);
 
     // FINAL SAFETY NET: if odds < 25%, label CANNOT be Safety or Match
