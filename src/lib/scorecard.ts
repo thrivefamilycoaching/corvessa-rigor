@@ -1,5 +1,5 @@
 import type { RecommendedSchool, TestScores, CampusSizeType, TestPolicyType, RegionType } from "@/lib/types";
-import { isTestRequiredSchool } from "@/lib/constants";
+import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS } from "@/lib/constants";
 import OpenAI from "openai";
 
 // ── Filter Constraints ──────────────────────────────────────────────────────
@@ -53,6 +53,18 @@ function applyHardFilters(schools: RecommendedSchool[], filters?: FilterConstrai
       console.log(`[Filter] DISCARDED ${s.name}: region=${s.region} enrollment=${s.enrollment} size=${getEnrollmentSize(s.enrollment)} policy=${s.testPolicy} — does not match filters`);
     }
     return sizeOk && policyOk && regionOk;
+  });
+}
+
+/** Correct testPolicy on school objects using the hard-coded override list.
+ *  This mutates the field BEFORE filtering so the UI also shows the right label. */
+function correctTestPolicies(schools: RecommendedSchool[]): RecommendedSchool[] {
+  return schools.map((s) => {
+    if (isTestRequiredSchool(s.name) && s.testPolicy !== "Test Required") {
+      console.log(`[PolicyCorrect] ${s.name}: GPT said "${s.testPolicy}" → overriding to "Test Required"`);
+      return { ...s, testPolicy: "Test Required" };
+    }
+    return s;
   });
 }
 
@@ -506,6 +518,12 @@ async function fetchFillSchools(
   }
   if (filters?.policies && filters.policies.length > 0) {
     filterLines.push(`MANDATORY POLICY FILTER: Only recommend schools with these testing policies: ${filters.policies.join(" OR ")}. Do NOT include schools with other policies.`);
+    // If user did NOT select "Test Required", warn GPT about known test-required schools
+    if (!filters.policies.includes("Test Required")) {
+      // Deduplicate the list to short-form names for prompt brevity
+      const shortNames = [...new Set(TEST_REQUIRED_SCHOOLS.filter((n) => n.includes(" ")))].slice(0, 20);
+      filterLines.push(`KNOWN TEST-REQUIRED SCHOOLS (DO NOT INCLUDE): ${shortNames.join(", ")}. These schools require test scores — they do NOT match the selected filter.`);
+    }
   }
 
   const totalNeeded =
@@ -672,7 +690,8 @@ export async function enforce343Distribution(
   // Step 1: Enrich initial schools with Scorecard data
   let allEnriched = await enrichSchoolsWithScorecardData(initialSchools, student);
 
-  // Step 1b: Apply hard filter constraints — discard BEFORE categorization
+  // Step 1b: Correct test policies using hard-coded overrides, then filter
+  allEnriched = correctTestPolicies(allEnriched);
   allEnriched = applyHardFilters(allEnriched, filters);
   console.log(
     `[343] After hard filters: ${allEnriched.length} schools remain`
@@ -707,8 +726,9 @@ export async function enforce343Distribution(
       break;
     }
 
-    // Enrich fill schools, then apply hard filters to them too
+    // Enrich fill schools, correct policies, then apply hard filters
     let enrichedFill = await enrichSchoolsWithScorecardData(fillSchools, student);
+    enrichedFill = correctTestPolicies(enrichedFill);
     enrichedFill = applyHardFilters(enrichedFill, filters);
     allEnriched = [...allEnriched, ...enrichedFill];
 

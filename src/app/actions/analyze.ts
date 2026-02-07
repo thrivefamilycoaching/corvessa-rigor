@@ -234,7 +234,8 @@ async function callGPTForSchools(
   }
 }
 
-/** Strict post-validation: every returned school must match ALL active filters. */
+/** Strict post-validation: every returned school must match ALL active filters.
+ *  Also corrects testPolicy on school objects using the hard-coded override list. */
 function enforceFilterGate(
   schools: RecommendedSchool[],
   regions: RegionType[],
@@ -245,17 +246,22 @@ function enforceFilterGate(
     return schools;
   }
 
-  const passed = schools.filter((s) => {
+  // Correct testPolicy BEFORE filtering so the check uses ground truth
+  const corrected = schools.map((s) => {
+    if (isTestRequiredSchool(s.name) && s.testPolicy !== "Test Required") {
+      return { ...s, testPolicy: "Test Required" as TestPolicyType };
+    }
+    return s;
+  });
+
+  const passed = corrected.filter((s) => {
     const regionOk = regions.length === 0 || regions.includes(s.region);
     const sizeOk = sizes.length === 0 || sizes.includes(getEnrollmentSize(s.enrollment));
-    const effectivePolicy: TestPolicyType = isTestRequiredSchool(s.name)
-      ? "Test Required"
-      : (s.testPolicy || "Test Optional");
-    const policyOk = policies.length === 0 || policies.includes(effectivePolicy);
+    const policyOk = policies.length === 0 || policies.includes(s.testPolicy || "Test Optional");
 
     if (!regionOk || !sizeOk || !policyOk) {
       console.log(
-        `[FilterGate] DISCARDED ${s.name}: region=${s.region} size=${getEnrollmentSize(s.enrollment)} policy=${effectivePolicy} — does not match filters`
+        `[FilterGate] DISCARDED ${s.name}: region=${s.region} size=${getEnrollmentSize(s.enrollment)} policy=${s.testPolicy} — does not match filters`
       );
     }
     return regionOk && sizeOk && policyOk;
