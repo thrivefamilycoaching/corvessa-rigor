@@ -1,5 +1,5 @@
 import type { RecommendedSchool, TestScores, CampusSizeType, TestPolicyType, RegionType } from "@/lib/types";
-import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS } from "@/lib/constants";
+import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS, getSchoolRegion } from "@/lib/constants";
 import OpenAI from "openai";
 
 // ── Filter Constraints ──────────────────────────────────────────────────────
@@ -518,8 +518,16 @@ async function fetchFillSchools(
   }
 
   if (filters?.regions && filters.regions.length > 0) {
+    const regionStateMap: Record<string, string> = {
+      "Northeast": "Massachusetts, Connecticut, Rhode Island, Maine, Vermont, New Hampshire, New York",
+      "Mid-Atlantic": "Pennsylvania, New Jersey, Delaware, Maryland, Virginia, West Virginia, DC",
+      "South": "North Carolina, South Carolina, Georgia, Florida, Alabama, Mississippi, Louisiana, Tennessee, Kentucky, Arkansas, Texas, Oklahoma",
+      "Midwest": "Ohio, Michigan, Indiana, Illinois, Wisconsin, Minnesota, Iowa, Missouri, Kansas, Nebraska, South Dakota, North Dakota",
+      "West": "California, Oregon, Washington, Colorado, Arizona, Nevada, Utah, New Mexico, Idaho, Montana, Wyoming, Hawaii, Alaska",
+    };
+    const regionDetails = filters.regions.map((r) => `${r} (${regionStateMap[r] ?? ""})`).join(" OR ");
     absoluteConstraints.push(
-      `ABSOLUTE REQUIREMENT #2 — REGION: Every school MUST be in: ${filters.regions.join(" OR ")}. Do NOT include schools from other regions.`
+      `ABSOLUTE REQUIREMENT #2 — REGION: Every school MUST be located in: ${regionDetails}. Look up each school's actual state and verify it belongs to the allowed region. Do NOT include schools from other regions.`
     );
   }
 
@@ -569,7 +577,28 @@ Include lesser-known accredited schools — not just nationally ranked ones.`,
     if (!content) return [];
 
     const result = JSON.parse(content) as { schools: RecommendedSchool[] };
-    const raw = result.schools ?? [];
+    const raw = (result.schools ?? []).map((s) => {
+      // Correct campusSize from enrollment
+      if (s.enrollment > 0) {
+        const correctSize = getEnrollmentSize(s.enrollment);
+        if (correctSize !== s.campusSize) {
+          console.log(`[FillSizeCorrect] ${s.name}: enrollment=${s.enrollment} → "${correctSize}" (GPT said "${s.campusSize}")`);
+          s = { ...s, campusSize: correctSize };
+        }
+      }
+      // Correct region from hard-coded state mapping
+      const correctRegion = getSchoolRegion(s.name);
+      if (correctRegion && correctRegion !== s.region) {
+        console.log(`[FillRegionCorrect] ${s.name}: GPT said "${s.region}" → "${correctRegion}"`);
+        s = { ...s, region: correctRegion };
+      }
+      // Correct test policy from hard-coded override list
+      if (isTestRequiredSchool(s.name) && s.testPolicy !== "Test Required") {
+        console.log(`[FillPolicyCorrect] ${s.name}: GPT said "${s.testPolicy}" → "Test Required"`);
+        s = { ...s, testPolicy: "Test Required" };
+      }
+      return s;
+    });
 
     // Pre-filter fill results — catch GPT enrollment hallucinations at source
     if (!filters || (filters.sizes.length === 0 && filters.regions.length === 0 && filters.policies.length === 0)) {
