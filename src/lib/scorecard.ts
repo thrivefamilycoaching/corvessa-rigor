@@ -617,21 +617,35 @@ function pick343(pool: RecommendedSchool[]): RecommendedSchool[] {
     usedNames.add(s.name);
   }
 
-  // Backfill if pool didn't have enough of a category
-  if (result.length < 10) {
-    const unused = pool
-      .filter((s) => !usedNames.has(s.name))
-      .sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
-    for (const s of unused) {
-      if (result.length >= 10) break;
-      const mCount = result.filter((r) => r.type === "match").length;
-      const sCount = result.filter((r) => r.type === "safety").length;
-      const rCount = result.filter((r) => r.type === "reach").length;
-      const assignType: "reach" | "match" | "safety" =
-        mCount < 4 ? "match" : sCount < 3 ? "safety" : rCount < 3 ? "reach" : "match";
-      result.push({ ...s, type: assignType });
-      usedNames.add(s.name);
-    }
+  // Backfill: guarantee exactly 3-4-3 by pulling the closest unused school
+  // into whichever bucket is short.  Proximity is measured by distance from
+  // the category's midpoint odds (reach≈20, match≈45, safety≈80).
+  const MIDPOINTS: Record<string, number> = { reach: 20, match: 45, safety: 80 };
+
+  while (result.length < 10) {
+    const unused = pool.filter((s) => !usedNames.has(s.name));
+    if (unused.length === 0) break;
+
+    const mCount = result.filter((r) => r.type === "match").length;
+    const sCount = result.filter((r) => r.type === "safety").length;
+    const rCount = result.filter((r) => r.type === "reach").length;
+    const needType: "reach" | "match" | "safety" =
+      mCount < 4 ? "match" : sCount < 3 ? "safety" : rCount < 3 ? "reach" : "match";
+
+    const mid = MIDPOINTS[needType];
+    // Pick the unused school whose odds are nearest the target midpoint
+    const best = unused.reduce((a, b) =>
+      Math.abs((a.acceptanceProbability ?? 50) - mid) <=
+      Math.abs((b.acceptanceProbability ?? 50) - mid)
+        ? a
+        : b
+    );
+
+    console.log(
+      `[343-Backfill] Reassigning "${best.name}" (odds=${best.acceptanceProbability}%) from ${best.type} → ${needType}`
+    );
+    result.push({ ...best, type: needType });
+    usedNames.add(best.name);
   }
 
   console.log(
