@@ -96,6 +96,44 @@ function normalizeDisplayOdds(school: RecommendedSchool): RecommendedSchool {
   return { ...school, acceptanceProbability: displayOdds };
 }
 
+/** Correct testPolicy and re-filter schools against active filters (client-side defense). */
+function clientCorrectAndFilter(
+  schools: RecommendedSchool[],
+  regions: RegionType[],
+  sizes: CampusSizeType[],
+  policies: TestPolicyType[],
+): RecommendedSchool[] {
+  // Step 1: Correct testPolicy using hard-coded override list
+  const corrected = schools.map((s) =>
+    isTestRequiredSchool(s.name) && s.testPolicy !== "Test Required"
+      ? { ...s, testPolicy: "Test Required" as TestPolicyType }
+      : s
+  );
+
+  // Step 2: If no filters active, return corrected schools only
+  if (regions.length === 0 && sizes.length === 0 && policies.length === 0) {
+    return corrected;
+  }
+
+  // Step 3: Strict AND filter — region + size + policy
+  return corrected.filter((school) => {
+    const regionOk = regions.length === 0 || regions.includes(school.region);
+    const sizeOk = sizes.length === 0 || sizes.some((size) => {
+      const enrollment = school.enrollment ?? 0;
+      switch (size) {
+        case "Micro": return enrollment < 2000;
+        case "Small": return enrollment >= 2000 && enrollment <= 5000;
+        case "Medium": return enrollment > 5000 && enrollment <= 15000;
+        case "Large": return enrollment > 15000 && enrollment <= 30000;
+        case "Mega": return enrollment > 30000;
+        default: return false;
+      }
+    });
+    const policyOk = policies.length === 0 || policies.includes(school.testPolicy || "Test Optional");
+    return regionOk && sizeOk && policyOk;
+  });
+}
+
 /**
  * MANDATORY 3-3-3 balanced list (9 schools total).
  *
@@ -251,30 +289,8 @@ export function RecommendedSchools({
       return;
     }
 
-    // Try to filter existing schools first
-    // Logic: OR within each filter group, AND between groups
-    // Size check uses ENROLLMENT NUMBER (hard validation), not GPT label
-    let filteredExisting = initialSchools.filter((school) => {
-      const regionMatch = regions.length === 0 || regions.includes(school.region);
-      // Enrollment-based size validation
-      const sizeMatch = sizes.length === 0 || sizes.some((size) => {
-        const enrollment = school.enrollment ?? 0;
-        switch (size) {
-          case "Micro": return enrollment < 2000;
-          case "Small": return enrollment >= 2000 && enrollment <= 5000;
-          case "Medium": return enrollment > 5000 && enrollment <= 15000;
-          case "Large": return enrollment > 15000 && enrollment <= 30000;
-          case "Mega": return enrollment > 30000;
-          default: return false;
-        }
-      });
-      // Use hard-coded override for known Test Required schools
-      const schoolPolicy: TestPolicyType = isTestRequiredSchool(school.name)
-        ? "Test Required"
-        : (school.testPolicy || "Test Optional");
-      const policyMatch = policies.length === 0 || policies.includes(schoolPolicy);
-      return regionMatch && sizeMatch && policyMatch;
-    });
+    // Try to filter existing schools first (correct policies + strict AND filter)
+    let filteredExisting = clientCorrectAndFilter(initialSchools, regions, sizes, policies);
 
     // Strict AND logic — no filter relaxation, no unfiltered backfill.
     // If enough schools match locally, use them directly.
@@ -317,11 +333,15 @@ export function RecommendedSchools({
         }
       }
 
-      // If merge produced results, use them.
+      // Client-side defense: correct testPolicy and re-filter the entire
+      // merged pool before display.  This catches any server-side leaks.
+      const validated = clientCorrectAndFilter(merged, regions, sizes, policies);
+
+      // If validated produced results, use them.
       // If still 0, fall back to the 9 closest from original list so
       // the user never sees an empty page.
-      if (merged.length > 0) {
-        setSchools(balanceSchools(merged));
+      if (validated.length > 0) {
+        setSchools(balanceSchools(validated));
       } else {
         setSchools(balanceSchools(initialSchools.slice(0, 9)));
       }
