@@ -44,15 +44,16 @@ export async function getFilteredRecommendations(
     openai,
     studentDesc,
     2,
-    { sizes: request.sizes, policies: request.policies },
+    { sizes: request.sizes, policies: request.policies, regions: request.regions },
   );
 
   let passed = enforceFilterGate(enriched, request.regions, request.sizes, request.policies);
 
-  // ── Progressive retry: widen GPA by ±0.75 in steps until 3-3-3 fills ─
-  // Size/Region/Policy filters are MANDATORY.  Academic criteria are FLEXIBLE.
-  const GPA_STEPS = [0.5, 0.75];
-  const SAT_STEPS = [100, 200];
+  // ── Progressive retry: widen GPA in steps until 3-3-3 fills ────────
+  // Size/Region/Policy filters are MANDATORY and ABSOLUTE.
+  // Academic criteria are FLEXIBLE and expand progressively.
+  const GPA_STEPS = [0.5, 0.75, 1.0];
+  const SAT_STEPS = [100, 200, 300];
 
   for (let step = 0; step < GPA_STEPS.length && passed.length < 9 && hasFilters; step++) {
     const gpaRange = GPA_STEPS[step];
@@ -73,7 +74,7 @@ export async function getFilteredRecommendations(
       openai,
       studentDesc,
       1,
-      { sizes: request.sizes, policies: request.policies },
+      { sizes: request.sizes, policies: request.policies, regions: request.regions },
     );
 
     const extraPassed = enforceFilterGate(extraEnriched, request.regions, request.sizes, request.policies);

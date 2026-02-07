@@ -1,4 +1,4 @@
-import type { RecommendedSchool, TestScores, CampusSizeType, TestPolicyType } from "@/lib/types";
+import type { RecommendedSchool, TestScores, CampusSizeType, TestPolicyType, RegionType } from "@/lib/types";
 import { isTestRequiredSchool } from "@/lib/constants";
 import OpenAI from "openai";
 
@@ -8,6 +8,7 @@ import OpenAI from "openai";
 export interface FilterConstraints {
   sizes: CampusSizeType[];
   policies: TestPolicyType[];
+  regions: RegionType[];
 }
 
 const SIZE_RANGES: Record<CampusSizeType, [number, number]> = {
@@ -41,16 +42,17 @@ function matchesPolicyFilter(schoolName: string, schoolPolicy: TestPolicyType | 
 }
 
 function applyHardFilters(schools: RecommendedSchool[], filters?: FilterConstraints): RecommendedSchool[] {
-  if (!filters || (filters.sizes.length === 0 && filters.policies.length === 0)) {
+  if (!filters || (filters.sizes.length === 0 && filters.policies.length === 0 && filters.regions.length === 0)) {
     return schools;
   }
   return schools.filter((s) => {
     const sizeOk = matchesSizeFilter(s.enrollment, filters.sizes);
     const policyOk = matchesPolicyFilter(s.name, s.testPolicy, filters.policies);
-    if (!sizeOk || !policyOk) {
-      console.log(`[Filter] DISCARDED ${s.name}: enrollment=${s.enrollment} size=${getEnrollmentSize(s.enrollment)} policy=${s.testPolicy} — does not match filters`);
+    const regionOk = filters.regions.length === 0 || filters.regions.includes(s.region);
+    if (!sizeOk || !policyOk || !regionOk) {
+      console.log(`[Filter] DISCARDED ${s.name}: region=${s.region} enrollment=${s.enrollment} size=${getEnrollmentSize(s.enrollment)} policy=${s.testPolicy} — does not match filters`);
     }
-    return sizeOk && policyOk;
+    return sizeOk && policyOk && regionOk;
   });
 }
 
@@ -492,6 +494,9 @@ async function fetchFillSchools(
 
   // Build hard filter constraints for the GPT prompt
   const filterLines: string[] = [];
+  if (filters?.regions && filters.regions.length > 0) {
+    filterLines.push(`MANDATORY REGION FILTER: Only recommend schools in these regions: ${filters.regions.join(" OR ")}. Do NOT include schools from other regions.`);
+  }
   if (filters?.sizes && filters.sizes.length > 0) {
     const sizeDescs = filters.sizes.map((s) => {
       const [min, max] = SIZE_RANGES[s];
