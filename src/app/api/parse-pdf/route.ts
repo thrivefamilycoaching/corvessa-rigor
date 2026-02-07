@@ -246,8 +246,14 @@ export async function POST(request: NextRequest) {
 
         STEP 3 — VALIDATION CHECK (MANDATORY BEFORE OUTPUT):
         - Before finalizing the "taken" array, cross-reference EVERY entry against the raw transcript text
-        - If a course name does not appear in the raw transcript text, REMOVE it from "taken"
+        - If a course name does not appear in the raw transcript text, REMOVE it from "taken" and ADD it to "missed"
         - This is a hard gate — no exceptions
+
+        STEP 3b — SANITY CHECK (HALLUCINATION GUARD):
+        - For each subject, verify that no grade level has more than one core course marked as "taken"
+        - Example: a student cannot take BOTH "Geometry" AND "Honors Geometry" in the same year — if both appear, re-check the transcript and keep only the one that actually appears with a grade
+        - If you find duplicate courses at the same level, flag the discrepancy and keep only the version confirmed by the transcript
+        - This prevents the model from inflating the "taken" list with phantom courses
 
         STEP 4 — MISSED / UPCOMING OPPORTUNITIES (CRITICAL):
         - ANY course listed in the School Profile's "offered" array that is NOT in the "taken" array MUST go into "missed"

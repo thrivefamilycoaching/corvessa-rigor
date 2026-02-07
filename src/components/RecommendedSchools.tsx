@@ -317,12 +317,24 @@ export function RecommendedSchools({
         }
       }
 
-      setSchools(balanceSchools(merged));
+      // If merge produced results, use them.
+      // If still 0, fall back to the 9 closest from original list so
+      // the user never sees an empty page.
+      if (merged.length > 0) {
+        setSchools(balanceSchools(merged));
+      } else {
+        setSchools(balanceSchools(initialSchools.slice(0, 9)));
+      }
       setFiltersApplied(true);
     } catch (error) {
       console.error("Failed to fetch filtered recommendations:", error);
-      // On timeout or error, show only what we have that actually matches
-      setSchools(balanceSchools(filteredExisting));
+      // On timeout or error: show filtered matches, or fall back to
+      // closest originals so the user never gets 0 results.
+      if (filteredExisting.length > 0) {
+        setSchools(balanceSchools(filteredExisting));
+      } else {
+        setSchools(balanceSchools(initialSchools.slice(0, 9)));
+      }
       setFiltersApplied(true);
     } finally {
       setIsLoading(false);
@@ -539,30 +551,22 @@ export function RecommendedSchools({
               Searching for schools matching your criteria...
             </p>
           </div>
-        ) : schools.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <GraduationCap className="h-8 w-8 text-muted-foreground/50 mb-3" />
-            <p className="text-sm text-muted-foreground">
-              No schools match the selected filters. Try adjusting your criteria.
-            </p>
-          </div>
-        ) : !is333Valid && !hasActiveFilters ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <GraduationCap className="h-8 w-8 text-amber-500 mb-3" />
-            <p className="text-sm text-muted-foreground">
-              Unable to generate a balanced 3/3/3 recommendation list
-              ({reachSchools.length} reach, {matchSchools.length} match, {safetySchools.length} safety).
-              Please try again or adjust your filters.
-            </p>
-          </div>
         ) : (
           <>
-            {/* Limited results warning when filters narrow the pool */}
-            {showLimitedWarning && (
+            {/* Disclaimer when filters narrow the pool below 3-3-3 */}
+            {!is333Valid && hasActiveFilters && schools.length > 0 && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800 p-3 mb-4">
+                <p className="text-sm text-blue-700 dark:text-blue-400">
+                  Showing {schools.length} schools closest to your academic profile within the selected size/region.
+                  Try broadening your filters for a full 3/3/3 recommendation list.
+                </p>
+              </div>
+            )}
+            {!is333Valid && !hasActiveFilters && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 p-3 mb-4">
                 <p className="text-sm text-amber-700 dark:text-amber-400">
-                  Limited results found for your specific size/policy filters ({schools.length} schools).
-                  Try broadening your filters for a full 3/3/3 recommendation list.
+                  Partial results: {reachSchools.length} reach, {matchSchools.length} match, {safetySchools.length} safety.
+                  Please try again for a full 3/3/3 recommendation list.
                 </p>
               </div>
             )}

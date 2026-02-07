@@ -49,18 +49,21 @@ export async function getFilteredRecommendations(
 
   let passed = enforceFilterGate(enriched, request.regions, request.sizes, request.policies);
 
-  // ── Pass 2: broadened academic range retry ──────────────────────
-  // If strict filters left us with < 9 schools, retry with a wider
-  // GPA (±0.5) and SAT (±100) range while keeping the SAME Region,
-  // Size, and Policy constraints.  This searches a broader slice of
-  // the full US college list.
-  if (passed.length < 9 && hasFilters) {
+  // ── Progressive retry: widen GPA by ±0.75 in steps until 3-3-3 fills ─
+  // Size/Region/Policy filters are MANDATORY.  Academic criteria are FLEXIBLE.
+  const GPA_STEPS = [0.5, 0.75];
+  const SAT_STEPS = [100, 200];
+
+  for (let step = 0; step < GPA_STEPS.length && passed.length < 9 && hasFilters; step++) {
+    const gpaRange = GPA_STEPS[step];
+    const satRange = SAT_STEPS[step];
     console.log(
-      `[FilterRetry] Only ${passed.length} schools survived — retrying with broadened academic range`
+      `[FilterRetry] Pass ${step + 2}: ${passed.length} schools — broadening GPA ±${gpaRange}, SAT ±${satRange}`
     );
+
     const excludeNames = passed.map((s) => s.name);
     const needed = 15 - passed.length;
-    const broadenedMsg = buildBroadenedMessage(request, needed, excludeNames);
+    const broadenedMsg = buildBroadenedMessage(request, needed, excludeNames, gpaRange, satRange);
 
     const extraPool = await callGPTForSchools(openai, filterPrompt, broadenedMsg, needed);
 
@@ -83,7 +86,7 @@ export async function getFilteredRecommendations(
         seenNames.add(s.name.toLowerCase());
       }
     }
-    console.log(`[FilterRetry] After broadened retry: ${passed.length} schools total`);
+    console.log(`[FilterRetry] After pass ${step + 2}: ${passed.length} schools total`);
   }
 
   return passed;
@@ -155,6 +158,8 @@ function buildBroadenedMessage(
   request: FilteredRecommendationsRequest,
   count: number,
   excludeNames: string[],
+  gpaRange: number = 0.5,
+  satRange: number = 100,
 ): string {
   const gpa = request.recalculatedGPA ?? 3.0;
   const satTotal =
@@ -163,11 +168,13 @@ function buildBroadenedMessage(
       : null;
 
   return `I need ${count} MORE colleges that match the Region and Size filters above.
+The Region and Size filters are MANDATORY — every school MUST match them.
+The academic match is FLEXIBLE — broaden it as follows:
 
-BROADEN the academic match range:
-- Accept schools whose median freshman GPA is ${(gpa - 0.5).toFixed(1)} to ${(gpa + 0.5).toFixed(1)} (was ${gpa.toFixed(2)})
-${satTotal ? `- Accept schools whose SAT middle-50% overlaps ${satTotal - 100} to ${satTotal + 100} (was ${satTotal})` : ""}
-- Include lesser-known but accredited colleges — not just nationally ranked schools
+- Accept schools whose median freshman GPA is ${Math.max(1.0, gpa - gpaRange).toFixed(1)} to ${Math.min(5.0, gpa + gpaRange).toFixed(1)} (student GPA: ${gpa.toFixed(2)})
+${satTotal ? `- Accept schools whose SAT middle-50% overlaps ${Math.max(400, satTotal - satRange)} to ${Math.min(1600, satTotal + satRange)} (student SAT: ${satTotal})` : ""}
+- Include lesser-known but accredited 4-year colleges — not just nationally ranked schools
+- Search the FULL list of US institutions in the specified Region and Size
 
 Do NOT repeat any of these already-selected schools: ${excludeNames.join(", ")}
 
