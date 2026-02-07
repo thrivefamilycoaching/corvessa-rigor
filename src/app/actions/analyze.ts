@@ -85,6 +85,8 @@ export async function getFilteredRecommendations(
         seenNames.add(s.name.toLowerCase());
       }
     }
+    // Re-correct merged pool — ensure progressive retry additions have ground-truth metadata
+    passed = correctSchoolMetadata(passed);
     console.log(`[FilterRetry] After pass ${step + 2}: ${passed.length} schools total`);
   }
 
@@ -262,8 +264,15 @@ function buildBroadenedMessage(
       ? request.testScores.satReading + request.testScores.satMath
       : null;
 
-  // Build mandatory filter reminders for the broadened prompt
-  let filterReminders = "";
+  // Build ABSOLUTE REQUIREMENT filter reminders for the broadened prompt
+  const filterReminders: string[] = [];
+
+  if (request.sizes.length > 0 && request.sizes.length < 5) {
+    const sizeDescs = request.sizes.map(s => `${s} (${SIZE_DESCRIPTIONS[s]} undergrads)`).join(" OR ");
+    filterReminders.push(
+      `ABSOLUTE REQUIREMENT — ENROLLMENT SIZE: Every school MUST have undergraduate enrollment within: ${sizeDescs}. A school with enrollment outside this range is WRONG and must not be included.`
+    );
+  }
 
   if (request.regions.length > 0 && request.regions.length < 5) {
     const regionStateMap: Record<string, string> = {
@@ -274,25 +283,33 @@ function buildBroadenedMessage(
       "West": "California, Oregon, Washington, Colorado, Arizona, Nevada, Utah, New Mexico, Idaho, Montana, Wyoming, Hawaii, Alaska",
     };
     const regionDetails = request.regions.map((r) => `${r} (${regionStateMap[r] ?? ""})`).join(" OR ");
-    filterReminders += `\nMANDATORY REGION: Every school MUST be in: ${regionDetails}. Verify each school's actual state.`;
+    filterReminders.push(
+      `ABSOLUTE REQUIREMENT — REGION: Every school MUST be in: ${regionDetails}. Verify each school's actual state.`
+    );
   }
 
   if (request.policies.length > 0 && request.policies.length < 3) {
-    filterReminders += `\nMANDATORY TEST POLICY: Only include schools with these testing policies: ${request.policies.join(" OR ")}. Do NOT include schools with other testing policies.`;
+    let policyLine = `ABSOLUTE REQUIREMENT — TESTING POLICY: Every school MUST have policy: ${request.policies.join(" OR ")}. Do NOT include schools with other testing policies.`;
     if (!request.policies.includes("Test Required")) {
       const shortNames = [...new Set(TEST_REQUIRED_SCHOOLS.filter((n) => n.includes(" ")))].slice(0, 20);
-      filterReminders += `\nKNOWN TEST-REQUIRED SCHOOLS (DO NOT INCLUDE): ${shortNames.join(", ")}.`;
+      policyLine += `\nKNOWN TEST-REQUIRED SCHOOLS (DO NOT INCLUDE): ${shortNames.join(", ")}.`;
     }
+    filterReminders.push(policyLine);
   }
 
+  const constraintBlock = filterReminders.length > 0 ? filterReminders.join("\n\n") : "";
+
   return `I need ${count} MORE colleges that match the Region, Size, and Testing Policy filters above.
-The Region, Size, and Testing Policy filters are MANDATORY — every school MUST match ALL of them.
+The Region, Size, and Testing Policy filters are ABSOLUTE — every school MUST match ALL of them.
 The academic match is FLEXIBLE — broaden it as follows:
-${filterReminders}
+
+${constraintBlock}
+
 - Accept schools whose median freshman GPA is ${Math.max(1.0, gpa - gpaRange).toFixed(1)} to ${Math.min(5.0, gpa + gpaRange).toFixed(1)} (student GPA: ${gpa.toFixed(2)})
 ${satTotal ? `- Accept schools whose SAT middle-50% overlaps ${Math.max(400, satTotal - satRange)} to ${Math.min(1600, satTotal + satRange)} (student SAT: ${satTotal})` : ""}
 - Include lesser-known but accredited 4-year colleges — not just nationally ranked schools
 - Search the FULL list of US institutions in the specified Region and Size
+The "enrollment" field MUST be the REAL undergraduate enrollment number for each school.
 
 Do NOT repeat any of these already-selected schools: ${excludeNames.join(", ")}
 
