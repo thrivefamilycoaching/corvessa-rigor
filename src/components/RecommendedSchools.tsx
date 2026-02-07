@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { RecommendedSchool, RegionType, CampusSizeType, TestPolicyType, TestScores } from "@/lib/types";
-import { REGIONS, CAMPUS_SIZES, TEST_POLICIES, isTestRequiredSchool } from "@/lib/constants";
+import { REGIONS, CAMPUS_SIZES, TEST_POLICIES, isTestRequiredSchool, getSchoolRegion } from "@/lib/constants";
 import { getFilteredRecommendations } from "@/app/actions/analyze";
 import {
   GraduationCap,
@@ -130,19 +130,49 @@ function absoluteEnrollmentKill(schools: RecommendedSchool[], sizes: CampusSizeT
   });
 }
 
-/** Correct testPolicy and re-filter schools against active filters (client-side defense). */
+/** Derive campusSize from enrollment number (client-side, mirrors server getEnrollmentSize). */
+function getEnrollmentSize(enrollment: number): CampusSizeType {
+  if (enrollment < 2000) return "Micro";
+  if (enrollment <= 5000) return "Small";
+  if (enrollment <= 15000) return "Medium";
+  if (enrollment <= 30000) return "Large";
+  return "Mega";
+}
+
+/** Correct ALL metadata (region, campusSize, testPolicy) then filter against active filters.
+ *  This is the client-side mirror of the server's correctSchoolMetadata + filter pipeline. */
 function clientCorrectAndFilter(
   schools: RecommendedSchool[],
   regions: RegionType[],
   sizes: CampusSizeType[],
   policies: TestPolicyType[],
 ): RecommendedSchool[] {
-  // Step 1: Correct testPolicy using hard-coded override list
-  const corrected = schools.map((s) =>
-    isTestRequiredSchool(s.name) && s.testPolicy !== "Test Required"
-      ? { ...s, testPolicy: "Test Required" as TestPolicyType }
-      : s
-  );
+  // Step 1: Correct ALL metadata — region, campusSize, testPolicy
+  const corrected = schools.map((s) => {
+    let fixed = s;
+
+    // Correct region from hard-coded state mapping
+    const correctRegion = getSchoolRegion(fixed.name);
+    if (correctRegion && correctRegion !== fixed.region) {
+      console.log(`[ClientRegionCorrect] ${fixed.name}: "${fixed.region}" → "${correctRegion}"`);
+      fixed = { ...fixed, region: correctRegion };
+    }
+
+    // Correct campusSize from enrollment number
+    if (fixed.enrollment > 0) {
+      const correctSize = getEnrollmentSize(fixed.enrollment);
+      if (correctSize !== fixed.campusSize) {
+        fixed = { ...fixed, campusSize: correctSize };
+      }
+    }
+
+    // Correct testPolicy from hard-coded override list
+    if (isTestRequiredSchool(fixed.name) && fixed.testPolicy !== "Test Required") {
+      fixed = { ...fixed, testPolicy: "Test Required" as TestPolicyType };
+    }
+
+    return fixed;
+  });
 
   // Step 2: If no filters active, return corrected schools only
   if (regions.length === 0 && sizes.length === 0 && policies.length === 0) {
