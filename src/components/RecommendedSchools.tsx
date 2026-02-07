@@ -277,19 +277,20 @@ export function RecommendedSchools({
     });
 
     // Strict AND logic — no filter relaxation, no unfiltered backfill.
-    // If enough schools match, use them directly.
+    // If enough schools match locally, use them directly.
     if (filteredExisting.length >= 9) {
       setSchools(balanceSchools(filteredExisting));
       setFiltersApplied(true);
       return;
     }
 
-    // Not enough matches locally — fetch new recommendations from GPT-4o
-    // with strict filter constraints and a 15s timeout.
+    // Not enough matches locally — fetch new recommendations from GPT
+    // with strict filter constraints, broadened academic range, and a
+    // 20s timeout.  Merge with local matches to maximize 3-3-3 fill.
     setIsLoading(true);
     try {
       const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Search timed out")), 15000)
+        setTimeout(() => reject(new Error("Search timed out")), 20000)
       );
       const newSchools = await Promise.race([
         getFilteredRecommendations({
@@ -304,7 +305,19 @@ export function RecommendedSchools({
         }),
         timeout,
       ]);
-      setSchools(balanceSchools(newSchools));
+
+      // Merge GPT results with local matches (deduped), prioritizing
+      // local matches to preserve Scorecard-enriched data.
+      const merged = [...filteredExisting];
+      const seenNames = new Set(merged.map((s) => s.name.toLowerCase()));
+      for (const s of newSchools) {
+        if (!seenNames.has(s.name.toLowerCase())) {
+          merged.push(s);
+          seenNames.add(s.name.toLowerCase());
+        }
+      }
+
+      setSchools(balanceSchools(merged));
       setFiltersApplied(true);
     } catch (error) {
       console.error("Failed to fetch filtered recommendations:", error);

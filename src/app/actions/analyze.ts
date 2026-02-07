@@ -18,101 +18,127 @@ export async function getFilteredRecommendations(
     apiKey: process.env.OPENAI_API_KEY,
   });
 
-  // Build region constraint (OR logic within regions)
+  const hasFilters =
+    request.regions.length > 0 || request.sizes.length > 0 || request.policies.length > 0;
+
+  // When filters are active, request 15 schools (overshoot) so the filter
+  // gate has enough survivors to fill 3-3-3.  Without filters, 9 is fine.
+  const schoolCount = hasFilters ? 15 : 9;
+
+  const filterPrompt = buildFilterPrompt(request);
+  const studentUserMsg = buildStudentMessage(request, schoolCount);
+
+  const studentProfile = {
+    testScores: request.testScores,
+    gpa: request.recalculatedGPA,
+    rigorScore: request.overallScore,
+  };
+  const studentDesc = buildStudentDesc(request);
+
+  // ── Pass 1: initial GPT call ───────────────────────────────────
+  let pool = await callGPTForSchools(openai, filterPrompt, studentUserMsg, schoolCount);
+
+  let enriched = await enforce343Distribution(
+    pool,
+    studentProfile,
+    openai,
+    studentDesc,
+    2,
+    { sizes: request.sizes, policies: request.policies },
+  );
+
+  let passed = enforceFilterGate(enriched, request.regions, request.sizes, request.policies);
+
+  // ── Pass 2: broadened academic range retry ──────────────────────
+  // If strict filters left us with < 9 schools, retry with a wider
+  // GPA (±0.5) and SAT (±100) range while keeping the SAME Region,
+  // Size, and Policy constraints.  This searches a broader slice of
+  // the full US college list.
+  if (passed.length < 9 && hasFilters) {
+    console.log(
+      `[FilterRetry] Only ${passed.length} schools survived — retrying with broadened academic range`
+    );
+    const excludeNames = passed.map((s) => s.name);
+    const needed = 15 - passed.length;
+    const broadenedMsg = buildBroadenedMessage(request, needed, excludeNames);
+
+    const extraPool = await callGPTForSchools(openai, filterPrompt, broadenedMsg, needed);
+
+    const extraEnriched = await enforce343Distribution(
+      extraPool,
+      studentProfile,
+      openai,
+      studentDesc,
+      1,
+      { sizes: request.sizes, policies: request.policies },
+    );
+
+    const extraPassed = enforceFilterGate(extraEnriched, request.regions, request.sizes, request.policies);
+
+    // Merge, deduplicate
+    const seenNames = new Set(passed.map((s) => s.name.toLowerCase()));
+    for (const s of extraPassed) {
+      if (!seenNames.has(s.name.toLowerCase())) {
+        passed.push(s);
+        seenNames.add(s.name.toLowerCase());
+      }
+    }
+    console.log(`[FilterRetry] After broadened retry: ${passed.length} schools total`);
+  }
+
+  return passed;
+}
+
+// ── Helper: build the system prompt with filter constraints ──────────
+
+const SIZE_DESCRIPTIONS: Record<CampusSizeType, string> = {
+  Micro: "under 2,000",
+  Small: "2,000-5,000",
+  Medium: "5,000-15,000",
+  Large: "15,000-30,000",
+  Mega: "30,000+",
+};
+
+function buildFilterPrompt(request: FilteredRecommendationsRequest): string {
   const regionConstraint = request.regions.length > 0 && request.regions.length < 5
     ? `IMPORTANT: Only recommend schools from these regions: ${request.regions.join(" OR ")}. Do NOT include schools from other regions.`
     : "Include schools from multiple regions for geographic diversity.";
 
-  // Build size constraint (OR logic within sizes)
-  const sizeDescriptions: Record<CampusSizeType, string> = {
-    Micro: "under 2,000",
-    Small: "2,000-5,000",
-    Medium: "5,000-15,000",
-    Large: "15,000-30,000",
-    Mega: "30,000+",
-  };
-
   const sizeConstraint = request.sizes.length > 0 && request.sizes.length < 5
-    ? `IMPORTANT: Only recommend schools with these enrollment sizes: ${request.sizes.map(s => `${s} (${sizeDescriptions[s]})`).join(" OR ")}. Do NOT include schools outside these size ranges.`
+    ? `IMPORTANT: Only recommend schools with these enrollment sizes: ${request.sizes.map(s => `${s} (${SIZE_DESCRIPTIONS[s]})`).join(" OR ")}. Do NOT include schools outside these size ranges.`
     : "Include a mix of Micro, Small, Medium, Large, and Mega schools.";
 
-  // Build policy constraint (OR logic within policies, but STRICT matching)
   const policyConstraint = request.policies.length > 0 && request.policies.length < 3
-    ? `STRICT REQUIREMENT: Only recommend schools with these testing policies: ${request.policies.join(" OR ")}. Do NOT include schools with other testing policies. For example, if "Test Required" is specified, do NOT include Test Optional or Test Blind schools.`
+    ? `STRICT REQUIREMENT: Only recommend schools with these testing policies: ${request.policies.join(" OR ")}. Do NOT include schools with other testing policies.`
     : "Include schools with various testing policies (Test Optional, Test Required, Test Blind).";
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: [
-      {
-        role: "system",
-        content: `You are an expert college admissions counselor. Based on a student's profile, recommend EXACTLY 9 colleges.
+  return `You are an expert college admissions counselor with knowledge of ALL accredited 4-year colleges and universities in the United States — not just top-50 or well-known schools. Search the FULL list of US institutions when applying filters.
 
-Return ONLY a JSON object with this structure:
-{
-  "schools": [
-    {
-      "name": "<college name>",
-      "url": "<official college website URL, e.g., https://www.stanford.edu>",
-      "type": "<reach|match|safety>",
-      "region": "<Northeast|Mid-Atlantic|South|Midwest|West>",
-      "campusSize": "<Micro|Small|Medium|Large|Mega>",
-      "enrollment": <number>,
-      "testPolicy": "<Test Optional|Test Required|Test Blind>",
-      "acceptanceProbability": <number 1-95, exact percentage likelihood of acceptance>,
-      "matchReasoning": "<2-3 sentences>"
-    }
-  ]
-}
+Return ONLY a JSON object: { "schools": [{ "name", "url", "type", "region", "campusSize", "enrollment", "testPolicy", "acceptanceProbability", "matchReasoning" }] }
 
-ACCEPTANCE PROBABILITY:
-- Calculate an exact percentage for each school (integer, e.g., 62)
-- Weigh GPA, rigor score, and test scores against each school's freshman profile
-- Cap at 95% maximum, floor at 1% for Ivy-plus/ultra-selective schools
-- CATEGORY THRESHOLDS (use acceptanceProbability to assign type):
-  * Reach: acceptanceProbability < 40%
-  * Match: acceptanceProbability 40%-70%
-  * Safety: acceptanceProbability > 70%
-
-TEST POLICY DEFINITIONS:
-- Test Optional: SAT/ACT scores considered if submitted but not required
-- Test Required: SAT/ACT scores mandatory for all applicants
-- Test Blind: SAT/ACT scores not considered even if submitted
+ACCEPTANCE PROBABILITY: integer 1-95. Reach < 40%, Match 40-70%, Safety > 70%.
 
 REGION DEFINITIONS:
 - Northeast: MA, NY, CT, RI, ME, VT, NH
 - Mid-Atlantic: VA, DC, MD, PA, DE, NJ
-- South: TX, GA, NC, FL, TN, SC, AL, LA
-- Midwest: IL, MI, OH, WI, MN, IN, IA, MO
-- West: CA, OR, WA, CO, AZ, UT, NV
+- South: TX, GA, NC, FL, TN, SC, AL, LA, MS, AR, KY, WV
+- Midwest: IL, MI, OH, WI, MN, IN, IA, MO, NE, KS, ND, SD
+- West: CA, OR, WA, CO, AZ, UT, NV, NM, ID, MT, WY, HI, AK
 
 SIZE DEFINITIONS:
-- Micro: Under 2,000 undergraduates
-- Small: 2,000-5,000 undergraduates
-- Medium: 5,000-15,000 undergraduates
-- Large: 15,000-30,000 undergraduates
-- Mega: 30,000+ undergraduates
+- Micro: Under 2,000 undergrads | Small: 2,000-5,000 | Medium: 5,000-15,000 | Large: 15,000-30,000 | Mega: 30,000+
 
 ${regionConstraint}
 ${sizeConstraint}
 ${policyConstraint}
 
-TEST SCORE WEIGHTING:
-- If SAT or ACT scores are provided, use them to refine reach/match/safety categorization
-- SAT Total 1500+ or ACT 34+: Student is competitive at highly selective schools
-- SAT Total 1400-1499 or ACT 31-33: Student is competitive at very selective schools
-- SAT Total 1300-1399 or ACT 28-30: Student is competitive at selective schools
-- SAT Total 1200-1299 or ACT 24-27: Student is competitive at moderately selective schools
-- For Test Required schools, weight test scores MORE heavily in categorization
-- For Test Optional/Blind schools, weight course rigor MORE heavily
+Distribution target: 3 Reach, 3 Match, 3 Safety.`;
+}
 
-You MUST return EXACTLY 9 schools. No more, no fewer.
-Categorize by acceptanceProbability: Safety (>70%), Match (40-70%), Reach (<40%). Distribution: 3 Safety, 3 Match, 3 Reach. No exceptions.
-Base recommendations on schools that value rigorous academic preparation.`,
-      },
-      {
-        role: "user",
-        content: `Student Profile:
+// ── Helper: initial student message ──────────────────────────────────
+
+function buildStudentMessage(request: FilteredRecommendationsRequest, count: number): string {
+  return `Student Profile:
 - Rigor Score: ${request.overallScore}/100
 ${request.recalculatedGPA ? `- Recalculated Core GPA: ${request.recalculatedGPA}/4.0 (weighted)` : ""}
 - School Context: ${request.schoolProfileSummary}
@@ -120,61 +146,83 @@ ${request.recalculatedGPA ? `- Recalculated Core GPA: ${request.recalculatedGPA}
 ${request.testScores?.satReading && request.testScores?.satMath ? `- SAT Score: ${request.testScores.satReading + request.testScores.satMath} (${request.testScores.satReading} R/W + ${request.testScores.satMath} Math)` : ""}
 ${request.testScores?.actComposite ? `- ACT Composite: ${request.testScores.actComposite}` : ""}
 
-Provide college recommendations matching the specified filters. Include an exact acceptanceProbability (1-95%) for each school.${request.testScores?.satReading || request.testScores?.satMath || request.testScores?.actComposite ? " Use the test scores to refine reach/match/safety categorization and acceptance probability." : ""}`,
-      },
-    ],
-    response_format: { type: "json_object" },
-    temperature: 0.7,
-  });
+Recommend EXACTLY ${count} colleges matching ALL specified Region, Size, and Policy filters. Include an exact acceptanceProbability (1-95%) for each.${request.testScores?.satReading || request.testScores?.satMath || request.testScores?.actComposite ? " Use test scores to refine categorization." : ""}`;
+}
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) {
-    throw new Error("Failed to generate recommendations");
-  }
+// ── Helper: broadened retry message (relaxed academic criteria) ───────
 
+function buildBroadenedMessage(
+  request: FilteredRecommendationsRequest,
+  count: number,
+  excludeNames: string[],
+): string {
+  const gpa = request.recalculatedGPA ?? 3.0;
+  const satTotal =
+    request.testScores?.satReading && request.testScores?.satMath
+      ? request.testScores.satReading + request.testScores.satMath
+      : null;
+
+  return `I need ${count} MORE colleges that match the Region and Size filters above.
+
+BROADEN the academic match range:
+- Accept schools whose median freshman GPA is ${(gpa - 0.5).toFixed(1)} to ${(gpa + 0.5).toFixed(1)} (was ${gpa.toFixed(2)})
+${satTotal ? `- Accept schools whose SAT middle-50% overlaps ${satTotal - 100} to ${satTotal + 100} (was ${satTotal})` : ""}
+- Include lesser-known but accredited colleges — not just nationally ranked schools
+
+Do NOT repeat any of these already-selected schools: ${excludeNames.join(", ")}
+
+Return EXACTLY ${count} schools in the same JSON format. Include a mix of Reach, Match, and Safety.`;
+}
+
+// ── Helper: student description for Scorecard enrichment ─────────────
+
+function buildStudentDesc(request: FilteredRecommendationsRequest): string {
+  return [
+    `Student Profile:`,
+    request.recalculatedGPA
+      ? `- GPA: ${request.recalculatedGPA} (weighted)`
+      : "",
+    `- Rigor Score: ${request.overallScore}/100`,
+    request.testScores?.satReading && request.testScores?.satMath
+      ? `- SAT: ${request.testScores.satReading + request.testScores.satMath}`
+      : "",
+    request.testScores?.actComposite
+      ? `- ACT: ${request.testScores.actComposite}`
+      : "",
+    `- School Context: ${request.schoolProfileSummary}`,
+    `- Academic Summary: ${request.transcriptSummary}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+// ── Helper: GPT call ─────────────────────────────────────────────────
+
+async function callGPTForSchools(
+  openai: OpenAI,
+  systemPrompt: string,
+  userMessage: string,
+  _count: number,
+): Promise<RecommendedSchool[]> {
   try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.7,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) return [];
+
     const result = JSON.parse(content) as { schools: RecommendedSchool[] };
-
-    // Enforce 3-3-3 distribution with Scorecard API enrichment + targeted fill
-    const studentProfile = {
-      testScores: request.testScores,
-      gpa: request.recalculatedGPA,
-      rigorScore: request.overallScore,
-    };
-    const studentDesc = [
-      `Student Profile:`,
-      request.recalculatedGPA
-        ? `- GPA: ${request.recalculatedGPA} (weighted)`
-        : "",
-      `- Rigor Score: ${request.overallScore}/100`,
-      request.testScores?.satReading && request.testScores?.satMath
-        ? `- SAT: ${request.testScores.satReading + request.testScores.satMath}`
-        : "",
-      request.testScores?.actComposite
-        ? `- ACT: ${request.testScores.actComposite}`
-        : "",
-      `- School Context: ${request.schoolProfileSummary}`,
-      `- Academic Summary: ${request.transcriptSummary}`,
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    const enriched = await enforce343Distribution(
-      result.schools,
-      studentProfile,
-      openai,
-      studentDesc,
-      2,
-      { sizes: request.sizes, policies: request.policies },
-    );
-
-    // ── CROSS-CHECK VERIFICATION ──────────────────────────────────
-    // Hard gate: discard any school that does not match the selected
-    // Region AND Size AND Policy filters.  GPT and Scorecard both
-    // try to comply, but neither is guaranteed — this catches leaks.
-    return enforceFilterGate(enriched, request.regions, request.sizes, request.policies);
-  } catch {
-    throw new Error("Failed to parse recommendations");
+    return result.schools ?? [];
+  } catch (err) {
+    console.error("[GPT-Filter] Call failed:", err);
+    return [];
   }
 }
 
