@@ -56,6 +56,21 @@ function applyHardFilters(schools: RecommendedSchool[], filters?: FilterConstrai
   });
 }
 
+/** Strict deduplication — no school name may appear more than once.
+ *  Case-insensitive. Keeps the FIRST occurrence (highest-priority). */
+export function deduplicateByName(schools: RecommendedSchool[]): RecommendedSchool[] {
+  const seen = new Set<string>();
+  return schools.filter((s) => {
+    const key = s.name.toLowerCase().trim();
+    if (seen.has(key)) {
+      console.log(`[Dedup] REMOVED duplicate: ${s.name}`);
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
 /** Correct testPolicy on school objects using the hard-coded override list.
  *  This mutates the field BEFORE filtering so the UI also shows the right label. */
 function correctTestPolicies(schools: RecommendedSchool[]): RecommendedSchool[] {
@@ -731,8 +746,8 @@ function pick343(pool: RecommendedSchool[]): RecommendedSchool[] {
     `[343] Final: ${result.filter((s) => s.type === "reach").length}R/${result.filter((s) => s.type === "match").length}M/${result.filter((s) => s.type === "safety").length}S = ${result.length} schools`
   );
 
-  // Normalize displayed probabilities to match category labels
-  return result.map(normalizeDisplayOdds);
+  // Normalize displayed probabilities, then strict final dedup
+  return deduplicateByName(result.map(normalizeDisplayOdds));
 }
 
 export async function enforce343Distribution(

@@ -96,6 +96,17 @@ function normalizeDisplayOdds(school: RecommendedSchool): RecommendedSchool {
   return { ...school, acceptanceProbability: displayOdds };
 }
 
+/** Strict deduplication — no school name may appear more than once (client-side). */
+function deduplicateByName(schools: RecommendedSchool[]): RecommendedSchool[] {
+  const seen = new Set<string>();
+  return schools.filter((s) => {
+    const key = s.name.toLowerCase().trim();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 /** Correct testPolicy and re-filter schools against active filters (client-side defense). */
 function clientCorrectAndFilter(
   schools: RecommendedSchool[],
@@ -222,7 +233,7 @@ export function RecommendedSchools({
   recalculatedGPA,
   testScores,
 }: RecommendedSchoolsProps) {
-  const [schools, setSchools] = useState<RecommendedSchool[]>(() => balanceSchools(initialSchools));
+  const [schools, setSchools] = useState<RecommendedSchool[]>(() => deduplicateByName(balanceSchools(deduplicateByName(initialSchools))));
   const [selectedRegions, setSelectedRegions] = useState<RegionType[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<CampusSizeType[]>([]);
   const [selectedPolicies, setSelectedPolicies] = useState<TestPolicyType[]>([]);
@@ -281,7 +292,7 @@ export function RecommendedSchools({
     setPendingRegions([]);
     setPendingSizes([]);
     setPendingPolicies([]);
-    setSchools(balanceSchools(initialSchools));
+    setSchools(deduplicateByName(balanceSchools(deduplicateByName(initialSchools))));
     setFiltersApplied(false);
   };
 
@@ -293,19 +304,22 @@ export function RecommendedSchools({
     sizes: CampusSizeType[],
     policies: TestPolicyType[],
   ) => {
+    // STEP 0: Deduplicate input pool — no school name may appear twice
+    const uniquePool = deduplicateByName(pool);
     // STEP 1: Filter the master list to ONLY matching schools
-    const purged = clientCorrectAndFilter(pool, regions, sizes, policies);
+    const purged = clientCorrectAndFilter(uniquePool, regions, sizes, policies);
     // STEP 2: Balance 3-3-3 from the purged pool
     const balanced = balanceSchools(purged);
     // STEP 3: FINAL PURGE — zero tolerance, verify every school in the output
     const verified = clientCorrectAndFilter(balanced, regions, sizes, policies);
-    setSchools(verified);
+    // STEP 4: Final dedup guard — absolutely no duplicates in display
+    setSchools(deduplicateByName(verified));
   };
 
   const applyFiltersWithValues = async (regions: RegionType[], sizes: CampusSizeType[], policies: TestPolicyType[]) => {
-    // If no filters selected, show original results
+    // If no filters selected, show original results (deduped)
     if (regions.length === 0 && sizes.length === 0 && policies.length === 0) {
-      setSchools(balanceSchools(initialSchools));
+      setSchools(deduplicateByName(balanceSchools(deduplicateByName(initialSchools))));
       setFiltersApplied(false);
       return;
     }
