@@ -3,7 +3,7 @@ import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import type { AnalysisResult, TestScores } from "@/lib/types";
-import { enforce343Distribution, getEnrollmentSize } from "@/lib/scorecard";
+import { enforce343Distribution, getEnrollmentSize, deduplicateByName } from "@/lib/scorecard";
 import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS, getSchoolRegion } from "@/lib/constants";
 
 // Disable all Vercel caching — always fetch fresh Scorecard data
@@ -343,55 +343,43 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
 
     const analysis = JSON.parse(content) as AnalysisResult;
 
-    // ── Verify enrollment/campusSize consistency ─────────────────────────
-    // GPT can hallucinate enrollment numbers that don't match campusSize.
-    // Recalculate campusSize from the enrollment number to ensure consistency.
+    // ── Unified metadata correction: campusSize + region + testPolicy ────
+    // GPT can hallucinate enrollment, mislabel regions, or assign wrong
+    // test policies.  Correct ALL three in a single pass using hard-coded
+    // authoritative data, then deduplicate.
     if (analysis.recommendedSchools) {
       analysis.recommendedSchools = analysis.recommendedSchools.map((s) => {
-        if (!s.enrollment || s.enrollment <= 0) {
-          console.log(`[SizeVerify] ${s.name}: missing/invalid enrollment (${s.enrollment}) — skipping`);
-          return s;
+        let fixed = s;
+        // 1. Correct campusSize from enrollment
+        if (fixed.enrollment && fixed.enrollment > 0) {
+          const correctSize = getEnrollmentSize(fixed.enrollment);
+          if (correctSize !== fixed.campusSize) {
+            console.log(
+              `[MetaCorrect] ${fixed.name}: campusSize "${fixed.campusSize}" → "${correctSize}" (enrollment=${fixed.enrollment})`
+            );
+            fixed = { ...fixed, campusSize: correctSize };
+          }
         }
-        const correctSize = getEnrollmentSize(s.enrollment);
-        if (correctSize !== s.campusSize) {
+        // 2. Correct region from state mapping
+        const correctRegion = getSchoolRegion(fixed.name);
+        if (correctRegion && correctRegion !== fixed.region) {
           console.log(
-            `[SizeVerify] ${s.name}: enrollment=${s.enrollment} → campusSize should be "${correctSize}" but GPT said "${s.campusSize}" — CORRECTING`
+            `[MetaCorrect] ${fixed.name}: region "${fixed.region}" → "${correctRegion}"`
           );
-          return { ...s, campusSize: correctSize };
+          fixed = { ...fixed, region: correctRegion };
         }
-        return s;
-      });
-    }
-
-    // ── Correct test policies using hard-coded override list ────────────
-    // GPT can mislabel test-required schools as "Test Optional".
-    // Override using the authoritative TEST_REQUIRED_SCHOOLS list.
-    if (analysis.recommendedSchools) {
-      analysis.recommendedSchools = analysis.recommendedSchools.map((s) => {
-        if (isTestRequiredSchool(s.name) && s.testPolicy !== "Test Required") {
+        // 3. Correct test policy from override list
+        if (isTestRequiredSchool(fixed.name) && fixed.testPolicy !== "Test Required") {
           console.log(
-            `[PolicyCorrect] ${s.name}: GPT said "${s.testPolicy}" → overriding to "Test Required"`
+            `[MetaCorrect] ${fixed.name}: testPolicy "${fixed.testPolicy}" → "Test Required"`
           );
-          return { ...s, testPolicy: "Test Required" };
+          fixed = { ...fixed, testPolicy: "Test Required" };
         }
-        return s;
+        return fixed;
       });
-    }
-
-    // ── Correct regions using hard-coded state-to-region mapping ────────
-    // GPT can assign wrong regions (e.g., Georgia Tech → "Midwest").
-    // Override using the authoritative STATE_TO_REGION lookup.
-    if (analysis.recommendedSchools) {
-      analysis.recommendedSchools = analysis.recommendedSchools.map((s) => {
-        const correctRegion = getSchoolRegion(s.name);
-        if (correctRegion && correctRegion !== s.region) {
-          console.log(
-            `[RegionCorrect] ${s.name}: GPT said "${s.region}" → overriding to "${correctRegion}"`
-          );
-          return { ...s, region: correctRegion };
-        }
-        return s;
-      });
+      // Deduplicate — GPT can return the same school twice
+      analysis.recommendedSchools = deduplicateByName(analysis.recommendedSchools);
+      console.log(`[InitialPDF] ${analysis.recommendedSchools.length} schools after correction + dedup`);
     }
 
     // Enforce 3-3-3 distribution with Scorecard API enrichment + targeted fill
@@ -435,6 +423,27 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
       console.warn(
         "[Timeout] School enrichment exceeded 20 s — returning GPT-only schools"
       );
+    }
+
+    // ── Final metadata re-correction + dedup after enrichment ────────────
+    // Belt-and-suspenders: ensure enrichment didn't introduce any metadata
+    // drift and no duplicates slipped through.
+    if (analysis.recommendedSchools) {
+      analysis.recommendedSchools = analysis.recommendedSchools.map((s) => {
+        let fixed = s;
+        if (fixed.enrollment && fixed.enrollment > 0) {
+          const correctSize = getEnrollmentSize(fixed.enrollment);
+          if (correctSize !== fixed.campusSize) fixed = { ...fixed, campusSize: correctSize };
+        }
+        const correctRegion = getSchoolRegion(fixed.name);
+        if (correctRegion && correctRegion !== fixed.region) fixed = { ...fixed, region: correctRegion };
+        if (isTestRequiredSchool(fixed.name) && fixed.testPolicy !== "Test Required") {
+          fixed = { ...fixed, testPolicy: "Test Required" };
+        }
+        return fixed;
+      });
+      analysis.recommendedSchools = deduplicateByName(analysis.recommendedSchools);
+      console.log(`[InitialPDF] Final: ${analysis.recommendedSchools.length} schools after post-enrichment correction`);
     }
 
     return NextResponse.json(analysis);
