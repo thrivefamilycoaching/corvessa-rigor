@@ -224,42 +224,55 @@ export async function POST(request: NextRequest) {
         - For Test Optional/Blind schools, weight course rigor MORE heavily
 
         For gapAnalysis:
-        - First, determine the student's current grade level from their transcript (9th, 10th, 11th, or 12th grade)
-        - For each subject, map the COMPLETE vertical curriculum track from the school profile
 
-        VERTICAL CURRICULUM MAPPING (CRITICAL):
-        - In "offered", list ALL courses in the subject's progression from lowest to highest
+        STEP 0 — GRADE-LEVEL IDENTIFICATION (DO THIS FIRST):
+        - Determine the student's current grade level from the transcript (9th, 10th, 11th, or 12th)
+        - Only courses associated with the student's CURRENT or PREVIOUS grade years count as "taken"
+        - Future-year courses (e.g., 11th-grade courses for a 10th grader) are NEVER "taken"
+
+        STEP 1 — ZERO-INFERENCE "TAKEN" POLICY (CRITICAL):
+        - A course is "taken" ONLY if its EXACT name (or a clear abbreviation) appears in the raw transcript text with an associated grade or mark
+        - Do NOT infer prerequisites. If the transcript shows "Algebra 2" but does NOT list "Algebra 1", then "Algebra 1" is NOT taken — even though the student must have completed it
+        - Do NOT auto-fill foundational courses. Every "taken" entry must be backed by explicit text in the PDF
+        - If a course name is ambiguous or partially matches, do NOT count it as taken
+
+        STEP 2 — VERTICAL CURRICULUM MAPPING:
+        - In "offered", list ALL courses in the subject's progression from lowest to highest from the SCHOOL PROFILE
         - Include ALL honors/accelerated/AP variants available at each level
         - Example for Math: ["Algebra 1", "Honors Algebra 1", "Geometry", "Honors Geometry", "Algebra 2", "Accelerated Algebra 2", "Precalculus", "Honors Precalculus", "Calculus 1", "Advanced Calculus 2", "AP Calculus AB", "AP Calculus BC"]
 
-        MISSED OPPORTUNITIES LOGIC (CRITICAL - READ CAREFULLY):
+        STEP 3 — VALIDATION CHECK (MANDATORY BEFORE OUTPUT):
+        - Before finalizing the "taken" array, cross-reference EVERY entry against the raw transcript text
+        - If a course name does not appear in the raw transcript text, REMOVE it from "taken"
+        - This is a hard gate — no exceptions
 
-        Rule 1 - SAME-LEVEL RIGOR CHECK:
+        STEP 4 — MISSED / UPCOMING OPPORTUNITIES (CRITICAL):
+        - ANY course listed in the School Profile's "offered" array that is NOT in the "taken" array MUST go into "missed"
+        - For students below 12th grade, label these as upcoming opportunities (courses they can still take)
+        - This includes:
+          * Same-level rigor upgrades: student took "Geometry" but school offers "Honors Geometry" → flag "Honors Geometry"
+          * Next-level courses: student completed "Algebra 2" and school offers "Precalculus" → flag "Precalculus"
+          * All higher-track courses the student has not yet reached
+
+        Rule A - SAME-LEVEL RIGOR CHECK:
         - If student took a Standard/Regular course when Honors/Accelerated version existed at SAME level, flag the Honors version
-        - Example: Student took "Geometry" but school offers "Honors Geometry" → flag "Honors Geometry"
         - Example: Student took "Algebra 2" but school offers "Accelerated Algebra 2" → flag "Accelerated Algebra 2"
 
-        Rule 2 - NEXT-LEVEL RIGOR CHECK:
-        - Identify the next course in sequence that the student COULD take based on prerequisites met
+        Rule B - NEXT-LEVEL RIGOR CHECK:
+        - Identify the next course in sequence that the student COULD take based on courses actually taken
         - If student completed "Accelerated Algebra 2" and school offers "Honors Precalculus" → flag "Honors Precalculus"
-        - If student completed "Honors Precalculus" and school offers "AP Calculus AB" → flag "AP Calculus AB"
 
-        Rule 3 - NEVER SAY "All rigorous options taken" UNLESS:
+        Rule C - NEVER SAY "All rigorous options taken" UNLESS:
         - Student is taking the ABSOLUTE HIGHEST level course available in that subject's entire track at the school
-        - Example: Only say this for Math if student is in AP Calculus BC (the very top of the track)
-        - If student is in "Accelerated Algebra 2" and school offers Honors Precalculus, Calculus, AP Calc → they have NOT taken all rigorous options → flag "Honors Precalculus" as the next logical missed opportunity
-        - If student is in "Honors Chemistry" but school offers "AP Chemistry" → flag "AP Chemistry"
         - The missed array must be NON-EMPTY for any student who is not at the absolute top course in each track
 
-        Rule 4 - DO NOT FLAG:
-        - Courses requiring prerequisites the student hasn't completed
-        - 11th/12th grade courses for 9th/10th graders
+        Rule D - DO NOT FLAG as missed:
+        - Courses requiring prerequisites the student hasn't actually taken (verified against transcript)
+        - 11th/12th grade courses for 9th/10th graders (use grade-level from Step 0)
         - Courses outside the student's current sequence path
 
         APPLY CONSISTENTLY ACROSS ALL SUBJECTS:
         - Math, Science, English, Social Studies, Foreign Language must all follow the same logic
-        - If you flag missed Honors options in Social Studies, you MUST also check for missed Honors options in Math, Science, etc.
-
         - Include at least: Math, Science, English, Social Studies, Foreign Language
 
         The narrative should be written in a professional tone suitable for a counselor letter,
