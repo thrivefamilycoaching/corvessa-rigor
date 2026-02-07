@@ -111,6 +111,8 @@ export async function getFilteredRecommendations(
         seenNames.add(s.name.toLowerCase());
       }
     }
+    // Re-correct merged pool — ensure force-fill additions have ground-truth metadata
+    passed = correctSchoolMetadata(passed);
     console.log(`[ForceFill] After force-fill: ${passed.length} schools total`);
   }
 
@@ -138,6 +140,8 @@ export async function getFilteredRecommendations(
         seenNames.add(s.name.toLowerCase());
       }
     }
+    // Re-correct merged pool — ensure global search additions have ground-truth metadata
+    passed = correctSchoolMetadata(passed);
     console.log(`[GlobalSearch] After global expansion: ${passed.length} schools total`);
   }
 
@@ -263,11 +267,11 @@ function buildBroadenedMessage(
 
   if (request.regions.length > 0 && request.regions.length < 5) {
     const regionStateMap: Record<string, string> = {
-      "Northeast": "MA, NY, CT, RI, ME, VT, NH",
-      "Mid-Atlantic": "PA, NJ, DE, MD, VA, WV, DC",
-      "South": "NC, SC, GA, FL, AL, MS, LA, TN, KY, AR, TX, OK",
-      "Midwest": "OH, MI, IN, IL, WI, MN, IA, MO, KS, NE, SD, ND",
-      "West": "CA, OR, WA, CO, AZ, NV, UT, NM, ID, MT, WY, HI, AK",
+      "Northeast": "Massachusetts, Connecticut, Rhode Island, Maine, Vermont, New Hampshire, New York",
+      "Mid-Atlantic": "Pennsylvania, New Jersey, Delaware, Maryland, Virginia, West Virginia, DC",
+      "South": "North Carolina, South Carolina, Georgia, Florida, Alabama, Mississippi, Louisiana, Tennessee, Kentucky, Arkansas, Texas, Oklahoma",
+      "Midwest": "Ohio, Michigan, Indiana, Illinois, Wisconsin, Minnesota, Iowa, Missouri, Kansas, Nebraska, South Dakota, North Dakota",
+      "West": "California, Oregon, Washington, Colorado, Arizona, Nevada, Utah, New Mexico, Idaho, Montana, Wyoming, Hawaii, Alaska",
     };
     const regionDetails = request.regions.map((r) => `${r} (${regionStateMap[r] ?? ""})`).join(" OR ");
     filterReminders += `\nMANDATORY REGION: Every school MUST be in: ${regionDetails}. Verify each school's actual state.`;
@@ -308,11 +312,11 @@ function buildForceSearchMessage(
   let regionReq = "";
   if (request.regions.length > 0) {
     const regionStateMap: Record<string, string> = {
-      "Northeast": "MA, NY, CT, RI, ME, VT, NH",
-      "Mid-Atlantic": "PA, NJ, DE, MD, VA, WV, DC",
-      "South": "NC, SC, GA, FL, AL, MS, LA, TN, KY, AR, TX, OK",
-      "Midwest": "OH, MI, IN, IL, WI, MN, IA, MO, KS, NE, SD, ND",
-      "West": "CA, OR, WA, CO, AZ, NV, UT, NM, ID, MT, WY, HI, AK",
+      "Northeast": "Massachusetts, Connecticut, Rhode Island, Maine, Vermont, New Hampshire, New York",
+      "Mid-Atlantic": "Pennsylvania, New Jersey, Delaware, Maryland, Virginia, West Virginia, DC",
+      "South": "North Carolina, South Carolina, Georgia, Florida, Alabama, Mississippi, Louisiana, Tennessee, Kentucky, Arkansas, Texas, Oklahoma",
+      "Midwest": "Ohio, Michigan, Indiana, Illinois, Wisconsin, Minnesota, Iowa, Missouri, Kansas, Nebraska, South Dakota, North Dakota",
+      "West": "California, Oregon, Washington, Colorado, Arizona, Nevada, Utah, New Mexico, Idaho, Montana, Wyoming, Hawaii, Alaska",
     };
     const regionDetails = request.regions.map((r) => `${r} (${regionStateMap[r] ?? ""})`).join(" OR ");
     regionReq = `ABSOLUTE REQUIREMENT — REGION: Every school MUST be in: ${regionDetails}. Verify each school's actual state.`;
@@ -357,11 +361,11 @@ function buildGlobalSearchMessage(
   let regionReq = "";
   if (request.regions.length > 0) {
     const regionStateMap: Record<string, string> = {
-      "Northeast": "MA, NY, CT, RI, ME, VT, NH",
-      "Mid-Atlantic": "PA, NJ, DE, MD, VA, WV, DC",
-      "South": "NC, SC, GA, FL, AL, MS, LA, TN, KY, AR, TX, OK",
-      "Midwest": "OH, MI, IN, IL, WI, MN, IA, MO, KS, NE, SD, ND",
-      "West": "CA, OR, WA, CO, AZ, NV, UT, NM, ID, MT, WY, HI, AK",
+      "Northeast": "Massachusetts, Connecticut, Rhode Island, Maine, Vermont, New Hampshire, New York",
+      "Mid-Atlantic": "Pennsylvania, New Jersey, Delaware, Maryland, Virginia, West Virginia, DC",
+      "South": "North Carolina, South Carolina, Georgia, Florida, Alabama, Mississippi, Louisiana, Tennessee, Kentucky, Arkansas, Texas, Oklahoma",
+      "Midwest": "Ohio, Michigan, Indiana, Illinois, Wisconsin, Minnesota, Iowa, Missouri, Kansas, Nebraska, South Dakota, North Dakota",
+      "West": "California, Oregon, Washington, Colorado, Arizona, Nevada, Utah, New Mexico, Idaho, Montana, Wyoming, Hawaii, Alaska",
     };
     const regionDetails = request.regions.map((r) => `${r} (${regionStateMap[r] ?? ""})`).join(" OR ");
     regionReq = `ABSOLUTE REQUIREMENT — REGION: Every school MUST be in: ${regionDetails}. Verify each school's actual state.`;
@@ -559,11 +563,14 @@ function verifyFinalEnrollment(
   const verified = correctedSchools.filter((s) => {
     const sizeOk = sizes.length === 0 || sizes.some((sz) => enrollmentMatchesSize(s.enrollment ?? 0, sz));
     const regionOk = regions.length === 0 || regions.includes(s.region);
-    const policyOk = policies.length === 0 || policies.includes(s.testPolicy || "Test Optional");
+    const effectivePolicy: TestPolicyType = isTestRequiredSchool(s.name)
+      ? "Test Required"
+      : (s.testPolicy || "Test Optional");
+    const policyOk = policies.length === 0 || policies.includes(effectivePolicy);
 
     if (!sizeOk || !regionOk || !policyOk) {
       console.log(
-        `[FinalVerify] REJECTED ${s.name}: enrollment=${s.enrollment} region=${s.region} policy=${s.testPolicy}`
+        `[FinalVerify] REJECTED ${s.name}: enrollment=${s.enrollment} region=${s.region} policy=${effectivePolicy}`
       );
     }
     return sizeOk && regionOk && policyOk;
