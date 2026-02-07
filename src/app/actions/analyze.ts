@@ -112,9 +112,16 @@ function buildFilterPrompt(request: FilteredRecommendationsRequest): string {
     ? `IMPORTANT: Only recommend schools with these enrollment sizes: ${request.sizes.map(s => `${s} (${SIZE_DESCRIPTIONS[s]})`).join(" OR ")}. Do NOT include schools outside these size ranges.`
     : "Include a mix of Micro, Small, Medium, Large, and Mega schools.";
 
-  const policyConstraint = request.policies.length > 0 && request.policies.length < 3
-    ? `STRICT REQUIREMENT: Only recommend schools with these testing policies: ${request.policies.join(" OR ")}. Do NOT include schools with other testing policies.`
-    : "Include schools with various testing policies (Test Optional, Test Required, Test Blind).";
+  let policyConstraint: string;
+  if (request.policies.length > 0 && request.policies.length < 3) {
+    policyConstraint = `STRICT REQUIREMENT: Only recommend schools with these testing policies: ${request.policies.join(" OR ")}. Do NOT include schools with other testing policies.`;
+    if (!request.policies.includes("Test Required")) {
+      const shortNames = [...new Set(TEST_REQUIRED_SCHOOLS.filter((n) => n.includes(" ")))].slice(0, 20);
+      policyConstraint += `\nKNOWN TEST-REQUIRED SCHOOLS (DO NOT INCLUDE): ${shortNames.join(", ")}. These schools require test scores and do NOT match the selected policy filter.`;
+    }
+  } else {
+    policyConstraint = "Include schools with various testing policies (Test Optional, Test Required, Test Blind).";
+  }
 
   return `You are an expert college admissions counselor with knowledge of ALL accredited 4-year colleges and universities in the United States — not just top-50 or well-known schools. Search the FULL list of US institutions when applying filters.
 
