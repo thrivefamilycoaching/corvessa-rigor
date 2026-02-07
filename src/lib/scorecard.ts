@@ -45,7 +45,9 @@ function applyHardFilters(schools: RecommendedSchool[], filters?: FilterConstrai
   if (!filters || (filters.sizes.length === 0 && filters.policies.length === 0 && filters.regions.length === 0)) {
     return schools;
   }
-  return schools.filter((s) => {
+  // Correct ALL metadata BEFORE filtering so checks use ground truth
+  const corrected = correctAllMetadata(schools);
+  return corrected.filter((s) => {
     const sizeOk = matchesSizeFilter(s.enrollment, filters.sizes);
     const policyOk = matchesPolicyFilter(s.name, s.testPolicy, filters.policies);
     const regionOk = filters.regions.length === 0 || filters.regions.includes(s.region);
@@ -613,48 +615,14 @@ Include lesser-known accredited schools — not just nationally ranked ones.`,
     if (!content) return [];
 
     const result = JSON.parse(content) as { schools: RecommendedSchool[] };
-    const raw = (result.schools ?? []).map((s) => {
-      // Correct campusSize from enrollment
-      if (s.enrollment > 0) {
-        const correctSize = getEnrollmentSize(s.enrollment);
-        if (correctSize !== s.campusSize) {
-          console.log(`[FillSizeCorrect] ${s.name}: enrollment=${s.enrollment} → "${correctSize}" (GPT said "${s.campusSize}")`);
-          s = { ...s, campusSize: correctSize };
-        }
-      }
-      // Correct region from hard-coded state mapping
-      const correctRegion = getSchoolRegion(s.name);
-      if (correctRegion && correctRegion !== s.region) {
-        console.log(`[FillRegionCorrect] ${s.name}: GPT said "${s.region}" → "${correctRegion}"`);
-        s = { ...s, region: correctRegion };
-      }
-      // Correct test policy from hard-coded override list
-      if (isTestRequiredSchool(s.name) && s.testPolicy !== "Test Required") {
-        console.log(`[FillPolicyCorrect] ${s.name}: GPT said "${s.testPolicy}" → "Test Required"`);
-        s = { ...s, testPolicy: "Test Required" };
-      }
-      return s;
-    });
+    // Correct ALL metadata at source using centralized function, then dedup
+    const corrected = deduplicateByName(correctAllMetadata(result.schools ?? []));
+    console.log(`[FillSchools] ${corrected.length} schools after correction + dedup`);
 
-    // Pre-filter fill results — catch GPT enrollment hallucinations at source
-    if (!filters || (filters.sizes.length === 0 && filters.regions.length === 0 && filters.policies.length === 0)) {
-      return raw;
-    }
-    const verified = raw.filter((s) => {
-      const sizeOk = filters.sizes.length === 0 || filters.sizes.some((sz) => {
-        const [min, max] = SIZE_RANGES[sz];
-        return s.enrollment >= min && (max === Infinity ? true : s.enrollment <= max);
-      });
-      const regionOk = filters.regions.length === 0 || filters.regions.includes(s.region);
-      const effectivePolicy = isTestRequiredSchool(s.name) ? "Test Required" : (s.testPolicy || "Test Optional");
-      const policyOk = filters.policies.length === 0 || filters.policies.includes(effectivePolicy);
-
-      if (!sizeOk || !regionOk || !policyOk) {
-        console.log(`[FillFilter] KILLED ${s.name}: enrollment=${s.enrollment} region=${s.region} policy=${effectivePolicy}`);
-      }
-      return sizeOk && regionOk && policyOk;
-    });
-    console.log(`[FillFilter] ${verified.length}/${raw.length} fill schools survived hard constraints`);
+    // Pre-filter fill results — catch GPT hallucinations at source
+    // applyHardFilters self-corrects internally, but we already corrected above
+    const verified = applyHardFilters(corrected, filters);
+    console.log(`[FillFilter] ${verified.length}/${corrected.length} fill schools survived hard constraints`);
     return verified;
   } catch (err) {
     console.log("[343-Fill] GPT fill call failed:", err);
@@ -825,20 +793,15 @@ export async function enforce343Distribution(
       break;
     }
 
-    // Enrich fill schools, correct policies, then apply hard filters
+    // Enrich fill schools, correct metadata, apply hard filters
     let enrichedFill = await enrichSchoolsWithScorecardData(fillSchools, student);
     enrichedFill = correctAllMetadata(enrichedFill);
     enrichedFill = applyHardFilters(enrichedFill, filters);
     allEnriched = [...allEnriched, ...enrichedFill];
 
-    // Deduplicate by name (case-insensitive)
-    const seen = new Set<string>();
-    allEnriched = allEnriched.filter((s) => {
-      const key = s.name.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    // Re-correct merged pool + deduplicate using centralized functions
+    allEnriched = correctAllMetadata(allEnriched);
+    allEnriched = deduplicateByName(allEnriched);
 
     gaps = get343Gaps(allEnriched);
     console.log(
