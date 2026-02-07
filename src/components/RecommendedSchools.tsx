@@ -276,45 +276,16 @@ export function RecommendedSchools({
       return regionMatch && sizeMatch && policyMatch;
     });
 
-    // Per-bucket fallback: if size filters cause any bucket to have 0 schools,
-    // relax the size filter for that bucket so the report still loads
-    if (sizes.length > 0) {
-      const buckets: RecommendedSchool["type"][] = ["reach", "match", "safety"];
-      for (const bucket of buckets) {
-        const bucketHas = filteredExisting.some((s) => s.type === bucket);
-        const originalHas = initialSchools.some((s) => s.type === bucket);
-        if (!bucketHas && originalHas) {
-          // Re-include schools for this bucket with only region filter (no size filter)
-          const fallbackSchools = initialSchools.filter((school) => {
-            const regionMatch = regions.length === 0 || regions.includes(school.region);
-            return school.type === bucket && regionMatch;
-          });
-          filteredExisting = [...filteredExisting, ...fallbackSchools];
-        }
-      }
-    }
-
-    // If we have enough matching schools, balance and use them
+    // Strict AND logic — no filter relaxation, no unfiltered backfill.
+    // If enough schools match, use them directly.
     if (filteredExisting.length >= 9) {
       setSchools(balanceSchools(filteredExisting));
       setFiltersApplied(true);
       return;
     }
 
-    // If we have some matches but fewer than 10, backfill from initial schools
-    // by adding the highest-probability non-duplicate schools
-    if (filteredExisting.length >= 5) {
-      const filteredNames = new Set(filteredExisting.map((s) => s.name));
-      const backfillCandidates = initialSchools
-        .filter((s) => !filteredNames.has(s.name))
-        .sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
-      const backfilled = [...filteredExisting, ...backfillCandidates.slice(0, 9 - filteredExisting.length)];
-      setSchools(balanceSchools(backfilled));
-      setFiltersApplied(true);
-      return;
-    }
-
-    // Too few matches — fetch new recommendations from GPT-4o with 15s timeout
+    // Not enough matches locally — fetch new recommendations from GPT-4o
+    // with strict filter constraints and a 15s timeout.
     setIsLoading(true);
     try {
       const timeout = new Promise<never>((_, reject) =>
@@ -337,13 +308,8 @@ export function RecommendedSchools({
       setFiltersApplied(true);
     } catch (error) {
       console.error("Failed to fetch filtered recommendations:", error);
-      // On timeout or error, backfill from initial schools
-      const filteredNames = new Set(filteredExisting.map((s) => s.name));
-      const backfillCandidates = initialSchools
-        .filter((s) => !filteredNames.has(s.name))
-        .sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
-      const backfilled = [...filteredExisting, ...backfillCandidates.slice(0, 9 - filteredExisting.length)];
-      setSchools(balanceSchools(backfilled));
+      // On timeout or error, show only what we have that actually matches
+      setSchools(balanceSchools(filteredExisting));
       setFiltersApplied(true);
     } finally {
       setIsLoading(false);

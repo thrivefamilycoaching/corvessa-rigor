@@ -3,10 +3,13 @@
 import OpenAI from "openai";
 import type {
   CampusSizeType,
+  RegionType,
+  TestPolicyType,
   RecommendedSchool,
   FilteredRecommendationsRequest,
 } from "@/lib/types";
-import { enforce343Distribution } from "@/lib/scorecard";
+import { enforce343Distribution, getEnrollmentSize } from "@/lib/scorecard";
+import { isTestRequiredSchool } from "@/lib/constants";
 
 export async function getFilteredRecommendations(
   request: FilteredRecommendationsRequest
@@ -156,7 +159,7 @@ Provide college recommendations matching the specified filters. Include an exact
       .filter(Boolean)
       .join("\n");
 
-    return enforce343Distribution(
+    const enriched = await enforce343Distribution(
       result.schools,
       studentProfile,
       openai,
@@ -164,7 +167,44 @@ Provide college recommendations matching the specified filters. Include an exact
       2,
       { sizes: request.sizes, policies: request.policies },
     );
+
+    // ── CROSS-CHECK VERIFICATION ──────────────────────────────────
+    // Hard gate: discard any school that does not match the selected
+    // Region AND Size AND Policy filters.  GPT and Scorecard both
+    // try to comply, but neither is guaranteed — this catches leaks.
+    return enforceFilterGate(enriched, request.regions, request.sizes, request.policies);
   } catch {
     throw new Error("Failed to parse recommendations");
   }
+}
+
+/** Strict post-validation: every returned school must match ALL active filters. */
+function enforceFilterGate(
+  schools: RecommendedSchool[],
+  regions: RegionType[],
+  sizes: CampusSizeType[],
+  policies: TestPolicyType[],
+): RecommendedSchool[] {
+  if (regions.length === 0 && sizes.length === 0 && policies.length === 0) {
+    return schools;
+  }
+
+  const passed = schools.filter((s) => {
+    const regionOk = regions.length === 0 || regions.includes(s.region);
+    const sizeOk = sizes.length === 0 || sizes.includes(getEnrollmentSize(s.enrollment));
+    const effectivePolicy: TestPolicyType = isTestRequiredSchool(s.name)
+      ? "Test Required"
+      : (s.testPolicy || "Test Optional");
+    const policyOk = policies.length === 0 || policies.includes(effectivePolicy);
+
+    if (!regionOk || !sizeOk || !policyOk) {
+      console.log(
+        `[FilterGate] DISCARDED ${s.name}: region=${s.region} size=${getEnrollmentSize(s.enrollment)} policy=${effectivePolicy} — does not match filters`
+      );
+    }
+    return regionOk && sizeOk && policyOk;
+  });
+
+  console.log(`[FilterGate] ${passed.length}/${schools.length} schools passed strict filter check`);
+  return passed;
 }

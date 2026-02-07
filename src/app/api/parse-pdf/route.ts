@@ -235,6 +235,7 @@ export async function POST(request: NextRequest) {
         - Do NOT infer prerequisites. If the transcript shows "Algebra 2" but does NOT list "Algebra 1", then "Algebra 1" is NOT taken — even though the student must have completed it
         - Do NOT auto-fill foundational courses. Every "taken" entry must be backed by explicit text in the PDF
         - If a course name is ambiguous or partially matches, do NOT count it as taken
+        - MATH ISOLATION: Courses like "Integrated Math 1", "Integrated Math 2", "Integrated Math 3" from the SCHOOL PROFILE are NOT "taken" unless the transcript explicitly lists them with a grade. The School Profile tells you what is OFFERED; only the TRANSCRIPT tells you what is TAKEN. Never confuse the two sources.
 
         STEP 2 — VERTICAL CURRICULUM MAPPING:
         - In "offered", list ALL courses in the subject's progression from lowest to highest from the SCHOOL PROFILE
