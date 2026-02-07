@@ -322,22 +322,47 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
       .filter(Boolean)
       .join("\n");
 
-    analysis.recommendedSchools = await enforce343Distribution(
+    // Race school enrichment against a 20-second budget.
+    // If enrichment takes too long, return GPT-only recommendations so
+    // the user never sees an HTML timeout page.
+    const enrichmentPromise = enforce343Distribution(
       analysis.recommendedSchools,
       studentProfile,
       openai,
       studentDesc,
     );
+    const timeoutPromise = new Promise<null>((resolve) =>
+      setTimeout(() => resolve(null), 20_000)
+    );
+
+    const enriched = await Promise.race([enrichmentPromise, timeoutPromise]);
+
+    if (enriched) {
+      analysis.recommendedSchools = enriched;
+    } else {
+      console.warn(
+        "[Timeout] School enrichment exceeded 20 s — returning GPT-only schools"
+      );
+    }
 
     return NextResponse.json(analysis);
   } catch (error) {
     console.error("Analysis error:", error);
+
+    // Always return valid JSON — never let Next.js fall through to an HTML
+    // error page.
+    const message =
+      error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
       {
         error:
           "Document processing failed in the cloud environment. Please try refreshing or ensuring the files are standard PDFs.",
+        detail: message,
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
     );
   }
 }
