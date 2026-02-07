@@ -7,6 +7,7 @@ import { enforce343Distribution } from "@/lib/scorecard";
 
 // Disable all Vercel caching — always fetch fresh Scorecard data
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 // Resolve worker path via Next.js optimized URL constructor
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
