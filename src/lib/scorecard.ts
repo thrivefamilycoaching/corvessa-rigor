@@ -504,25 +504,32 @@ async function fetchFillSchools(
   }
   if (needs.length === 0) return [];
 
-  // Build hard filter constraints for the GPT prompt
-  const filterLines: string[] = [];
-  if (filters?.regions && filters.regions.length > 0) {
-    filterLines.push(`MANDATORY REGION FILTER: Only recommend schools in these regions: ${filters.regions.join(" OR ")}. Do NOT include schools from other regions.`);
-  }
+  // Build hard filter constraints — SIZE IS THE PRIMARY CONSTRAINT
+  const absoluteConstraints: string[] = [];
+
   if (filters?.sizes && filters.sizes.length > 0) {
     const sizeDescs = filters.sizes.map((s) => {
       const [min, max] = SIZE_RANGES[s];
-      return `${s} (${min.toLocaleString()}–${max === Infinity ? "∞" : max.toLocaleString()} students)`;
+      return `${s} (${min.toLocaleString()}–${max === Infinity ? "∞" : max.toLocaleString()} undergrads)`;
     });
-    filterLines.push(`MANDATORY SIZE FILTER: Only recommend schools with enrollment in these ranges: ${sizeDescs.join(" OR ")}. Do NOT include schools outside these sizes.`);
+    absoluteConstraints.push(
+      `ABSOLUTE REQUIREMENT #1 — ENROLLMENT SIZE: Every school MUST have undergraduate enrollment within: ${sizeDescs.join(" OR ")}. A school with enrollment outside this range is WRONG and must not be included. Check the real enrollment number before including any school.`
+    );
   }
+
+  if (filters?.regions && filters.regions.length > 0) {
+    absoluteConstraints.push(
+      `ABSOLUTE REQUIREMENT #2 — REGION: Every school MUST be in: ${filters.regions.join(" OR ")}. Do NOT include schools from other regions.`
+    );
+  }
+
   if (filters?.policies && filters.policies.length > 0) {
-    filterLines.push(`MANDATORY POLICY FILTER: Only recommend schools with these testing policies: ${filters.policies.join(" OR ")}. Do NOT include schools with other policies.`);
-    // If user did NOT select "Test Required", warn GPT about known test-required schools
+    absoluteConstraints.push(
+      `ABSOLUTE REQUIREMENT #3 — TESTING POLICY: Every school MUST have policy: ${filters.policies.join(" OR ")}. Do NOT include schools with other policies.`
+    );
     if (!filters.policies.includes("Test Required")) {
-      // Deduplicate the list to short-form names for prompt brevity
       const shortNames = [...new Set(TEST_REQUIRED_SCHOOLS.filter((n) => n.includes(" ")))].slice(0, 20);
-      filterLines.push(`KNOWN TEST-REQUIRED SCHOOLS (DO NOT INCLUDE): ${shortNames.join(", ")}. These schools require test scores — they do NOT match the selected filter.`);
+      absoluteConstraints.push(`KNOWN TEST-REQUIRED SCHOOLS (DO NOT INCLUDE): ${shortNames.join(", ")}.`);
     }
   }
 
@@ -537,18 +544,17 @@ async function fetchFillSchools(
       messages: [
         {
           role: "system",
-          content: `You are a college admissions expert. Recommend EXACTLY ${totalNeeded} colleges matching these acceptance rate targets.
+          content: `You are a college admissions expert. Recommend EXACTLY ${totalNeeded} colleges.
+
+${absoluteConstraints.length > 0 ? absoluteConstraints.join("\n\n") + "\n\n" : ""}ACCEPTANCE RATE TARGETS:
+${needs.map((n) => `- ${n}`).join("\n")}
 
 Return a JSON object:
 { "schools": [{ "name": "<name>", "url": "<url>", "type": "<reach|match|safety>", "region": "<Northeast|Mid-Atlantic|South|Midwest|West>", "campusSize": "<Micro|Small|Medium|Large|Mega>", "enrollment": <number>, "testPolicy": "<Test Optional|Test Required|Test Blind>", "acceptanceProbability": <1-95>, "matchReasoning": "<2-3 sentences>" }] }
 
-REQUIREMENTS:
-${needs.map((n) => `- ${n}`).join("\n")}
-${filterLines.length > 0 ? "\n" + filterLines.join("\n") : ""}
-
 DO NOT include ANY of these already-selected schools: ${excludeNames.join(", ")}
-Pick schools where the acceptance rate is the REAL published acceptance rate. Be accurate.
-The "enrollment" field MUST be the actual undergraduate enrollment number for that school.`,
+The "enrollment" field MUST be the REAL undergraduate enrollment number for that school. Double-check it.
+Include lesser-known accredited schools — not just nationally ranked ones.`,
         },
         {
           role: "user",
@@ -563,7 +569,28 @@ The "enrollment" field MUST be the actual undergraduate enrollment number for th
     if (!content) return [];
 
     const result = JSON.parse(content) as { schools: RecommendedSchool[] };
-    return result.schools ?? [];
+    const raw = result.schools ?? [];
+
+    // Pre-filter fill results — catch GPT enrollment hallucinations at source
+    if (!filters || (filters.sizes.length === 0 && filters.regions.length === 0 && filters.policies.length === 0)) {
+      return raw;
+    }
+    const verified = raw.filter((s) => {
+      const sizeOk = filters.sizes.length === 0 || filters.sizes.some((sz) => {
+        const [min, max] = SIZE_RANGES[sz];
+        return s.enrollment >= min && (max === Infinity ? true : s.enrollment <= max);
+      });
+      const regionOk = filters.regions.length === 0 || filters.regions.includes(s.region);
+      const effectivePolicy = isTestRequiredSchool(s.name) ? "Test Required" : (s.testPolicy || "Test Optional");
+      const policyOk = filters.policies.length === 0 || filters.policies.includes(effectivePolicy);
+
+      if (!sizeOk || !regionOk || !policyOk) {
+        console.log(`[FillFilter] KILLED ${s.name}: enrollment=${s.enrollment} region=${s.region} policy=${effectivePolicy}`);
+      }
+      return sizeOk && regionOk && policyOk;
+    });
+    console.log(`[FillFilter] ${verified.length}/${raw.length} fill schools survived hard constraints`);
+    return verified;
   } catch (err) {
     console.log("[343-Fill] GPT fill call failed:", err);
     return [];
