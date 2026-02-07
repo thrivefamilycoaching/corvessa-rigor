@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import type { AnalysisResult, TestScores } from "@/lib/types";
 import { enforce343Distribution, getEnrollmentSize } from "@/lib/scorecard";
+import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS } from "@/lib/constants";
 
 // Disable all Vercel caching — always fetch fresh Scorecard data
 export const dynamic = "force-dynamic";
@@ -169,10 +170,19 @@ export async function POST(request: NextRequest) {
         - You MUST return EXACTLY 9 schools. No more, no fewer.
         - Categorize by acceptanceProbability: Safety (>70%), Match (40-70%), Reach (<40%). Distribution: 3 Safety, 3 Match, 3 Reach. No exceptions.
         - Specifically value independent school rigor and challenging curricula
+        ABSOLUTE REQUIREMENT — TEST POLICY ACCURACY (CRITICAL):
         - Include "testPolicy" for each school: "Test Optional", "Test Required", or "Test Blind"
           * Test Optional: SAT/ACT scores considered if submitted but not required
           * Test Required: SAT/ACT scores mandatory for all applicants
           * Test Blind: SAT/ACT scores not considered even if submitted
+        - The following schools are KNOWN to be TEST REQUIRED — you MUST label them "Test Required":
+          Harvard, Yale, Princeton, Columbia, Penn, Brown, Dartmouth, Cornell,
+          MIT, Stanford, Caltech, Georgetown, Duke, Vanderbilt, Rice, Johns Hopkins,
+          Northwestern, University of Chicago, Carnegie Mellon, Emory,
+          Georgia Tech, Purdue, UT Austin, University of Florida, University of Tennessee,
+          University of Virginia, UNC, University of Georgia, Florida State,
+          Virginia Tech, Texas A&M, Clemson
+        - Do NOT label any of the above schools as "Test Optional" or "Test Blind". No exceptions.
 
         GEOGRAPHIC DIVERSITY (REQUIRED):
         - Include schools from at least 4 different US regions:
@@ -344,6 +354,21 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
             `[SizeVerify] ${s.name}: enrollment=${s.enrollment} → campusSize should be "${correctSize}" but GPT said "${s.campusSize}" — CORRECTING`
           );
           return { ...s, campusSize: correctSize };
+        }
+        return s;
+      });
+    }
+
+    // ── Correct test policies using hard-coded override list ────────────
+    // GPT can mislabel test-required schools as "Test Optional".
+    // Override using the authoritative TEST_REQUIRED_SCHOOLS list.
+    if (analysis.recommendedSchools) {
+      analysis.recommendedSchools = analysis.recommendedSchools.map((s) => {
+        if (isTestRequiredSchool(s.name) && s.testPolicy !== "Test Required") {
+          console.log(
+            `[PolicyCorrect] ${s.name}: GPT said "${s.testPolicy}" → overriding to "Test Required"`
+          );
+          return { ...s, testPolicy: "Test Required" };
         }
         return s;
       });
