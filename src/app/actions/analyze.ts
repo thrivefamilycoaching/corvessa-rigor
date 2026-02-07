@@ -21,13 +21,7 @@ export async function getFilteredRecommendations(
   const hasFilters =
     request.regions.length > 0 || request.sizes.length > 0 || request.policies.length > 0;
 
-  // When filters are active, request 15 schools (overshoot) so the filter
-  // gate has enough survivors to fill 3-3-3.  Without filters, 9 is fine.
-  const schoolCount = hasFilters ? 15 : 9;
-
   const filterPrompt = buildFilterPrompt(request);
-  const studentUserMsg = buildStudentMessage(request, schoolCount);
-
   const studentProfile = {
     testScores: request.testScores,
     gpa: request.recalculatedGPA,
@@ -36,130 +30,71 @@ export async function getFilteredRecommendations(
   const studentDesc = buildStudentDesc(request);
   const filters = { sizes: request.sizes, policies: request.policies, regions: request.regions };
 
-  // ── Pass 1: initial GPT call ───────────────────────────────────
-  let pool = await callGPTForSchools(openai, filterPrompt, studentUserMsg, schoolCount);
+  // ══════════════════════════════════════════════════════════════════
+  // NO-FILTER PATH — academic-first, simplified
+  // ══════════════════════════════════════════════════════════════════
+  if (!hasFilters) {
+    const studentUserMsg = buildStudentMessage(request, 9);
+    let pool = await callGPTForSchools(openai, filterPrompt, studentUserMsg, 9);
+    pool = await enforce343Distribution(pool, studentProfile, openai, studentDesc, 2, filters);
+    console.log(`[NoFilter] Returning ${pool.length} academic-first schools`);
+    return pool;
+  }
 
-  // FILTER BEFORE ENRICHMENT — discard mismatches immediately
+  // ══════════════════════════════════════════════════════════════════
+  // CHECKBOX-FIRST PIPELINE (hasFilters=true)
+  // Stage 1: Broad checkbox pool (25 schools)
+  // Stage 2: Expand if < 9 survivors (20 more schools)
+  // ══════════════════════════════════════════════════════════════════
+
+  // ── Stage 1: Checkbox Pool (25 schools) ─────────────────────────
+  const stage1Msg = buildCheckboxPoolMessage(request, 25);
+  let pool = await callGPTForSchools(openai, filterPrompt, stage1Msg, 25);
   pool = preFilterPool(pool, request.regions, request.sizes, request.policies);
-  console.log(`[Pass1] ${pool.length} schools survived pre-filter`);
+  pool = deduplicateByName(pool);
+  console.log(`[Stage1] ${pool.length} schools survived pre-filter`);
 
-  let enriched = await enforce343Distribution(
+  let passed = await enforce343Distribution(
     pool, studentProfile, openai, studentDesc, 2, filters,
   );
-
-  let passed = enforceFilterGate(enriched, request.regions, request.sizes, request.policies);
-
-  // Re-correct Pass 1 results — ensure ground-truth metadata before progressive retry
-  passed = correctSchoolMetadata(passed);
-  console.log(`[Pass1] ${passed.length} schools passed filter gate`);
-
-  // ── Progressive retry: widen GPA in steps until 3-3-3 fills ────────
-  // Size/Region/Policy filters are MANDATORY and ABSOLUTE.
-  // Academic criteria are FLEXIBLE and expand progressively.
-  const GPA_STEPS = [0.5, 0.75, 1.0];
-  const SAT_STEPS = [100, 200, 300];
-
-  for (let step = 0; step < GPA_STEPS.length && passed.length < 9 && hasFilters; step++) {
-    const gpaRange = GPA_STEPS[step];
-    const satRange = SAT_STEPS[step];
-    console.log(
-      `[FilterRetry] Pass ${step + 2}: ${passed.length} schools — broadening GPA ±${gpaRange}, SAT ±${satRange}`
-    );
-
-    const excludeNames = passed.map((s) => s.name);
-    const needed = 15 - passed.length;
-    const broadenedMsg = buildBroadenedMessage(request, needed, excludeNames, gpaRange, satRange);
-
-    let extraPool = await callGPTForSchools(openai, filterPrompt, broadenedMsg, needed);
-
-    // FILTER BEFORE ENRICHMENT — discard mismatches immediately
-    extraPool = preFilterPool(extraPool, request.regions, request.sizes, request.policies);
-
-    const extraEnriched = await enforce343Distribution(
-      extraPool, studentProfile, openai, studentDesc, 1, filters,
-    );
-
-    const extraPassed = enforceFilterGate(extraEnriched, request.regions, request.sizes, request.policies);
-
-    // Merge, deduplicate
-    const seenNames = new Set(passed.map((s) => s.name.toLowerCase()));
-    for (const s of extraPassed) {
-      if (!seenNames.has(s.name.toLowerCase())) {
-        passed.push(s);
-        seenNames.add(s.name.toLowerCase());
-      }
-    }
-    // Re-correct merged pool — ensure progressive retry additions have ground-truth metadata
-    passed = correctSchoolMetadata(passed);
-    console.log(`[FilterRetry] After pass ${step + 2}: ${passed.length} schools total`);
-  }
-
-  // ── Force-fill: if still < 9, drop ALL academic criteria ────────
-  // Size/Region/Policy are the ONLY requirements.  GPA/SAT ignored.
-  if (passed.length < 9 && hasFilters) {
-    console.log(`[ForceFill] Only ${passed.length} schools — dropping academic criteria entirely`);
-    const excludeNames = passed.map((s) => s.name);
-    const needed = 15 - passed.length;
-    const forceMsg = buildForceSearchMessage(request, needed, excludeNames);
-
-    let forcePool = await callGPTForSchools(openai, filterPrompt, forceMsg, needed);
-    forcePool = preFilterPool(forcePool, request.regions, request.sizes, request.policies);
-
-    const forceEnriched = await enforce343Distribution(
-      forcePool, studentProfile, openai, studentDesc, 1, filters,
-    );
-    const forcePassed = enforceFilterGate(forceEnriched, request.regions, request.sizes, request.policies);
-
-    const seenNames = new Set(passed.map((s) => s.name.toLowerCase()));
-    for (const s of forcePassed) {
-      if (!seenNames.has(s.name.toLowerCase())) {
-        passed.push(s);
-        seenNames.add(s.name.toLowerCase());
-      }
-    }
-    // Re-correct merged pool — ensure force-fill additions have ground-truth metadata
-    passed = correctSchoolMetadata(passed);
-    console.log(`[ForceFill] After force-fill: ${passed.length} schools total`);
-  }
-
-  // ── Global database expansion: if still < 9, search the ENTIRE US ──
-  // Physical filters (Size/Region/Policy) are 100% mandatory.
-  // Academic match is 0% mandatory — completely ignored.
-  if (passed.length < 9 && hasFilters) {
-    console.log(`[GlobalSearch] Only ${passed.length} schools — launching global database expansion`);
-    const excludeNames = passed.map((s) => s.name);
-    const needed = 20; // Over-request to maximize filter survivors
-    const globalMsg = buildGlobalSearchMessage(request, needed, excludeNames);
-
-    let globalPool = await callGPTForSchools(openai, filterPrompt, globalMsg, needed);
-    globalPool = preFilterPool(globalPool, request.regions, request.sizes, request.policies);
-
-    const globalEnriched = await enforce343Distribution(
-      globalPool, studentProfile, openai, studentDesc, 1, filters,
-    );
-    const globalPassed = enforceFilterGate(globalEnriched, request.regions, request.sizes, request.policies);
-
-    const seenNames = new Set(passed.map((s) => s.name.toLowerCase()));
-    for (const s of globalPassed) {
-      if (!seenNames.has(s.name.toLowerCase())) {
-        passed.push(s);
-        seenNames.add(s.name.toLowerCase());
-      }
-    }
-    // Re-correct merged pool — ensure global search additions have ground-truth metadata
-    passed = correctSchoolMetadata(passed);
-    console.log(`[GlobalSearch] After global expansion: ${passed.length} schools total`);
-  }
-
-  // ── FINAL VERIFICATION: zero-tolerance enrollment check ─────────
-  passed = verifyFinalEnrollment(passed, request.sizes, request.regions, request.policies);
-
-  // ── STRICT DEDUPLICATION: no school name may appear more than once ──
+  passed = enforceFilterGate(passed, request.regions, request.sizes, request.policies);
   passed = deduplicateByName(passed);
+  passed = correctSchoolMetadata(passed);
+  passed = deduplicateByName(passed);
+  console.log(`[Stage1] ${passed.length} schools passed filter gate`);
 
-  // ── ABSOLUTE KILL-GATE: physically destroy any school outside size range ──
-  // This is the last line of defense. If "Small" is selected, a school with
-  // enrollment > 5,000 is physically impossible in the output.
+  // ── Stage 2: Expand (if < 9 after Stage 1) ─────────────────────
+  if (passed.length < 9) {
+    console.log(`[Stage2] Only ${passed.length} schools — expanding with 20 more`);
+    const excludeNames = passed.map((s) => s.name);
+    const stage2Msg = buildCheckboxExpandMessage(request, 20, excludeNames);
+
+    let expandPool = await callGPTForSchools(openai, filterPrompt, stage2Msg, 20);
+    expandPool = preFilterPool(expandPool, request.regions, request.sizes, request.policies);
+    expandPool = deduplicateByName(expandPool);
+
+    // Merge with Stage 1 survivors (inline Set dedup)
+    const seenNames = new Set(passed.map((s) => s.name.toLowerCase()));
+    for (const s of expandPool) {
+      if (!seenNames.has(s.name.toLowerCase())) {
+        passed.push(s);
+        seenNames.add(s.name.toLowerCase());
+      }
+    }
+
+    passed = await enforce343Distribution(
+      passed, studentProfile, openai, studentDesc, 1, filters,
+    );
+    passed = enforceFilterGate(passed, request.regions, request.sizes, request.policies);
+    passed = deduplicateByName(passed);
+    passed = correctSchoolMetadata(passed);
+    passed = deduplicateByName(passed);
+    console.log(`[Stage2] ${passed.length} schools after expand + filter`);
+  }
+
+  // ── FINAL GATES (unchanged) ─────────────────────────────────────
+  passed = verifyFinalEnrollment(passed, request.sizes, request.regions, request.policies);
+  passed = deduplicateByName(passed);
   passed = absoluteEnrollmentKill(passed, request.sizes);
 
   console.log(`[Final] Returning ${passed.length} unique, filter-verified schools`);
@@ -289,170 +224,144 @@ Recommend EXACTLY ${count} colleges matching ALL specified Region, Size, and Pol
 The "enrollment" field MUST be the REAL undergraduate enrollment number for each school.${constraintBlock}`;
 }
 
-// ── Helper: broadened retry message (relaxed academic criteria) ───────
+// ── Helper: checkbox pool message (Stage 1 — checkboxes are PRIMARY) ──
 
-function buildBroadenedMessage(
+function buildCheckboxPoolMessage(
   request: FilteredRecommendationsRequest,
   count: number,
-  excludeNames: string[],
-  gpaRange: number = 0.5,
-  satRange: number = 100,
 ): string {
-  const gpa = request.recalculatedGPA ?? 3.0;
-  const satTotal =
-    request.testScores?.satReading && request.testScores?.satMath
-      ? request.testScores.satReading + request.testScores.satMath
-      : null;
+  const regionStateMap: Record<string, string> = {
+    "Northeast": "Massachusetts, Connecticut, Rhode Island, Maine, Vermont, New Hampshire, New York",
+    "Mid-Atlantic": "Pennsylvania, New Jersey, Delaware, Maryland, Virginia, West Virginia, DC",
+    "South": "North Carolina, South Carolina, Georgia, Florida, Alabama, Mississippi, Louisiana, Tennessee, Kentucky, Arkansas, Texas, Oklahoma",
+    "Midwest": "Ohio, Michigan, Indiana, Illinois, Wisconsin, Minnesota, Iowa, Missouri, Kansas, Nebraska, South Dakota, North Dakota",
+    "West": "California, Oregon, Washington, Colorado, Arizona, Nevada, Utah, New Mexico, Idaho, Montana, Wyoming, Hawaii, Alaska",
+  };
 
-  // Build ABSOLUTE REQUIREMENT filter reminders for the broadened prompt
-  const filterReminders: string[] = [];
+  // PRIMARY: Physical filter constraints — the ONLY selection criteria
+  const primary: string[] = [];
 
   if (request.sizes.length > 0 && request.sizes.length < 5) {
     const sizeDescs = request.sizes.map(s => `${s} (${SIZE_DESCRIPTIONS[s]} undergrads)`).join(" OR ");
-    filterReminders.push(
-      `ABSOLUTE REQUIREMENT — ENROLLMENT SIZE: Every school MUST have undergraduate enrollment within: ${sizeDescs}. A school with enrollment outside this range is WRONG and must not be included.`
+    primary.push(
+      `ABSOLUTE REQUIREMENT #1 — ENROLLMENT SIZE: Every school MUST have undergraduate enrollment within: ${sizeDescs}. A school with enrollment outside this range is WRONG and must not be included. Check the real enrollment number before including any school.`
     );
   }
 
   if (request.regions.length > 0 && request.regions.length < 5) {
-    const regionStateMap: Record<string, string> = {
-      "Northeast": "Massachusetts, Connecticut, Rhode Island, Maine, Vermont, New Hampshire, New York",
-      "Mid-Atlantic": "Pennsylvania, New Jersey, Delaware, Maryland, Virginia, West Virginia, DC",
-      "South": "North Carolina, South Carolina, Georgia, Florida, Alabama, Mississippi, Louisiana, Tennessee, Kentucky, Arkansas, Texas, Oklahoma",
-      "Midwest": "Ohio, Michigan, Indiana, Illinois, Wisconsin, Minnesota, Iowa, Missouri, Kansas, Nebraska, South Dakota, North Dakota",
-      "West": "California, Oregon, Washington, Colorado, Arizona, Nevada, Utah, New Mexico, Idaho, Montana, Wyoming, Hawaii, Alaska",
-    };
     const regionDetails = request.regions.map((r) => `${r} (${regionStateMap[r] ?? ""})`).join(" OR ");
-    filterReminders.push(
-      `ABSOLUTE REQUIREMENT — REGION: Every school MUST be in: ${regionDetails}. Verify each school's actual state.`
+    primary.push(
+      `ABSOLUTE REQUIREMENT #2 — REGION: Every school MUST be located in: ${regionDetails}. Look up each school's actual state and verify it belongs to the allowed region. Do NOT include schools from other regions.`
     );
   }
 
   if (request.policies.length > 0 && request.policies.length < 3) {
-    let policyLine = `ABSOLUTE REQUIREMENT — TESTING POLICY: Every school MUST have policy: ${request.policies.join(" OR ")}. Do NOT include schools with other testing policies.`;
+    let policyLine = `ABSOLUTE REQUIREMENT #3 — TESTING POLICY: Every school MUST have policy: ${request.policies.join(" OR ")}. Do NOT include schools with other testing policies.`;
     if (!request.policies.includes("Test Required")) {
       const shortNames = [...new Set(TEST_REQUIRED_SCHOOLS.filter((n) => n.includes(" ")))].slice(0, 20);
       policyLine += `\nKNOWN TEST-REQUIRED SCHOOLS (DO NOT INCLUDE): ${shortNames.join(", ")}.`;
     }
-    filterReminders.push(policyLine);
+    primary.push(policyLine);
   }
 
-  const constraintBlock = filterReminders.length > 0 ? filterReminders.join("\n\n") : "";
+  const primaryBlock = primary.length > 0 ? primary.join("\n\n") : "";
 
-  return `I need ${count} MORE colleges that match the Region, Size, and Testing Policy filters above.
-The Region, Size, and Testing Policy filters are ABSOLUTE — every school MUST match ALL of them.
-The academic match is FLEXIBLE — broaden it as follows:
+  // SECONDARY: Student profile for probability estimation ONLY
+  const secondaryParts: string[] = [];
+  if (request.recalculatedGPA) secondaryParts.push(`GPA: ${request.recalculatedGPA}/4.0 (weighted)`);
+  secondaryParts.push(`Rigor Score: ${request.overallScore}/100`);
+  if (request.testScores?.satReading && request.testScores?.satMath) {
+    secondaryParts.push(`SAT: ${request.testScores.satReading + request.testScores.satMath}`);
+  }
+  if (request.testScores?.actComposite) {
+    secondaryParts.push(`ACT: ${request.testScores.actComposite}`);
+  }
 
-${constraintBlock}
+  return `PRIMARY SELECTION CRITERIA (use ONLY these to choose which schools to include):
+${primaryBlock}
 
-- Accept schools whose median freshman GPA is ${Math.max(1.0, gpa - gpaRange).toFixed(1)} to ${Math.min(5.0, gpa + gpaRange).toFixed(1)} (student GPA: ${gpa.toFixed(2)})
-${satTotal ? `- Accept schools whose SAT middle-50% overlaps ${Math.max(400, satTotal - satRange)} to ${Math.min(1600, satTotal + satRange)} (student SAT: ${satTotal})` : ""}
-- Include lesser-known but accredited 4-year colleges — not just nationally ranked schools
-- Search the FULL list of US institutions in the specified Region and Size
+List EXACTLY ${count} accredited 4-year US colleges that match ALL of the above physical filters.
+Search the COMPLETE national database — include lesser-known regional universities, state colleges, liberal arts colleges, HBCUs, and small private institutions, not just nationally ranked schools.
+Include a BROAD range of selectivity levels: highly selective, moderately selective, and open/easy admission.
+
+SECONDARY — STUDENT PROFILE (use ONLY to estimate acceptanceProbability, do NOT use to narrow school selection):
+${secondaryParts.join(" | ")}
+School Context: ${request.schoolProfileSummary}
+Academic Summary: ${request.transcriptSummary}
+
 The "enrollment" field MUST be the REAL undergraduate enrollment number for each school.
+Return a mix of Reach (< 40%), Match (40-70%), and Safety (> 70%).`;
+}
+
+// ── Helper: checkbox expand message (Stage 2 — additional schools) ─────
+
+function buildCheckboxExpandMessage(
+  request: FilteredRecommendationsRequest,
+  count: number,
+  excludeNames: string[],
+): string {
+  const regionStateMap: Record<string, string> = {
+    "Northeast": "Massachusetts, Connecticut, Rhode Island, Maine, Vermont, New Hampshire, New York",
+    "Mid-Atlantic": "Pennsylvania, New Jersey, Delaware, Maryland, Virginia, West Virginia, DC",
+    "South": "North Carolina, South Carolina, Georgia, Florida, Alabama, Mississippi, Louisiana, Tennessee, Kentucky, Arkansas, Texas, Oklahoma",
+    "Midwest": "Ohio, Michigan, Indiana, Illinois, Wisconsin, Minnesota, Iowa, Missouri, Kansas, Nebraska, South Dakota, North Dakota",
+    "West": "California, Oregon, Washington, Colorado, Arizona, Nevada, Utah, New Mexico, Idaho, Montana, Wyoming, Hawaii, Alaska",
+  };
+
+  const primary: string[] = [];
+
+  if (request.sizes.length > 0 && request.sizes.length < 5) {
+    const sizeDescs = request.sizes.map(s => `${s} (${SIZE_DESCRIPTIONS[s]} undergrads)`).join(" OR ");
+    primary.push(
+      `ABSOLUTE REQUIREMENT #1 — ENROLLMENT SIZE: Every school MUST have undergraduate enrollment within: ${sizeDescs}. A school with enrollment outside this range is WRONG and must not be included.`
+    );
+  }
+
+  if (request.regions.length > 0 && request.regions.length < 5) {
+    const regionDetails = request.regions.map((r) => `${r} (${regionStateMap[r] ?? ""})`).join(" OR ");
+    primary.push(
+      `ABSOLUTE REQUIREMENT #2 — REGION: Every school MUST be located in: ${regionDetails}. Verify each school's actual state.`
+    );
+  }
+
+  if (request.policies.length > 0 && request.policies.length < 3) {
+    let policyLine = `ABSOLUTE REQUIREMENT #3 — TESTING POLICY: Every school MUST have policy: ${request.policies.join(" OR ")}.`;
+    if (!request.policies.includes("Test Required")) {
+      const shortNames = [...new Set(TEST_REQUIRED_SCHOOLS.filter((n) => n.includes(" ")))].slice(0, 20);
+      policyLine += ` DO NOT include: ${shortNames.join(", ")}.`;
+    }
+    primary.push(policyLine);
+  }
+
+  const primaryBlock = primary.length > 0 ? primary.join("\n\n") : "";
+
+  const secondaryParts: string[] = [];
+  if (request.recalculatedGPA) secondaryParts.push(`GPA: ${request.recalculatedGPA}/4.0 (weighted)`);
+  secondaryParts.push(`Rigor Score: ${request.overallScore}/100`);
+  if (request.testScores?.satReading && request.testScores?.satMath) {
+    secondaryParts.push(`SAT: ${request.testScores.satReading + request.testScores.satMath}`);
+  }
+  if (request.testScores?.actComposite) {
+    secondaryParts.push(`ACT: ${request.testScores.actComposite}`);
+  }
+
+  return `I need ${count} ADDITIONAL accredited 4-year US colleges from the COMPLETE national database.
+
+PRIMARY SELECTION CRITERIA (use ONLY these to choose which schools to include):
+${primaryBlock}
+
+Search the COMPLETE national database of ALL accredited US colleges and universities.
+Include regional universities, state colleges, liberal arts colleges, HBCUs, and any accredited 4-year institution that matches the physical filters.
+Include a BROAD range of selectivity levels.
+
+SECONDARY — STUDENT PROFILE (use ONLY to estimate acceptanceProbability, do NOT use to narrow school selection):
+${secondaryParts.join(" | ")}
 
 Do NOT repeat any of these already-selected schools: ${excludeNames.join(", ")}
 
-Return EXACTLY ${count} schools in the same JSON format. Include a mix of Reach, Match, and Safety.`;
-}
-
-// ── Helper: force-fill message (NO academic criteria) ─────────────────
-
-function buildForceSearchMessage(
-  request: FilteredRecommendationsRequest,
-  count: number,
-  excludeNames: string[],
-): string {
-  const sizeReq = request.sizes.length > 0
-    ? `ABSOLUTE REQUIREMENT — ENROLLMENT SIZE: Every school MUST have enrollment matching: ${request.sizes.map(s => `${s} (${SIZE_DESCRIPTIONS[s]} students)`).join(" OR ")}. A school with enrollment outside this range is WRONG.`
-    : "";
-  let regionReq = "";
-  if (request.regions.length > 0) {
-    const regionStateMap: Record<string, string> = {
-      "Northeast": "Massachusetts, Connecticut, Rhode Island, Maine, Vermont, New Hampshire, New York",
-      "Mid-Atlantic": "Pennsylvania, New Jersey, Delaware, Maryland, Virginia, West Virginia, DC",
-      "South": "North Carolina, South Carolina, Georgia, Florida, Alabama, Mississippi, Louisiana, Tennessee, Kentucky, Arkansas, Texas, Oklahoma",
-      "Midwest": "Ohio, Michigan, Indiana, Illinois, Wisconsin, Minnesota, Iowa, Missouri, Kansas, Nebraska, South Dakota, North Dakota",
-      "West": "California, Oregon, Washington, Colorado, Arizona, Nevada, Utah, New Mexico, Idaho, Montana, Wyoming, Hawaii, Alaska",
-    };
-    const regionDetails = request.regions.map((r) => `${r} (${regionStateMap[r] ?? ""})`).join(" OR ");
-    regionReq = `ABSOLUTE REQUIREMENT — REGION: Every school MUST be in: ${regionDetails}. Verify each school's actual state.`;
-  }
-
-  let policyReq = "";
-  if (request.policies.length > 0 && request.policies.length < 3) {
-    policyReq = `ABSOLUTE REQUIREMENT — TESTING POLICY: Every school MUST have policy: ${request.policies.join(" OR ")}.`;
-    if (!request.policies.includes("Test Required")) {
-      const shortNames = [...new Set(TEST_REQUIRED_SCHOOLS.filter((n) => n.includes(" ")))].slice(0, 20);
-      policyReq += ` DO NOT include: ${shortNames.join(", ")}.`;
-    }
-  }
-
-  return `I need EXACTLY ${count} more accredited 4-year US colleges.
-
-${sizeReq}
-${regionReq}
-${policyReq}
-
-IGNORE GPA, SAT scores, and academic fit entirely. The ONLY requirements are the size, region, and testing policy filters above.
-Include lesser-known but accredited schools — not just nationally ranked ones.
-Search the FULL list of US institutions.
-Include a mix of Reach, Match, and Safety.
-
-Do NOT repeat any of these: ${excludeNames.join(", ")}
-
 Return EXACTLY ${count} schools in the same JSON format.
-The "enrollment" field MUST be the REAL undergraduate enrollment number.`;
-}
-
-// ── Helper: GLOBAL search message (entire US database, zero academic criteria) ──
-
-function buildGlobalSearchMessage(
-  request: FilteredRecommendationsRequest,
-  count: number,
-  excludeNames: string[],
-): string {
-  const sizeReq = request.sizes.length > 0
-    ? `ABSOLUTE REQUIREMENT — ENROLLMENT SIZE: Every school MUST have enrollment matching: ${request.sizes.map(s => `${s} (${SIZE_DESCRIPTIONS[s]} students)`).join(" OR ")}. A school with enrollment outside this range is WRONG.`
-    : "";
-  let regionReq = "";
-  if (request.regions.length > 0) {
-    const regionStateMap: Record<string, string> = {
-      "Northeast": "Massachusetts, Connecticut, Rhode Island, Maine, Vermont, New Hampshire, New York",
-      "Mid-Atlantic": "Pennsylvania, New Jersey, Delaware, Maryland, Virginia, West Virginia, DC",
-      "South": "North Carolina, South Carolina, Georgia, Florida, Alabama, Mississippi, Louisiana, Tennessee, Kentucky, Arkansas, Texas, Oklahoma",
-      "Midwest": "Ohio, Michigan, Indiana, Illinois, Wisconsin, Minnesota, Iowa, Missouri, Kansas, Nebraska, South Dakota, North Dakota",
-      "West": "California, Oregon, Washington, Colorado, Arizona, Nevada, Utah, New Mexico, Idaho, Montana, Wyoming, Hawaii, Alaska",
-    };
-    const regionDetails = request.regions.map((r) => `${r} (${regionStateMap[r] ?? ""})`).join(" OR ");
-    regionReq = `ABSOLUTE REQUIREMENT — REGION: Every school MUST be in: ${regionDetails}. Verify each school's actual state.`;
-  }
-
-  let policyReq = "";
-  if (request.policies.length > 0 && request.policies.length < 3) {
-    policyReq = `ABSOLUTE REQUIREMENT — TESTING POLICY: Every school MUST have policy: ${request.policies.join(" OR ")}.`;
-    if (!request.policies.includes("Test Required")) {
-      const shortNames = [...new Set(TEST_REQUIRED_SCHOOLS.filter((n) => n.includes(" ")))].slice(0, 20);
-      policyReq += ` DO NOT include: ${shortNames.join(", ")}.`;
-    }
-  }
-
-  return `I need EXACTLY ${count} accredited 4-year US colleges from the ENTIRE national database.
-
-${sizeReq}
-${regionReq}
-${policyReq}
-
-IGNORE GPA, SAT scores, rigor, and ALL academic criteria. The ONLY requirements are size, region, and testing policy.
-Search the COMPLETE database of ALL accredited US colleges and universities — not just well-known or nationally ranked schools.
-Include regional universities, state colleges, liberal arts colleges, HBCUs, and any accredited 4-year institution that matches the physical filters.
-Every school MUST be a DIFFERENT institution — no duplicates.
-Include a mix of Reach (low acceptance rate), Match, and Safety (high acceptance rate).
-
-Do NOT repeat any of these: ${excludeNames.join(", ")}
-
-Return EXACTLY ${count} schools in the same JSON format.
-The "enrollment" field MUST be the REAL undergraduate enrollment number.`;
+The "enrollment" field MUST be the REAL undergraduate enrollment number.
+Include a mix of Reach (< 40%), Match (40-70%), and Safety (> 70%).`;
 }
 
 // ── Helper: student description for Scorecard enrichment ─────────────
