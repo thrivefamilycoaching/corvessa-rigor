@@ -131,28 +131,44 @@ const SIZE_DESCRIPTIONS: Record<CampusSizeType, string> = {
 };
 
 function buildFilterPrompt(request: FilteredRecommendationsRequest): string {
-  const regionConstraint = request.regions.length > 0 && request.regions.length < 5
-    ? `IMPORTANT: Only recommend schools from these regions: ${request.regions.join(" OR ")}. Do NOT include schools from other regions.`
-    : "Include schools from multiple regions for geographic diversity.";
+  // Build absolute constraints — SIZE is #1 priority
+  const absoluteConstraints: string[] = [];
 
-  const sizeConstraint = request.sizes.length > 0 && request.sizes.length < 5
-    ? `IMPORTANT: Only recommend schools with these enrollment sizes: ${request.sizes.map(s => `${s} (${SIZE_DESCRIPTIONS[s]})`).join(" OR ")}. Do NOT include schools outside these size ranges.`
-    : "Include a mix of Micro, Small, Medium, Large, and Mega schools.";
+  if (request.sizes.length > 0 && request.sizes.length < 5) {
+    const sizeDescs = request.sizes.map(s => `${s} (${SIZE_DESCRIPTIONS[s]} undergrads)`).join(" OR ");
+    absoluteConstraints.push(
+      `ABSOLUTE REQUIREMENT #1 — ENROLLMENT SIZE: Every school MUST have undergraduate enrollment within: ${sizeDescs}. A school with enrollment outside this range is WRONG and must not be included. Check the real enrollment number before including any school.`
+    );
+  }
 
-  let policyConstraint: string;
+  if (request.regions.length > 0 && request.regions.length < 5) {
+    absoluteConstraints.push(
+      `ABSOLUTE REQUIREMENT #2 — REGION: Every school MUST be in: ${request.regions.join(" OR ")}. Do NOT include schools from other regions.`
+    );
+  }
+
   if (request.policies.length > 0 && request.policies.length < 3) {
-    policyConstraint = `STRICT REQUIREMENT: Only recommend schools with these testing policies: ${request.policies.join(" OR ")}. Do NOT include schools with other testing policies.`;
+    let policyLine = `ABSOLUTE REQUIREMENT #3 — TESTING POLICY: Every school MUST have policy: ${request.policies.join(" OR ")}. Do NOT include schools with other testing policies.`;
     if (!request.policies.includes("Test Required")) {
       const shortNames = [...new Set(TEST_REQUIRED_SCHOOLS.filter((n) => n.includes(" ")))].slice(0, 20);
-      policyConstraint += `\nKNOWN TEST-REQUIRED SCHOOLS (DO NOT INCLUDE): ${shortNames.join(", ")}. These schools require test scores and do NOT match the selected policy filter.`;
+      policyLine += `\nKNOWN TEST-REQUIRED SCHOOLS (DO NOT INCLUDE): ${shortNames.join(", ")}. These schools require test scores and do NOT match the selected policy filter.`;
     }
-  } else {
-    policyConstraint = "Include schools with various testing policies (Test Optional, Test Required, Test Blind).";
+    absoluteConstraints.push(policyLine);
   }
+
+  const constraintBlock = absoluteConstraints.length > 0
+    ? absoluteConstraints.join("\n\n") + "\n"
+    : `Include schools from multiple regions for geographic diversity.
+Include a mix of school sizes.
+Include schools with various testing policies (Test Optional, Test Required, Test Blind).`;
 
   return `You are an expert college admissions counselor with knowledge of ALL accredited 4-year colleges and universities in the United States — not just top-50 or well-known schools. Search the FULL list of US institutions when applying filters.
 
+${constraintBlock}
+
 Return ONLY a JSON object: { "schools": [{ "name", "url", "type", "region", "campusSize", "enrollment", "testPolicy", "acceptanceProbability", "matchReasoning" }] }
+
+The "enrollment" field MUST be the REAL undergraduate enrollment number for each school. Double-check it.
 
 ACCEPTANCE PROBABILITY: integer 1-95. Reach < 40%, Match 40-70%, Safety > 70%.
 
@@ -165,10 +181,6 @@ REGION DEFINITIONS:
 
 SIZE DEFINITIONS:
 - Micro: Under 2,000 undergrads | Small: 2,000-5,000 | Medium: 5,000-15,000 | Large: 15,000-30,000 | Mega: 30,000+
-
-${regionConstraint}
-${sizeConstraint}
-${policyConstraint}
 
 Distribution target: 3 Reach, 3 Match, 3 Safety.`;
 }
