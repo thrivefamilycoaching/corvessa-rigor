@@ -43,7 +43,7 @@ export async function getFilteredRecommendations(
     messages: [
       {
         role: "system",
-        content: `You are an expert college admissions counselor. Based on a student's profile, recommend EXACTLY 10 colleges.
+        content: `You are an expert college admissions counselor. Based on a student's profile, recommend EXACTLY 9 colleges.
 
 Return ONLY a JSON object with this structure:
 {
@@ -103,8 +103,8 @@ TEST SCORE WEIGHTING:
 - For Test Required schools, weight test scores MORE heavily in categorization
 - For Test Optional/Blind schools, weight course rigor MORE heavily
 
-You MUST return EXACTLY 10 schools. No more, no fewer.
-Categorize by acceptanceProbability: Safety (>70%), Match (40-70%), Reach (<40%). Distribution: 3 Safety, 4 Match, 3 Reach. No exceptions.
+You MUST return EXACTLY 9 schools. No more, no fewer.
+Categorize by acceptanceProbability: Safety (>70%), Match (40-70%), Reach (<40%). Distribution: 3 Safety, 3 Match, 3 Reach. No exceptions.
 Base recommendations on schools that value rigorous academic preparation.`,
       },
       {
@@ -132,7 +132,7 @@ Provide college recommendations matching the specified filters. Include an exact
   try {
     const result = JSON.parse(content) as { schools: RecommendedSchool[] };
 
-    // Enforce 3-4-3 distribution with Scorecard API enrichment + targeted fill
+    // Enforce 3-3-3 distribution with Scorecard API enrichment + targeted fill
     const studentProfile = {
       testScores: request.testScores,
       gpa: request.recalculatedGPA,

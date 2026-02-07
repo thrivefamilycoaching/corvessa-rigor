@@ -166,8 +166,8 @@ export async function POST(request: NextRequest) {
 
         For recommendedSchools:
         - Conduct a NATIONAL search across the entire United States - do NOT limit to any single state or region
-        - You MUST return EXACTLY 10 schools. No more, no fewer.
-        - Categorize by acceptanceProbability: Safety (>70%), Match (40-70%), Reach (<40%). Distribution: 3 Safety, 4 Match, 3 Reach. No exceptions.
+        - You MUST return EXACTLY 9 schools. No more, no fewer.
+        - Categorize by acceptanceProbability: Safety (>70%), Match (40-70%), Reach (<40%). Distribution: 3 Safety, 3 Match, 3 Reach. No exceptions.
         - Specifically value independent school rigor and challenging curricula
         - Include "testPolicy" for each school: "Test Optional", "Test Required", or "Test Blind"
           * Test Optional: SAT/ACT scores considered if submitted but not required
@@ -302,7 +302,7 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
 
     const analysis = JSON.parse(content) as AnalysisResult;
 
-    // Enforce 3-4-3 distribution with Scorecard API enrichment + targeted fill
+    // Enforce 3-3-3 distribution with Scorecard API enrichment + targeted fill
     const studentProfile = {
       testScores,
       gpa: analysis.recalculatedGPA,

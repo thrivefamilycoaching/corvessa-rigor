@@ -97,13 +97,13 @@ function normalizeDisplayOdds(school: RecommendedSchool): RecommendedSchool {
 }
 
 /**
- * MANDATORY 3-4-3 balanced list.
+ * MANDATORY 3-3-3 balanced list (9 schools total).
  *
  * HARD RULE: Schools with odds < 25% are LOCKED as Reach — they can never
  * be promoted to Match or Safety. This covers all sub-15% admit rate schools
  * and Top 30 elites (the server caps their odds below 25%).
  *
- * Filling order: Reach first (3), then Match (4), then Safety (3).
+ * Filling order: Reach first (3), then Match (3), then Safety (3).
  * Demotion is allowed (Safety → Match, Match → Reach) to fill quotas.
  * Promotion is NEVER allowed for locked Reach schools.
  */
@@ -147,18 +147,18 @@ function balanceSchools(schools: RecommendedSchool[]): RecommendedSchool[] {
     safetyNames.add(s.name);
   }
 
-  // ── Step 3: Fill Match (target 4) from remaining flexible ──
+  // ── Step 3: Fill Match (target 3) from remaining flexible ──
   const remaining = flexible.filter((s) => !safetyNames.has(s.name));
   for (const s of remaining) {
-    if (match.length >= 4) break;
+    if (match.length >= 3) break;
     match.push({ ...s, type: "match" });
   }
 
-  // ── Step 4: Handle any leftover (more than 10 schools, or unplaced) ──
+  // ── Step 4: Handle any leftover (more than 9 schools, or unplaced) ──
   const usedNames = new Set([...reach, ...match, ...safety].map((s) => s.name));
   const leftover = all.filter((s) => !usedNames.has(s.name));
   for (const s of leftover) {
-    if (match.length < 4) match.push({ ...s, type: "match" });
+    if (match.length < 3) match.push({ ...s, type: "match" });
     else if (safety.length < 3) safety.push({ ...s, type: "safety" });
     else reach.push({ ...s, type: "reach" });
   }
@@ -295,7 +295,7 @@ export function RecommendedSchools({
     }
 
     // If we have enough matching schools, balance and use them
-    if (filteredExisting.length >= 10) {
+    if (filteredExisting.length >= 9) {
       setSchools(balanceSchools(filteredExisting));
       setFiltersApplied(true);
       return;
@@ -308,7 +308,7 @@ export function RecommendedSchools({
       const backfillCandidates = initialSchools
         .filter((s) => !filteredNames.has(s.name))
         .sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
-      const backfilled = [...filteredExisting, ...backfillCandidates.slice(0, 10 - filteredExisting.length)];
+      const backfilled = [...filteredExisting, ...backfillCandidates.slice(0, 9 - filteredExisting.length)];
       setSchools(balanceSchools(backfilled));
       setFiltersApplied(true);
       return;
@@ -342,7 +342,7 @@ export function RecommendedSchools({
       const backfillCandidates = initialSchools
         .filter((s) => !filteredNames.has(s.name))
         .sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
-      const backfilled = [...filteredExisting, ...backfillCandidates.slice(0, 10 - filteredExisting.length)];
+      const backfilled = [...filteredExisting, ...backfillCandidates.slice(0, 9 - filteredExisting.length)];
       setSchools(balanceSchools(backfilled));
       setFiltersApplied(true);
     } finally {
@@ -366,13 +366,13 @@ export function RecommendedSchools({
   const matchSchools = schools.filter((s) => s.type === "match");
   const safetySchools = schools.filter((s) => s.type === "safety");
 
-  // UI verification: 3-4-3 required when unfiltered; partial results OK when filters are active
-  const is343Valid =
+  // UI verification: 3-3-3 required when unfiltered; partial results OK when filters are active
+  const is333Valid =
     reachSchools.length === 3 &&
-    matchSchools.length === 4 &&
+    matchSchools.length === 3 &&
     safetySchools.length === 3;
   const hasActiveFilters = selectedRegions.length > 0 || selectedSizes.length > 0 || selectedPolicies.length > 0;
-  const showLimitedWarning = !is343Valid && hasActiveFilters && schools.length > 0;
+  const showLimitedWarning = !is333Valid && hasActiveFilters && schools.length > 0;
 
   return (
     <Card>
@@ -567,11 +567,11 @@ export function RecommendedSchools({
               No schools match the selected filters. Try adjusting your criteria.
             </p>
           </div>
-        ) : !is343Valid && !hasActiveFilters ? (
+        ) : !is333Valid && !hasActiveFilters ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <GraduationCap className="h-8 w-8 text-amber-500 mb-3" />
             <p className="text-sm text-muted-foreground">
-              Unable to generate a balanced 3/4/3 recommendation list
+              Unable to generate a balanced 3/3/3 recommendation list
               ({reachSchools.length} reach, {matchSchools.length} match, {safetySchools.length} safety).
               Please try again or adjust your filters.
             </p>
@@ -583,7 +583,7 @@ export function RecommendedSchools({
               <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 p-3 mb-4">
                 <p className="text-sm text-amber-700 dark:text-amber-400">
                   Limited results found for your specific size/policy filters ({schools.length} schools).
-                  Try broadening your filters for a full 3/4/3 recommendation list.
+                  Try broadening your filters for a full 3/3/3 recommendation list.
                 </p>
               </div>
             )}

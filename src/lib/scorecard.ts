@@ -445,9 +445,9 @@ export async function enrichSchoolsWithScorecardData(
   return enriched;
 }
 
-// ── 3-4-3 Distribution Enforcement ──────────────────────────────────────────
-// Server-side guarantee: exactly 3 Reach, 4 Match, 3 Safety.
-// If initial enrichment doesn't produce 3-4-3, fetch targeted fill schools
+// ── 3-3-3 Distribution Enforcement ──────────────────────────────────────────
+// Server-side guarantee: exactly 3 Reach, 3 Match, 3 Safety (9 total).
+// If initial enrichment doesn't produce 3-3-3, fetch targeted fill schools
 // from GPT and enrich them. Repeat up to 2 times.
 
 export function get343Gaps(schools: RecommendedSchool[]) {
@@ -459,9 +459,9 @@ export function get343Gaps(schools: RecommendedSchool[]) {
     hasMatch: match,
     hasSafety: safety,
     needReach: Math.max(0, 3 - reach),
-    needMatch: Math.max(0, 4 - match),
+    needMatch: Math.max(0, 3 - match),
     needSafety: Math.max(0, 3 - safety),
-    isValid: reach >= 3 && match >= 4 && safety >= 3,
+    isValid: reach >= 3 && match >= 3 && safety >= 3,
   };
 }
 
@@ -475,7 +475,7 @@ async function fetchFillSchools(
   const needs: string[] = [];
   if (gaps.needMatch > 0) {
     needs.push(
-      `${gaps.needMatch + 2} schools with 30–55% acceptance rates (moderate selectivity — MATCH candidates)`
+      `${gaps.needMatch + 1} schools with 30–55% acceptance rates (moderate selectivity — MATCH candidates)`
     );
   }
   if (gaps.needSafety > 0) {
@@ -504,8 +504,8 @@ async function fetchFillSchools(
   }
 
   const totalNeeded =
-    (gaps.needMatch > 0 ? gaps.needMatch + 2 : 0) +
-    (gaps.needSafety > 0 ? gaps.needSafety + 2 : 0) +
+    (gaps.needMatch > 0 ? gaps.needMatch + 1 : 0) +
+    (gaps.needSafety > 0 ? gaps.needSafety + 1 : 0) +
     (gaps.needReach > 0 ? gaps.needReach + 1 : 0);
 
   try {
@@ -601,10 +601,10 @@ function pick343(pool: RecommendedSchool[]): RecommendedSchool[] {
     usedNames.add(s.name);
   }
 
-  // Loop 2: Fill Match (exactly 4)
+  // Loop 2: Fill Match (exactly 3)
   for (const s of match) {
     if (usedNames.has(s.name)) continue;
-    if (result.filter((r) => r.type === "match").length >= 4) break;
+    if (result.filter((r) => r.type === "match").length >= 3) break;
     result.push(s);
     usedNames.add(s.name);
   }
@@ -617,12 +617,12 @@ function pick343(pool: RecommendedSchool[]): RecommendedSchool[] {
     usedNames.add(s.name);
   }
 
-  // Backfill: guarantee exactly 3-4-3 by pulling the closest unused school
+  // Backfill: guarantee exactly 3-3-3 by pulling the closest unused school
   // into whichever bucket is short.  Proximity is measured by distance from
   // the category's midpoint odds (reach≈20, match≈45, safety≈80).
   const MIDPOINTS: Record<string, number> = { reach: 20, match: 45, safety: 80 };
 
-  while (result.length < 10) {
+  while (result.length < 9) {
     const unused = pool.filter((s) => !usedNames.has(s.name));
     if (unused.length === 0) break;
 
@@ -630,7 +630,7 @@ function pick343(pool: RecommendedSchool[]): RecommendedSchool[] {
     const sCount = result.filter((r) => r.type === "safety").length;
     const rCount = result.filter((r) => r.type === "reach").length;
     const needType: "reach" | "match" | "safety" =
-      mCount < 4 ? "match" : sCount < 3 ? "safety" : rCount < 3 ? "reach" : "match";
+      mCount < 3 ? "match" : sCount < 3 ? "safety" : rCount < 3 ? "reach" : "match";
 
     const mid = MIDPOINTS[needType];
     // Pick the unused school whose odds are nearest the target midpoint
@@ -673,7 +673,7 @@ export async function enforce343Distribution(
     `[343] After hard filters: ${allEnriched.length} schools remain`
   );
 
-  // Step 2: Check 3-4-3 distribution
+  // Step 2: Check 3-3-3 distribution
   let gaps = get343Gaps(allEnriched);
   console.log(
     `[343] Initial distribution: ${gaps.hasReach}R/${gaps.hasMatch}M/${gaps.hasSafety}S`
@@ -722,6 +722,6 @@ export async function enforce343Distribution(
     );
   }
 
-  // Step 4: Pick best from pool (may be < 10 if filters are narrow)
+  // Step 4: Pick best from pool (may be < 9 if filters are narrow)
   return pick343(allEnriched);
 }
