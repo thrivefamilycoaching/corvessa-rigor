@@ -107,6 +107,29 @@ function deduplicateByName(schools: RecommendedSchool[]): RecommendedSchool[] {
   });
 }
 
+/** ABSOLUTE KILL-GATE: physically destroy any school whose enrollment is outside
+ *  the allowed size range. If "Small" is selected, enrollment > 5,000 = DEAD. */
+function absoluteEnrollmentKill(schools: RecommendedSchool[], sizes: CampusSizeType[]): RecommendedSchool[] {
+  if (sizes.length === 0) return schools;
+  return schools.filter((s) => {
+    const enrollment = s.enrollment ?? 0;
+    const ok = sizes.some((size) => {
+      switch (size) {
+        case "Micro": return enrollment > 0 && enrollment < 2000;
+        case "Small": return enrollment >= 2000 && enrollment <= 5000;
+        case "Medium": return enrollment > 5000 && enrollment <= 15000;
+        case "Large": return enrollment > 15000 && enrollment <= 30000;
+        case "Mega": return enrollment > 30000;
+        default: return false;
+      }
+    });
+    if (!ok) {
+      console.log(`[CLIENT-KILL] DESTROYED ${s.name}: enrollment=${enrollment} not in ${sizes.join("/")}`);
+    }
+    return ok;
+  });
+}
+
 /** Correct testPolicy and re-filter schools against active filters (client-side defense). */
 function clientCorrectAndFilter(
   schools: RecommendedSchool[],
@@ -313,7 +336,9 @@ export function RecommendedSchools({
     // STEP 3: FINAL PURGE — zero tolerance, verify every school in the output
     const verified = clientCorrectAndFilter(balanced, regions, sizes, policies);
     // STEP 4: Final dedup guard — absolutely no duplicates in display
-    setSchools(deduplicateByName(verified));
+    const deduped = deduplicateByName(verified);
+    // STEP 5: ABSOLUTE KILL-GATE — physically impossible for wrong-size school to display
+    setSchools(absoluteEnrollmentKill(deduped, sizes));
   };
 
   const applyFiltersWithValues = async (regions: RegionType[], sizes: CampusSizeType[], policies: TestPolicyType[]) => {

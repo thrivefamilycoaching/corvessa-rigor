@@ -675,6 +675,9 @@ function normalizeDisplayOdds(school: RecommendedSchool): RecommendedSchool {
 }
 
 function pick343(pool: RecommendedSchool[]): RecommendedSchool[] {
+  // STEP 0: Deduplicate the input pool FIRST — case-insensitive
+  pool = deduplicateByName(pool);
+
   const reach = pool
     .filter((s) => s.type === "reach")
     .sort((a, b) => (a.acceptanceProbability ?? 0) - (b.acceptanceProbability ?? 0));
@@ -686,29 +689,33 @@ function pick343(pool: RecommendedSchool[]): RecommendedSchool[] {
     .sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
 
   const result: RecommendedSchool[] = [];
-  const usedNames = new Set<string>();
+  const usedKeys = new Set<string>();
 
   // Loop 1: Fill Reach (exactly 3)
   for (const s of reach) {
     if (result.filter((r) => r.type === "reach").length >= 3) break;
+    const key = s.name.toLowerCase().trim();
+    if (usedKeys.has(key)) continue;
     result.push(s);
-    usedNames.add(s.name);
+    usedKeys.add(key);
   }
 
   // Loop 2: Fill Match (exactly 3)
   for (const s of match) {
-    if (usedNames.has(s.name)) continue;
+    const key = s.name.toLowerCase().trim();
+    if (usedKeys.has(key)) continue;
     if (result.filter((r) => r.type === "match").length >= 3) break;
     result.push(s);
-    usedNames.add(s.name);
+    usedKeys.add(key);
   }
 
   // Loop 3: Fill Safety (exactly 3)
   for (const s of safety) {
-    if (usedNames.has(s.name)) continue;
+    const key = s.name.toLowerCase().trim();
+    if (usedKeys.has(key)) continue;
     if (result.filter((r) => r.type === "safety").length >= 3) break;
     result.push(s);
-    usedNames.add(s.name);
+    usedKeys.add(key);
   }
 
   // Backfill: guarantee exactly 3-3-3 by pulling the closest unused school
@@ -717,7 +724,7 @@ function pick343(pool: RecommendedSchool[]): RecommendedSchool[] {
   const MIDPOINTS: Record<string, number> = { reach: 20, match: 45, safety: 80 };
 
   while (result.length < 9) {
-    const unused = pool.filter((s) => !usedNames.has(s.name));
+    const unused = pool.filter((s) => !usedKeys.has(s.name.toLowerCase().trim()));
     if (unused.length === 0) break;
 
     const mCount = result.filter((r) => r.type === "match").length;
@@ -739,7 +746,7 @@ function pick343(pool: RecommendedSchool[]): RecommendedSchool[] {
       `[343-Backfill] Reassigning "${best.name}" (odds=${best.acceptanceProbability}%) from ${best.type} → ${needType}`
     );
     result.push({ ...best, type: needType });
-    usedNames.add(best.name);
+    usedKeys.add(best.name.toLowerCase().trim());
   }
 
   console.log(

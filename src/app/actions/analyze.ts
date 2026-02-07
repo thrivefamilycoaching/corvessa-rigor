@@ -146,8 +146,13 @@ export async function getFilteredRecommendations(
 
   // ── STRICT DEDUPLICATION: no school name may appear more than once ──
   passed = deduplicateByName(passed);
-  console.log(`[Final] Returning ${passed.length} unique schools`);
 
+  // ── ABSOLUTE KILL-GATE: physically destroy any school outside size range ──
+  // This is the last line of defense. If "Small" is selected, a school with
+  // enrollment > 5,000 is physically impossible in the output.
+  passed = absoluteEnrollmentKill(passed, request.sizes);
+
+  console.log(`[Final] Returning ${passed.length} unique, filter-verified schools`);
   return passed;
 }
 
@@ -434,7 +439,12 @@ async function callGPTForSchools(
     if (!content) return [];
 
     const result = JSON.parse(content) as { schools: RecommendedSchool[] };
-    return result.schools ?? [];
+    const raw = result.schools ?? [];
+
+    // CORRECT metadata at source — fix campusSize/region/testPolicy IMMEDIATELY
+    const corrected = correctSchoolMetadata(raw);
+    // DEDUPLICATE at source — GPT can return the same school twice
+    return deduplicateByName(corrected);
   } catch (err) {
     console.error("[GPT-Filter] Call failed:", err);
     return [];
@@ -452,6 +462,25 @@ function enrollmentMatchesSize(enrollment: number, size: CampusSizeType): boolea
     case "Mega": return enrollment > 30000;
     default: return false;
   }
+}
+
+/** HARD ENROLLMENT KILL-GATE: physically removes any school whose enrollment
+ *  falls outside the allowed size ranges.  This is the absolute last line of
+ *  defense — if a school is > 5,000 students, it CANNOT appear when "Small"
+ *  is selected. Period. */
+function absoluteEnrollmentKill(
+  schools: RecommendedSchool[],
+  sizes: CampusSizeType[],
+): RecommendedSchool[] {
+  if (sizes.length === 0) return schools;
+  return schools.filter((s) => {
+    const enrollment = s.enrollment ?? 0;
+    const ok = sizes.some((sz) => enrollmentMatchesSize(enrollment, sz));
+    if (!ok) {
+      console.log(`[KILL-GATE] DESTROYED ${s.name}: enrollment=${enrollment} not in ${sizes.join("/")}`);
+    }
+    return ok;
+  });
 }
 
 /** Correct campusSize, region, and testPolicy on all schools using hard-coded
