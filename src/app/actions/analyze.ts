@@ -9,7 +9,7 @@ import type {
   FilteredRecommendationsRequest,
 } from "@/lib/types";
 import { enforce343Distribution, getEnrollmentSize } from "@/lib/scorecard";
-import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS } from "@/lib/constants";
+import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS, getSchoolRegion } from "@/lib/constants";
 
 export async function getFilteredRecommendations(
   request: FilteredRecommendationsRequest
@@ -142,8 +142,16 @@ function buildFilterPrompt(request: FilteredRecommendationsRequest): string {
   }
 
   if (request.regions.length > 0 && request.regions.length < 5) {
+    const regionStateMap: Record<string, string> = {
+      "Northeast": "Massachusetts, Connecticut, Rhode Island, Maine, Vermont, New Hampshire, New York",
+      "Mid-Atlantic": "Pennsylvania, New Jersey, Delaware, Maryland, Virginia, West Virginia, DC",
+      "South": "North Carolina, South Carolina, Georgia, Florida, Alabama, Mississippi, Louisiana, Tennessee, Kentucky, Arkansas, Texas, Oklahoma",
+      "Midwest": "Ohio, Michigan, Indiana, Illinois, Wisconsin, Minnesota, Iowa, Missouri, Kansas, Nebraska, South Dakota, North Dakota",
+      "West": "California, Oregon, Washington, Colorado, Arizona, Nevada, Utah, New Mexico, Idaho, Montana, Wyoming, Hawaii, Alaska",
+    };
+    const regionDetails = request.regions.map((r) => `${r} (${regionStateMap[r] ?? ""})`).join(" OR ");
     absoluteConstraints.push(
-      `ABSOLUTE REQUIREMENT #2 — REGION: Every school MUST be in: ${request.regions.join(" OR ")}. Do NOT include schools from other regions.`
+      `ABSOLUTE REQUIREMENT #2 — REGION: Every school MUST be located in: ${regionDetails}. Look up each school's actual state and verify it belongs to the allowed region. Do NOT include schools from other regions.`
     );
   }
 
@@ -214,20 +222,33 @@ function buildBroadenedMessage(
       ? request.testScores.satReading + request.testScores.satMath
       : null;
 
-  // Build mandatory policy reminder for the broadened prompt
-  let policyReminder = "";
+  // Build mandatory filter reminders for the broadened prompt
+  let filterReminders = "";
+
+  if (request.regions.length > 0 && request.regions.length < 5) {
+    const regionStateMap: Record<string, string> = {
+      "Northeast": "MA, NY, CT, RI, ME, VT, NH",
+      "Mid-Atlantic": "PA, NJ, DE, MD, VA, WV, DC",
+      "South": "NC, SC, GA, FL, AL, MS, LA, TN, KY, AR, TX, OK",
+      "Midwest": "OH, MI, IN, IL, WI, MN, IA, MO, KS, NE, SD, ND",
+      "West": "CA, OR, WA, CO, AZ, NV, UT, NM, ID, MT, WY, HI, AK",
+    };
+    const regionDetails = request.regions.map((r) => `${r} (${regionStateMap[r] ?? ""})`).join(" OR ");
+    filterReminders += `\nMANDATORY REGION: Every school MUST be in: ${regionDetails}. Verify each school's actual state.`;
+  }
+
   if (request.policies.length > 0 && request.policies.length < 3) {
-    policyReminder = `\nMANDATORY TEST POLICY: Only include schools with these testing policies: ${request.policies.join(" OR ")}. Do NOT include schools with other testing policies.`;
+    filterReminders += `\nMANDATORY TEST POLICY: Only include schools with these testing policies: ${request.policies.join(" OR ")}. Do NOT include schools with other testing policies.`;
     if (!request.policies.includes("Test Required")) {
       const shortNames = [...new Set(TEST_REQUIRED_SCHOOLS.filter((n) => n.includes(" ")))].slice(0, 20);
-      policyReminder += `\nKNOWN TEST-REQUIRED SCHOOLS (DO NOT INCLUDE): ${shortNames.join(", ")}.`;
+      filterReminders += `\nKNOWN TEST-REQUIRED SCHOOLS (DO NOT INCLUDE): ${shortNames.join(", ")}.`;
     }
   }
 
   return `I need ${count} MORE colleges that match the Region, Size, and Testing Policy filters above.
 The Region, Size, and Testing Policy filters are MANDATORY — every school MUST match ALL of them.
 The academic match is FLEXIBLE — broaden it as follows:
-${policyReminder}
+${filterReminders}
 - Accept schools whose median freshman GPA is ${Math.max(1.0, gpa - gpaRange).toFixed(1)} to ${Math.min(5.0, gpa + gpaRange).toFixed(1)} (student GPA: ${gpa.toFixed(2)})
 ${satTotal ? `- Accept schools whose SAT middle-50% overlaps ${Math.max(400, satTotal - satRange)} to ${Math.min(1600, satTotal + satRange)} (student SAT: ${satTotal})` : ""}
 - Include lesser-known but accredited 4-year colleges — not just nationally ranked schools
@@ -248,9 +269,18 @@ function buildForceSearchMessage(
   const sizeReq = request.sizes.length > 0
     ? `ABSOLUTE REQUIREMENT — ENROLLMENT SIZE: Every school MUST have enrollment matching: ${request.sizes.map(s => `${s} (${SIZE_DESCRIPTIONS[s]} students)`).join(" OR ")}. A school with enrollment outside this range is WRONG.`
     : "";
-  const regionReq = request.regions.length > 0
-    ? `ABSOLUTE REQUIREMENT — REGION: Every school MUST be in: ${request.regions.join(" OR ")}.`
-    : "";
+  let regionReq = "";
+  if (request.regions.length > 0) {
+    const regionStateMap: Record<string, string> = {
+      "Northeast": "MA, NY, CT, RI, ME, VT, NH",
+      "Mid-Atlantic": "PA, NJ, DE, MD, VA, WV, DC",
+      "South": "NC, SC, GA, FL, AL, MS, LA, TN, KY, AR, TX, OK",
+      "Midwest": "OH, MI, IN, IL, WI, MN, IA, MO, KS, NE, SD, ND",
+      "West": "CA, OR, WA, CO, AZ, NV, UT, NM, ID, MT, WY, HI, AK",
+    };
+    const regionDetails = request.regions.map((r) => `${r} (${regionStateMap[r] ?? ""})`).join(" OR ");
+    regionReq = `ABSOLUTE REQUIREMENT — REGION: Every school MUST be in: ${regionDetails}. Verify each school's actual state.`;
+  }
 
   let policyReq = "";
   if (request.policies.length > 0 && request.policies.length < 3) {
@@ -343,6 +373,34 @@ function enrollmentMatchesSize(enrollment: number, size: CampusSizeType): boolea
   }
 }
 
+/** Correct campusSize, region, and testPolicy on all schools using hard-coded
+ *  authoritative data BEFORE any filter check runs. */
+function correctSchoolMetadata(schools: RecommendedSchool[]): RecommendedSchool[] {
+  return schools.map((s) => {
+    let corrected = s;
+    // Correct campusSize from enrollment
+    if (corrected.enrollment > 0) {
+      const correctSize = getEnrollmentSize(corrected.enrollment);
+      if (correctSize !== corrected.campusSize) {
+        console.log(`[MetaCorrect] ${corrected.name}: campusSize "${corrected.campusSize}" → "${correctSize}" (enrollment=${corrected.enrollment})`);
+        corrected = { ...corrected, campusSize: correctSize };
+      }
+    }
+    // Correct region from state mapping
+    const correctRegion = getSchoolRegion(corrected.name);
+    if (correctRegion && correctRegion !== corrected.region) {
+      console.log(`[MetaCorrect] ${corrected.name}: region "${corrected.region}" → "${correctRegion}"`);
+      corrected = { ...corrected, region: correctRegion };
+    }
+    // Correct test policy from override list
+    if (isTestRequiredSchool(corrected.name) && corrected.testPolicy !== "Test Required") {
+      console.log(`[MetaCorrect] ${corrected.name}: testPolicy "${corrected.testPolicy}" → "Test Required"`);
+      corrected = { ...corrected, testPolicy: "Test Required" as TestPolicyType };
+    }
+    return corrected;
+  });
+}
+
 /** FILTER BEFORE ENRICHMENT: discard schools that violate hard constraints
  *  using raw enrollment numbers. Runs BEFORE Scorecard enrichment. */
 function preFilterPool(
@@ -353,8 +411,10 @@ function preFilterPool(
 ): RecommendedSchool[] {
   if (regions.length === 0 && sizes.length === 0 && policies.length === 0) return schools;
 
-  const before = schools.length;
-  const filtered = schools.filter((s) => {
+  // Correct metadata BEFORE filtering so checks use ground truth
+  const corrected = correctSchoolMetadata(schools);
+  const before = corrected.length;
+  const filtered = corrected.filter((s) => {
     const regionOk = regions.length === 0 || regions.includes(s.region);
     const sizeOk = sizes.length === 0 || sizes.some((sz) => enrollmentMatchesSize(s.enrollment ?? 0, sz));
     const effectivePolicy: TestPolicyType = isTestRequiredSchool(s.name)
@@ -384,17 +444,16 @@ function verifyFinalEnrollment(
 ): RecommendedSchool[] {
   if (sizes.length === 0 && regions.length === 0 && policies.length === 0) return schools;
 
-  const verified = schools.filter((s) => {
+  // Correct metadata one final time before the zero-tolerance check
+  const correctedSchools = correctSchoolMetadata(schools);
+  const verified = correctedSchools.filter((s) => {
     const sizeOk = sizes.length === 0 || sizes.some((sz) => enrollmentMatchesSize(s.enrollment ?? 0, sz));
     const regionOk = regions.length === 0 || regions.includes(s.region);
-    const effectivePolicy: TestPolicyType = isTestRequiredSchool(s.name)
-      ? "Test Required"
-      : (s.testPolicy || "Test Optional");
-    const policyOk = policies.length === 0 || policies.includes(effectivePolicy);
+    const policyOk = policies.length === 0 || policies.includes(s.testPolicy || "Test Optional");
 
     if (!sizeOk || !regionOk || !policyOk) {
       console.log(
-        `[FinalVerify] REJECTED ${s.name}: enrollment=${s.enrollment} region=${s.region} policy=${effectivePolicy}`
+        `[FinalVerify] REJECTED ${s.name}: enrollment=${s.enrollment} region=${s.region} policy=${s.testPolicy}`
       );
     }
     return sizeOk && regionOk && policyOk;
@@ -416,13 +475,8 @@ function enforceFilterGate(
     return schools;
   }
 
-  // Correct testPolicy BEFORE filtering so the check uses ground truth
-  const corrected = schools.map((s) => {
-    if (isTestRequiredSchool(s.name) && s.testPolicy !== "Test Required") {
-      return { ...s, testPolicy: "Test Required" as TestPolicyType };
-    }
-    return s;
-  });
+  // Correct campusSize, region, and testPolicy BEFORE filtering so checks use ground truth
+  const corrected = correctSchoolMetadata(schools);
 
   const passed = corrected.filter((s) => {
     const regionOk = regions.length === 0 || regions.includes(s.region);
