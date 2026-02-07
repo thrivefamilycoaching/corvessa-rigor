@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import type { AnalysisResult, TestScores } from "@/lib/types";
 import { enforce343Distribution, getEnrollmentSize } from "@/lib/scorecard";
-import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS } from "@/lib/constants";
+import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS, getSchoolRegion } from "@/lib/constants";
 
 // Disable all Vercel caching — always fetch fresh Scorecard data
 export const dynamic = "force-dynamic";
@@ -184,14 +184,18 @@ export async function POST(request: NextRequest) {
           Virginia Tech, Texas A&M, Clemson
         - Do NOT label any of the above schools as "Test Optional" or "Test Blind". No exceptions.
 
-        GEOGRAPHIC DIVERSITY (REQUIRED):
-        - Include schools from at least 4 different US regions:
-          * Northeast (e.g., Massachusetts, New York, Connecticut, Rhode Island, Maine, Vermont, New Hampshire)
-          * Mid-Atlantic (e.g., Virginia, DC, Maryland, Pennsylvania, Delaware, New Jersey)
-          * South (e.g., Texas, Georgia, North Carolina, Florida, Tennessee, South Carolina)
-          * Midwest (e.g., Illinois, Michigan, Ohio, Wisconsin, Minnesota, Indiana)
-          * West (e.g., California, Oregon, Washington, Colorado, Arizona)
-        - Do NOT recommend more than 2 schools from any single state
+        ABSOLUTE REQUIREMENT — REGION ACCURACY (CRITICAL):
+        - The "region" field MUST be the CORRECT geographic region for each school's ACTUAL state location.
+        - Use these EXACT state-to-region mappings:
+          * Northeast: Massachusetts, Connecticut, Rhode Island, Maine, Vermont, New Hampshire, New York
+          * Mid-Atlantic: Pennsylvania, New Jersey, Delaware, Maryland, Virginia, West Virginia, DC
+          * South: North Carolina, South Carolina, Georgia, Florida, Alabama, Mississippi, Louisiana, Tennessee, Kentucky, Arkansas, Texas, Oklahoma
+          * Midwest: Ohio, Michigan, Indiana, Illinois, Wisconsin, Minnesota, Iowa, Missouri, Kansas, Nebraska, South Dakota, North Dakota
+          * West: California, Oregon, Washington, Colorado, Arizona, Nevada, Utah, New Mexico, Idaho, Montana, Wyoming, Hawaii, Alaska
+        - VERIFY: Look up each school's actual state, then assign the region from the mapping above.
+        - Georgetown (DC) → Mid-Atlantic. Georgia Tech (Georgia) → South. Northwestern (Illinois) → Midwest. Stanford (California) → West.
+        - Do NOT guess regions. Do NOT recommend more than 2 schools from any single state.
+        - Include schools from at least 4 different regions for diversity.
 
         ABSOLUTE REQUIREMENT — ENROLLMENT ACCURACY (CRITICAL):
         - The "enrollment" field MUST be the REAL undergraduate enrollment number for each school. Do NOT guess or estimate.
@@ -369,6 +373,22 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
             `[PolicyCorrect] ${s.name}: GPT said "${s.testPolicy}" → overriding to "Test Required"`
           );
           return { ...s, testPolicy: "Test Required" };
+        }
+        return s;
+      });
+    }
+
+    // ── Correct regions using hard-coded state-to-region mapping ────────
+    // GPT can assign wrong regions (e.g., Georgia Tech → "Midwest").
+    // Override using the authoritative STATE_TO_REGION lookup.
+    if (analysis.recommendedSchools) {
+      analysis.recommendedSchools = analysis.recommendedSchools.map((s) => {
+        const correctRegion = getSchoolRegion(s.name);
+        if (correctRegion && correctRegion !== s.region) {
+          console.log(
+            `[RegionCorrect] ${s.name}: GPT said "${s.region}" → overriding to "${correctRegion}"`
+          );
+          return { ...s, region: correctRegion };
         }
         return s;
       });
