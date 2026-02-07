@@ -49,6 +49,10 @@ export async function getFilteredRecommendations(
 
   let passed = enforceFilterGate(enriched, request.regions, request.sizes, request.policies);
 
+  // Re-correct Pass 1 results — ensure ground-truth metadata before progressive retry
+  passed = correctSchoolMetadata(passed);
+  console.log(`[Pass1] ${passed.length} schools passed filter gate`);
+
   // ── Progressive retry: widen GPA in steps until 3-3-3 fills ────────
   // Size/Region/Policy filters are MANDATORY and ABSOLUTE.
   // Academic criteria are FLEXIBLE and expand progressively.
@@ -238,6 +242,41 @@ Distribution target: 3 Reach, 3 Match, 3 Safety.`;
 // ── Helper: initial student message ──────────────────────────────────
 
 function buildStudentMessage(request: FilteredRecommendationsRequest, count: number): string {
+  // Build ABSOLUTE REQUIREMENT reminders for the user message (reinforces system prompt)
+  const constraints: string[] = [];
+
+  if (request.sizes.length > 0 && request.sizes.length < 5) {
+    const sizeDescs = request.sizes.map(s => `${s} (${SIZE_DESCRIPTIONS[s]} undergrads)`).join(" OR ");
+    constraints.push(
+      `ABSOLUTE REQUIREMENT — ENROLLMENT SIZE: Every school MUST have undergraduate enrollment within: ${sizeDescs}. A school with enrollment outside this range is WRONG.`
+    );
+  }
+
+  if (request.regions.length > 0 && request.regions.length < 5) {
+    const regionStateMap: Record<string, string> = {
+      "Northeast": "Massachusetts, Connecticut, Rhode Island, Maine, Vermont, New Hampshire, New York",
+      "Mid-Atlantic": "Pennsylvania, New Jersey, Delaware, Maryland, Virginia, West Virginia, DC",
+      "South": "North Carolina, South Carolina, Georgia, Florida, Alabama, Mississippi, Louisiana, Tennessee, Kentucky, Arkansas, Texas, Oklahoma",
+      "Midwest": "Ohio, Michigan, Indiana, Illinois, Wisconsin, Minnesota, Iowa, Missouri, Kansas, Nebraska, South Dakota, North Dakota",
+      "West": "California, Oregon, Washington, Colorado, Arizona, Nevada, Utah, New Mexico, Idaho, Montana, Wyoming, Hawaii, Alaska",
+    };
+    const regionDetails = request.regions.map((r) => `${r} (${regionStateMap[r] ?? ""})`).join(" OR ");
+    constraints.push(
+      `ABSOLUTE REQUIREMENT — REGION: Every school MUST be in: ${regionDetails}. Verify each school's actual state.`
+    );
+  }
+
+  if (request.policies.length > 0 && request.policies.length < 3) {
+    let policyLine = `ABSOLUTE REQUIREMENT — TESTING POLICY: Every school MUST have policy: ${request.policies.join(" OR ")}.`;
+    if (!request.policies.includes("Test Required")) {
+      const shortNames = [...new Set(TEST_REQUIRED_SCHOOLS.filter((n) => n.includes(" ")))].slice(0, 20);
+      policyLine += ` DO NOT include: ${shortNames.join(", ")}.`;
+    }
+    constraints.push(policyLine);
+  }
+
+  const constraintBlock = constraints.length > 0 ? "\n\n" + constraints.join("\n\n") : "";
+
   return `Student Profile:
 - Rigor Score: ${request.overallScore}/100
 ${request.recalculatedGPA ? `- Recalculated Core GPA: ${request.recalculatedGPA}/4.0 (weighted)` : ""}
@@ -246,7 +285,8 @@ ${request.recalculatedGPA ? `- Recalculated Core GPA: ${request.recalculatedGPA}
 ${request.testScores?.satReading && request.testScores?.satMath ? `- SAT Score: ${request.testScores.satReading + request.testScores.satMath} (${request.testScores.satReading} R/W + ${request.testScores.satMath} Math)` : ""}
 ${request.testScores?.actComposite ? `- ACT Composite: ${request.testScores.actComposite}` : ""}
 
-Recommend EXACTLY ${count} colleges matching ALL specified Region, Size, and Policy filters. Include an exact acceptanceProbability (1-95%) for each.${request.testScores?.satReading || request.testScores?.satMath || request.testScores?.actComposite ? " Use test scores to refine categorization." : ""}`;
+Recommend EXACTLY ${count} colleges matching ALL specified Region, Size, and Policy filters. Include an exact acceptanceProbability (1-95%) for each.${request.testScores?.satReading || request.testScores?.satMath || request.testScores?.actComposite ? " Use test scores to refine categorization." : ""}
+The "enrollment" field MUST be the REAL undergraduate enrollment number for each school.${constraintBlock}`;
 }
 
 // ── Helper: broadened retry message (relaxed academic criteria) ───────
