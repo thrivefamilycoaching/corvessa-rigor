@@ -115,13 +115,13 @@ function clientCorrectAndFilter(
     return corrected;
   }
 
-  // Step 3: Strict AND filter — region + size + policy
+  // Step 3: Strict AND filter — region + size (numeric enrollment) + policy
   return corrected.filter((school) => {
     const regionOk = regions.length === 0 || regions.includes(school.region);
+    const enrollment = school.enrollment ?? 0;
     const sizeOk = sizes.length === 0 || sizes.some((size) => {
-      const enrollment = school.enrollment ?? 0;
       switch (size) {
-        case "Micro": return enrollment < 2000;
+        case "Micro": return enrollment > 0 && enrollment < 2000;
         case "Small": return enrollment >= 2000 && enrollment <= 5000;
         case "Medium": return enrollment > 5000 && enrollment <= 15000;
         case "Large": return enrollment > 15000 && enrollment <= 30000;
@@ -130,6 +130,10 @@ function clientCorrectAndFilter(
       }
     });
     const policyOk = policies.length === 0 || policies.includes(school.testPolicy || "Test Optional");
+
+    if (!regionOk || !sizeOk || !policyOk) {
+      console.log(`[ClientFilter] REJECTED ${school.name}: enrollment=${enrollment} region=${school.region} policy=${school.testPolicy}`);
+    }
     return regionOk && sizeOk && policyOk;
   });
 }
