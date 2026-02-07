@@ -9,7 +9,7 @@ import type {
   FilteredRecommendationsRequest,
 } from "@/lib/types";
 import { enforce343Distribution, getEnrollmentSize } from "@/lib/scorecard";
-import { isTestRequiredSchool } from "@/lib/constants";
+import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS } from "@/lib/constants";
 
 export async function getFilteredRecommendations(
   request: FilteredRecommendationsRequest
@@ -168,10 +168,20 @@ function buildBroadenedMessage(
       ? request.testScores.satReading + request.testScores.satMath
       : null;
 
-  return `I need ${count} MORE colleges that match the Region and Size filters above.
-The Region and Size filters are MANDATORY — every school MUST match them.
-The academic match is FLEXIBLE — broaden it as follows:
+  // Build mandatory policy reminder for the broadened prompt
+  let policyReminder = "";
+  if (request.policies.length > 0 && request.policies.length < 3) {
+    policyReminder = `\nMANDATORY TEST POLICY: Only include schools with these testing policies: ${request.policies.join(" OR ")}. Do NOT include schools with other testing policies.`;
+    if (!request.policies.includes("Test Required")) {
+      const shortNames = [...new Set(TEST_REQUIRED_SCHOOLS.filter((n) => n.includes(" ")))].slice(0, 20);
+      policyReminder += `\nKNOWN TEST-REQUIRED SCHOOLS (DO NOT INCLUDE): ${shortNames.join(", ")}.`;
+    }
+  }
 
+  return `I need ${count} MORE colleges that match the Region, Size, and Testing Policy filters above.
+The Region, Size, and Testing Policy filters are MANDATORY — every school MUST match ALL of them.
+The academic match is FLEXIBLE — broaden it as follows:
+${policyReminder}
 - Accept schools whose median freshman GPA is ${Math.max(1.0, gpa - gpaRange).toFixed(1)} to ${Math.min(5.0, gpa + gpaRange).toFixed(1)} (student GPA: ${gpa.toFixed(2)})
 ${satTotal ? `- Accept schools whose SAT middle-50% overlaps ${Math.max(400, satTotal - satRange)} to ${Math.min(1600, satTotal + satRange)} (student SAT: ${satTotal})` : ""}
 - Include lesser-known but accredited 4-year colleges — not just nationally ranked schools
