@@ -71,15 +71,35 @@ export function deduplicateByName(schools: RecommendedSchool[]): RecommendedScho
   });
 }
 
-/** Correct testPolicy on school objects using the hard-coded override list.
- *  This mutates the field BEFORE filtering so the UI also shows the right label. */
-function correctTestPolicies(schools: RecommendedSchool[]): RecommendedSchool[] {
+/** Correct ALL metadata (region, campusSize, testPolicy) on school objects
+ *  using hard-coded authoritative data BEFORE filtering so checks use ground truth. */
+function correctAllMetadata(schools: RecommendedSchool[]): RecommendedSchool[] {
   return schools.map((s) => {
-    if (isTestRequiredSchool(s.name) && s.testPolicy !== "Test Required") {
-      console.log(`[PolicyCorrect] ${s.name}: GPT said "${s.testPolicy}" → overriding to "Test Required"`);
-      return { ...s, testPolicy: "Test Required" };
+    let fixed = s;
+
+    // Correct region from hard-coded state mapping
+    const correctRegion = getSchoolRegion(fixed.name);
+    if (correctRegion && correctRegion !== fixed.region) {
+      console.log(`[MetaCorrect] ${fixed.name}: region "${fixed.region}" → "${correctRegion}"`);
+      fixed = { ...fixed, region: correctRegion };
     }
-    return s;
+
+    // Correct campusSize from enrollment number
+    if (fixed.enrollment > 0) {
+      const correctSize = getEnrollmentSize(fixed.enrollment);
+      if (correctSize !== fixed.campusSize) {
+        console.log(`[MetaCorrect] ${fixed.name}: campusSize "${fixed.campusSize}" → "${correctSize}" (enrollment=${fixed.enrollment})`);
+        fixed = { ...fixed, campusSize: correctSize };
+      }
+    }
+
+    // Correct testPolicy from hard-coded override list
+    if (isTestRequiredSchool(fixed.name) && fixed.testPolicy !== "Test Required") {
+      console.log(`[MetaCorrect] ${fixed.name}: testPolicy "${fixed.testPolicy}" → "Test Required"`);
+      fixed = { ...fixed, testPolicy: "Test Required" };
+    }
+
+    return fixed;
   });
 }
 
@@ -389,7 +409,7 @@ export async function enrichSchoolsWithScorecardData(
 
   if (!apiKey) {
     console.log("[Scorecard] No COLLEGE_SCORECARD_API_KEY — keeping GPT estimates");
-    return schools;
+    return correctAllMetadata(schools);
   }
 
   console.log(
@@ -471,7 +491,8 @@ export async function enrichSchoolsWithScorecardData(
     };
   });
 
-  return enriched;
+  // Correct all metadata AFTER enrichment so region/campusSize/testPolicy are authoritative
+  return correctAllMetadata(enriched);
 }
 
 // ── 3-3-3 Distribution Enforcement ──────────────────────────────────────────
@@ -769,7 +790,7 @@ export async function enforce343Distribution(
   let allEnriched = await enrichSchoolsWithScorecardData(initialSchools, student);
 
   // Step 1b: Correct test policies using hard-coded overrides, then filter
-  allEnriched = correctTestPolicies(allEnriched);
+  allEnriched = correctAllMetadata(allEnriched);
   allEnriched = applyHardFilters(allEnriched, filters);
   console.log(
     `[343] After hard filters: ${allEnriched.length} schools remain`
@@ -806,7 +827,7 @@ export async function enforce343Distribution(
 
     // Enrich fill schools, correct policies, then apply hard filters
     let enrichedFill = await enrichSchoolsWithScorecardData(fillSchools, student);
-    enrichedFill = correctTestPolicies(enrichedFill);
+    enrichedFill = correctAllMetadata(enrichedFill);
     enrichedFill = applyHardFilters(enrichedFill, filters);
     allEnriched = [...allEnriched, ...enrichedFill];
 
