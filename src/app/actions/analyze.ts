@@ -8,7 +8,7 @@ import type {
   RecommendedSchool,
   FilteredRecommendationsRequest,
 } from "@/lib/types";
-import { enforce343Distribution, getEnrollmentSize, deduplicateByName } from "@/lib/scorecard";
+import { enforce343Distribution, enrichAndPick343, getEnrollmentSize, deduplicateByName } from "@/lib/scorecard";
 import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS, getSchoolRegion } from "@/lib/constants";
 
 export async function getFilteredRecommendations(
@@ -54,43 +54,36 @@ export async function getFilteredRecommendations(
   pool = deduplicateByName(pool);
   console.log(`[Stage1] ${pool.length} schools survived pre-filter`);
 
-  let passed = await enforce343Distribution(
-    pool, studentProfile, openai, studentDesc, 2, filters,
-  );
-  passed = enforceFilterGate(passed, request.regions, request.sizes, request.policies);
-  passed = deduplicateByName(passed);
-  passed = correctSchoolMetadata(passed);
-  passed = deduplicateByName(passed);
-  console.log(`[Stage1] ${passed.length} schools passed filter gate`);
-
-  // ── Stage 2: Expand (if < 9 after Stage 1) ─────────────────────
-  if (passed.length < 9) {
-    console.log(`[Stage2] Only ${passed.length} schools — expanding with 20 more`);
-    const excludeNames = passed.map((s) => s.name);
+  // ── Stage 2: Expand immediately if pool < 12 ───────────────────
+  // Don't wait until after pick343 — expand the raw pool BEFORE
+  // distribution picking so pick343 has maximum material to work with.
+  if (pool.length < 12) {
+    console.log(`[Stage2] Only ${pool.length} in pool — expanding with 20 more`);
+    const excludeNames = pool.map((s) => s.name);
     const stage2Msg = buildCheckboxExpandMessage(request, 20, excludeNames);
 
     let expandPool = await callGPTForSchools(openai, filterPrompt, stage2Msg, 20);
     expandPool = preFilterPool(expandPool, request.regions, request.sizes, request.policies);
     expandPool = deduplicateByName(expandPool);
 
-    // Merge with Stage 1 survivors (inline Set dedup)
-    const seenNames = new Set(passed.map((s) => s.name.toLowerCase()));
+    // Merge into pool (inline Set dedup)
+    const seenNames = new Set(pool.map((s) => s.name.toLowerCase()));
     for (const s of expandPool) {
       if (!seenNames.has(s.name.toLowerCase())) {
-        passed.push(s);
+        pool.push(s);
         seenNames.add(s.name.toLowerCase());
       }
     }
-
-    passed = await enforce343Distribution(
-      passed, studentProfile, openai, studentDesc, 1, filters,
-    );
-    passed = enforceFilterGate(passed, request.regions, request.sizes, request.policies);
-    passed = deduplicateByName(passed);
-    passed = correctSchoolMetadata(passed);
-    passed = deduplicateByName(passed);
-    console.log(`[Stage2] ${passed.length} schools after expand + filter`);
+    pool = deduplicateByName(pool);
+    console.log(`[Stage2] Pool now ${pool.length} after expansion`);
   }
+
+  // ── Enrich + Pick 3-3-3 (no internal GPT calls, no redundant filtering) ──
+  let passed = await enrichAndPick343(pool, studentProfile);
+  passed = correctSchoolMetadata(passed);
+  passed = enforceFilterGate(passed, request.regions, request.sizes, request.policies);
+  passed = deduplicateByName(passed);
+  console.log(`[Pick343] ${passed.length} schools after enrich + pick + filter gate`);
 
   // ── FINAL GATES (unchanged) ─────────────────────────────────────
   passed = verifyFinalEnrollment(passed, request.sizes, request.regions, request.policies);

@@ -812,3 +812,18 @@ export async function enforce343Distribution(
   // Step 4: Pick best from pool (may be < 9 if filters are narrow)
   return pick343(allEnriched);
 }
+
+/** Lightweight enrichment + 3-3-3 pick WITHOUT internal GPT fill calls.
+ *  Use this when the caller (analyze.ts checkbox-first pipeline) has already
+ *  built a large, pre-filtered pool and just needs Scorecard enrichment +
+ *  3-3-3 distribution picking.  No redundant hard-filter pass, no extra
+ *  GPT calls — the pool is trusted as pre-filtered. */
+export async function enrichAndPick343(
+  schools: RecommendedSchool[],
+  student: StudentProfile,
+): Promise<RecommendedSchool[]> {
+  let enriched = await enrichSchoolsWithScorecardData(schools, student);
+  enriched = correctAllMetadata(enriched);
+  enriched = deduplicateByName(enriched);
+  return pick343(enriched);
+}
