@@ -3,7 +3,7 @@ import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import type { AnalysisResult, TestScores } from "@/lib/types";
-import { enforce343Distribution } from "@/lib/scorecard";
+import { enforce343Distribution, getEnrollmentSize } from "@/lib/scorecard";
 
 // Disable all Vercel caching — always fetch fresh Scorecard data
 export const dynamic = "force-dynamic";
@@ -183,13 +183,18 @@ export async function POST(request: NextRequest) {
           * West (e.g., California, Oregon, Washington, Colorado, Arizona)
         - Do NOT recommend more than 2 schools from any single state
 
-        CAMPUS SIZE DIVERSITY (REQUIRED):
-        - Include a mix of campus sizes:
+        ABSOLUTE REQUIREMENT — ENROLLMENT ACCURACY (CRITICAL):
+        - The "enrollment" field MUST be the REAL undergraduate enrollment number for each school. Do NOT guess or estimate.
+        - The "campusSize" label MUST match the enrollment number using these EXACT ranges:
           * Micro: Under 2,000 undergraduates (e.g., Amherst, Williams, Pomona, Swarthmore)
           * Small: 2,000-5,000 undergraduates (e.g., Carleton, Davidson, Bowdoin, Middlebury)
           * Medium: 5,000-15,000 undergraduates (e.g., Wake Forest, Tulane, Georgetown, Boston College)
           * Large: 15,000-30,000 undergraduates (e.g., Michigan, UCLA, UNC, Virginia)
           * Mega: 30,000+ undergraduates (e.g., Ohio State, UT Austin, Penn State, Arizona State)
+        - If enrollment = 7,500, campusSize MUST be "Medium" (5,000-15,000). No exceptions.
+        - If enrollment = 45,000, campusSize MUST be "Mega" (30,000+). No exceptions.
+        - VERIFY: For each school, confirm that the enrollment number falls within the stated campusSize range.
+        - Include a mix of campus sizes for diversity.
 
         MATCH REASONING REQUIREMENTS:
         - Base reasoning on how the school's SPECIFIC academic strengths align with the student's transcript
@@ -323,6 +328,26 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
     }
 
     const analysis = JSON.parse(content) as AnalysisResult;
+
+    // ── Verify enrollment/campusSize consistency ─────────────────────────
+    // GPT can hallucinate enrollment numbers that don't match campusSize.
+    // Recalculate campusSize from the enrollment number to ensure consistency.
+    if (analysis.recommendedSchools) {
+      analysis.recommendedSchools = analysis.recommendedSchools.map((s) => {
+        if (!s.enrollment || s.enrollment <= 0) {
+          console.log(`[SizeVerify] ${s.name}: missing/invalid enrollment (${s.enrollment}) — skipping`);
+          return s;
+        }
+        const correctSize = getEnrollmentSize(s.enrollment);
+        if (correctSize !== s.campusSize) {
+          console.log(
+            `[SizeVerify] ${s.name}: enrollment=${s.enrollment} → campusSize should be "${correctSize}" but GPT said "${s.campusSize}" — CORRECTING`
+          );
+          return { ...s, campusSize: correctSize };
+        }
+        return s;
+      });
+    }
 
     // Enforce 3-3-3 distribution with Scorecard API enrichment + targeted fill
     const studentProfile = {
