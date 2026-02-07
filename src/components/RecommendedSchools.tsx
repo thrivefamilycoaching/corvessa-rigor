@@ -285,6 +285,23 @@ export function RecommendedSchools({
     setFiltersApplied(false);
   };
 
+  /** Centralized school setter — ALWAYS purges by active filters before display.
+   *  This is the ONLY function that should call setSchools when filters are active. */
+  const setFilteredSchools = (
+    pool: RecommendedSchool[],
+    regions: RegionType[],
+    sizes: CampusSizeType[],
+    policies: TestPolicyType[],
+  ) => {
+    // STEP 1: Filter the master list to ONLY matching schools
+    const purged = clientCorrectAndFilter(pool, regions, sizes, policies);
+    // STEP 2: Balance 3-3-3 from the purged pool
+    const balanced = balanceSchools(purged);
+    // STEP 3: FINAL PURGE — zero tolerance, verify every school in the output
+    const verified = clientCorrectAndFilter(balanced, regions, sizes, policies);
+    setSchools(verified);
+  };
+
   const applyFiltersWithValues = async (regions: RegionType[], sizes: CampusSizeType[], policies: TestPolicyType[]) => {
     // If no filters selected, show original results
     if (regions.length === 0 && sizes.length === 0 && policies.length === 0) {
@@ -293,13 +310,13 @@ export function RecommendedSchools({
       return;
     }
 
-    // Try to filter existing schools first (correct policies + strict AND filter)
-    let filteredExisting = clientCorrectAndFilter(initialSchools, regions, sizes, policies);
+    // FILTER FIRST: filter the master list to ONLY matching schools,
+    // then pick the best academic matches from that pile.
+    const filteredExisting = clientCorrectAndFilter(initialSchools, regions, sizes, policies);
 
-    // Strict AND logic — no filter relaxation, no unfiltered backfill.
     // If enough schools match locally, use them directly.
     if (filteredExisting.length >= 9) {
-      setSchools(balanceSchools(filteredExisting));
+      setFilteredSchools(filteredExisting, regions, sizes, policies);
       setFiltersApplied(true);
       return;
     }
@@ -337,28 +354,14 @@ export function RecommendedSchools({
         }
       }
 
-      // Client-side defense: correct testPolicy and re-filter the entire
-      // merged pool before display.  This catches any server-side leaks.
-      const validated = clientCorrectAndFilter(merged, regions, sizes, policies);
-
-      // If validated produced results, use them.
-      // If still 0, fall back to the 9 closest from original list so
-      // the user never sees an empty page.
-      if (validated.length > 0) {
-        setSchools(balanceSchools(validated));
-      } else {
-        setSchools(balanceSchools(initialSchools.slice(0, 9)));
-      }
+      // Centralized purge + balance + verify — zero tolerance
+      setFilteredSchools(merged, regions, sizes, policies);
       setFiltersApplied(true);
     } catch (error) {
       console.error("Failed to fetch filtered recommendations:", error);
-      // On timeout or error: show filtered matches, or fall back to
-      // closest originals so the user never gets 0 results.
-      if (filteredExisting.length > 0) {
-        setSchools(balanceSchools(filteredExisting));
-      } else {
-        setSchools(balanceSchools(initialSchools.slice(0, 9)));
-      }
+      // On timeout/error: show only schools that match the active filters.
+      // NEVER fall back to unfiltered initialSchools.
+      setFilteredSchools([...filteredExisting, ...initialSchools], regions, sizes, policies);
       setFiltersApplied(true);
     } finally {
       setIsLoading(false);
