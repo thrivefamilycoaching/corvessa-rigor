@@ -1,5 +1,7 @@
 "use server";
 
+export const maxDuration = 30;
+
 import OpenAI from "openai";
 import type {
   CampusSizeType,
