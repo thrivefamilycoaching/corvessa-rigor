@@ -167,8 +167,10 @@ export async function POST(request: NextRequest) {
 
         For recommendedSchools:
         - Conduct a NATIONAL search across the entire United States - do NOT limit to any single state or region
-        - You MUST return EXACTLY 9 schools. No more, no fewer.
-        - Categorize by acceptanceProbability: Safety (>70%), Match (40-70%), Reach (<40%). Distribution: 3 Safety, 3 Match, 3 Reach. No exceptions.
+        - You MUST return EXACTLY 27 schools. No more, no fewer.
+        - Categorize by acceptanceProbability: Safety (>70%), Match (40-70%), Reach (<40%). Distribution: 9 Safety, 9 Match, 9 Reach. No exceptions.
+        - Include at least 2-3 schools from EACH region (Northeast, Mid-Atlantic, South, Midwest, West)
+        - Include at least 2-3 schools from EACH size category (Micro, Small, Medium, Large, Mega)
         - Specifically value independent school rigor and challenging curricula
         ABSOLUTE REQUIREMENT — TEST POLICY ACCURACY (CRITICAL):
         - Include "testPolicy" for each school: "Test Optional", "Test Required", or "Test Blind"

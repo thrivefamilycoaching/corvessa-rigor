@@ -378,15 +378,6 @@ export default function CounselorCoPilot() {
                 <h2 className="mb-4 text-lg font-semibold">College Recommendations</h2>
                 <RecommendedSchools
                   schools={result.recommendedSchools}
-                  transcriptSummary={result.transcriptSummary}
-                  schoolProfileSummary={result.schoolProfileSummary}
-                  overallScore={result.scorecard.overallScore}
-                  recalculatedGPA={result.recalculatedGPA}
-                  testScores={{
-                    satReading: testScores.satReading ? parseInt(testScores.satReading) : undefined,
-                    satMath: testScores.satMath ? parseInt(testScores.satMath) : undefined,
-                    actComposite: testScores.actComposite ? parseInt(testScores.actComposite) : undefined,
-                  }}
                 />
               </div>
             )}

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { RecommendedSchool, RegionType, CampusSizeType, TestPolicyType, TestScores } from "@/lib/types";
+import type { RecommendedSchool, RegionType, CampusSizeType, TestPolicyType } from "@/lib/types";
 import { REGIONS, CAMPUS_SIZES, TEST_POLICIES, isTestRequiredSchool, getSchoolRegion } from "@/lib/constants";
 import {
   GraduationCap,
@@ -14,7 +14,6 @@ import {
   Shield,
   MapPin,
   Users,
-  Loader2,
   X,
   SlidersHorizontal,
   FileCheck,
@@ -22,11 +21,6 @@ import {
 
 interface RecommendedSchoolsProps {
   schools: RecommendedSchool[];
-  transcriptSummary: string;
-  schoolProfileSummary: string;
-  overallScore: number;
-  recalculatedGPA?: number;
-  testScores?: TestScores;
 }
 
 function getTypeIcon(type: RecommendedSchool["type"]) {
@@ -304,22 +298,38 @@ function balanceSchools(schools: RecommendedSchool[]): RecommendedSchool[] {
 
 export function RecommendedSchools({
   schools: initialSchools,
-  transcriptSummary,
-  schoolProfileSummary,
-  overallScore,
-  recalculatedGPA,
-  testScores,
 }: RecommendedSchoolsProps) {
-  const [schools, setSchools] = useState<RecommendedSchool[]>(() => deduplicateByName(balanceSchools(deduplicateByName(initialSchools))));
+  // Correct metadata on the full pool once, then keep it as the master list
+  const correctedPool = clientCorrectAndFilter(deduplicateByName(initialSchools), [], [], []);
+
+  const [schools, setSchools] = useState<RecommendedSchool[]>(() =>
+    selectTop9(correctedPool, [], [], [])
+  );
   const [selectedRegions, setSelectedRegions] = useState<RegionType[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<CampusSizeType[]>([]);
   const [selectedPolicies, setSelectedPolicies] = useState<TestPolicyType[]>([]);
   const [pendingRegions, setPendingRegions] = useState<RegionType[]>([]);
   const [pendingSizes, setPendingSizes] = useState<CampusSizeType[]>([]);
   const [pendingPolicies, setPendingPolicies] = useState<TestPolicyType[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [filtersApplied, setFiltersApplied] = useState(false);
-  const [filterError, setFilterError] = useState<string | null>(null);
+
+  /** Select the best 9 schools (3 reach, 3 match, 3 safety) from filtered pool. */
+  function selectTop9(
+    pool: RecommendedSchool[],
+    regions: RegionType[],
+    sizes: CampusSizeType[],
+    policies: TestPolicyType[],
+  ): RecommendedSchool[] {
+    // Filter the pool
+    const filtered = clientCorrectAndFilter(pool, regions, sizes, policies);
+    // Kill-gate on enrollment
+    const killed = absoluteEnrollmentKill(filtered, sizes);
+    // Balance into 3-3-3 (takes up to 9)
+    const balanced = balanceSchools(killed);
+    // Final verify + dedup
+    const verified = clientCorrectAndFilter(balanced, regions, sizes, policies);
+    return deduplicateByName(absoluteEnrollmentKill(verified, sizes));
+  }
 
   const toggleRegion = (region: RegionType) => {
     setPendingRegions((prev) =>
@@ -339,11 +349,20 @@ export function RecommendedSchools({
     );
   };
 
+  const applyFiltersWithValues = (regions: RegionType[], sizes: CampusSizeType[], policies: TestPolicyType[]) => {
+    if (regions.length === 0 && sizes.length === 0 && policies.length === 0) {
+      setSchools(selectTop9(correctedPool, [], [], []));
+      setFiltersApplied(false);
+      return;
+    }
+    setSchools(selectTop9(correctedPool, regions, sizes, policies));
+    setFiltersApplied(true);
+  };
+
   const removeRegionChip = (region: RegionType) => {
     const newRegions = selectedRegions.filter((r) => r !== region);
     setSelectedRegions(newRegions);
     setPendingRegions(newRegions);
-    // Re-filter with updated selections
     applyFiltersWithValues(newRegions, selectedSizes, selectedPolicies);
   };
 
@@ -351,7 +370,6 @@ export function RecommendedSchools({
     const newSizes = selectedSizes.filter((s) => s !== size);
     setSelectedSizes(newSizes);
     setPendingSizes(newSizes);
-    // Re-filter with updated selections
     applyFiltersWithValues(selectedRegions, newSizes, selectedPolicies);
   };
 
@@ -359,7 +377,6 @@ export function RecommendedSchools({
     const newPolicies = selectedPolicies.filter((p) => p !== policy);
     setSelectedPolicies(newPolicies);
     setPendingPolicies(newPolicies);
-    // Re-filter with updated selections
     applyFiltersWithValues(selectedRegions, selectedSizes, newPolicies);
   };
 
@@ -370,87 +387,8 @@ export function RecommendedSchools({
     setPendingRegions([]);
     setPendingSizes([]);
     setPendingPolicies([]);
-    setSchools(deduplicateByName(balanceSchools(deduplicateByName(initialSchools))));
+    setSchools(selectTop9(correctedPool, [], [], []));
     setFiltersApplied(false);
-    setFilterError(null);
-  };
-
-  /** Centralized school setter — ALWAYS purges by active filters before display.
-   *  This is the ONLY function that should call setSchools when filters are active. */
-  const setFilteredSchools = (
-    pool: RecommendedSchool[],
-    regions: RegionType[],
-    sizes: CampusSizeType[],
-    policies: TestPolicyType[],
-  ) => {
-    // STEP 0: Deduplicate input pool — no school name may appear twice
-    const uniquePool = deduplicateByName(pool);
-    // STEP 1: Filter the master list to ONLY matching schools
-    const purged = clientCorrectAndFilter(uniquePool, regions, sizes, policies);
-    // STEP 2: Balance 3-3-3 from the purged pool
-    const balanced = balanceSchools(purged);
-    // STEP 3: FINAL PURGE — zero tolerance, verify every school in the output
-    const verified = clientCorrectAndFilter(balanced, regions, sizes, policies);
-    // STEP 4: Final dedup guard — absolutely no duplicates in display
-    const deduped = deduplicateByName(verified);
-    // STEP 5: ABSOLUTE KILL-GATE — physically impossible for wrong-size school to display
-    setSchools(absoluteEnrollmentKill(deduped, sizes));
-  };
-
-  const applyFiltersWithValues = async (regions: RegionType[], sizes: CampusSizeType[], policies: TestPolicyType[]) => {
-    // If no filters selected, show original results (deduped)
-    if (regions.length === 0 && sizes.length === 0 && policies.length === 0) {
-      setSchools(deduplicateByName(balanceSchools(deduplicateByName(initialSchools))));
-      setFiltersApplied(false);
-      setFilterError(null);
-      return;
-    }
-
-    // ALWAYS call the server when filters are active — the server pipeline
-    // has the full GPT + Scorecard enrichment + backfill logic needed to
-    // reliably return 9 schools. Local filtering alone drops too many.
-    setIsLoading(true);
-    setFilterError(null);
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 55000);
-
-      const res = await fetch("/api/filtered-recommendations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          transcriptSummary,
-          schoolProfileSummary,
-          overallScore,
-          recalculatedGPA,
-          regions,
-          sizes,
-          policies,
-          testScores,
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-
-      if (!res.ok) {
-        throw new Error(`Server error (${res.status})`);
-      }
-
-      const data = await res.json();
-      const newSchools = (data.schools ?? []) as RecommendedSchool[];
-
-      // Centralized purge + balance + verify — zero tolerance
-      setFilteredSchools(newSchools, regions, sizes, policies);
-      setFiltersApplied(true);
-    } catch (error) {
-      console.error("Failed to fetch filtered recommendations:", error);
-      const message = error instanceof Error
-        ? (error.name === "AbortError" ? "Search timed out — please try again" : error.message)
-        : "An unexpected error occurred";
-      setFilterError(`Filter search failed: ${message}. Please try again or adjust your filters.`);
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const applyFilters = () => {
@@ -475,7 +413,7 @@ export function RecommendedSchools({
     matchSchools.length === 3 &&
     safetySchools.length === 3;
   const hasActiveFilters = selectedRegions.length > 0 || selectedSizes.length > 0 || selectedPolicies.length > 0;
-  const showLimitedWarning = !is333Valid && hasActiveFilters && schools.length > 0;
+
 
   return (
     <Card>
@@ -572,24 +510,17 @@ export function RecommendedSchools({
           <div className="flex items-center gap-3 pt-2">
             <Button
               onClick={applyFilters}
-              disabled={isLoading || !hasFilterChanges}
+              disabled={!hasFilterChanges}
               size="sm"
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Searching...
-                </>
-              ) : (
-                "Apply Filters"
-              )}
+              Apply Filters
             </Button>
             {(selectedRegions.length > 0 || selectedSizes.length > 0 || selectedPolicies.length > 0) && (
               <Button variant="ghost" size="sm" onClick={clearAllFilters}>
                 Clear All
               </Button>
             )}
-            {hasFilterChanges && !isLoading && (
+            {hasFilterChanges && (
               <span className="text-xs text-muted-foreground">
                 Click Apply to update results
               </span>
@@ -656,24 +587,7 @@ export function RecommendedSchools({
       </CardHeader>
 
       <CardContent className="space-y-6">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-3" />
-            <p className="text-sm text-muted-foreground">
-              Searching for schools matching your criteria...
-            </p>
-          </div>
-        ) : (
           <>
-            {/* Filter error banner */}
-            {filterError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 p-3 mb-4">
-                <p className="text-sm text-red-700 dark:text-red-400">
-                  {filterError}
-                </p>
-              </div>
-            )}
-
             {/* Disclaimer when filters narrow the pool below 3-3-3 */}
             {!is333Valid && hasActiveFilters && schools.length > 0 && (
               <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800 p-3 mb-4">
@@ -737,7 +651,6 @@ export function RecommendedSchools({
               </div>
             )}
           </>
-        )}
       </CardContent>
     </Card>
   );
