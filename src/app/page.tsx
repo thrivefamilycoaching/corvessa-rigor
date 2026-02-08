@@ -378,6 +378,9 @@ export default function CounselorCoPilot() {
                 <h2 className="mb-4 text-lg font-semibold">College Recommendations</h2>
                 <RecommendedSchools
                   schools={result.recommendedSchools}
+                  transcriptSummary={result.transcriptSummary}
+                  schoolProfileSummary={result.schoolProfileSummary}
+                  overallScore={result.scorecard.overallScore}
                 />
               </div>
             )}

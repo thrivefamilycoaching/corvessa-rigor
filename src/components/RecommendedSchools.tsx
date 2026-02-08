@@ -1,12 +1,11 @@
 "use client";
-
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { RecommendedSchool, RegionType, CampusSizeType, TestPolicyType } from "@/lib/types";
-import { REGIONS, CAMPUS_SIZES, TEST_POLICIES, isTestRequiredSchool, getSchoolRegion } from "@/lib/constants";
+import type { RecommendedSchool, RegionType, CampusSizeType } from "@/lib/types";
+import { REGIONS, CAMPUS_SIZES } from "@/lib/constants";
 import {
   GraduationCap,
   TrendingUp,
@@ -16,11 +15,74 @@ import {
   Users,
   X,
   SlidersHorizontal,
-  FileCheck,
 } from "lucide-react";
 
 interface RecommendedSchoolsProps {
   schools: RecommendedSchool[];
+  transcriptSummary: string;
+  schoolProfileSummary: string;
+  overallScore: number;
+}
+
+function selectDisplaySchools(
+  allSchools: RecommendedSchool[],
+  regions: RegionType[],
+  sizes: CampusSizeType[]
+): RecommendedSchool[] {
+  const hasFilters = regions.length > 0 || sizes.length > 0;
+
+  if (!hasFilters) {
+    const reach = allSchools.filter((s) => s.type === "reach").slice(0, 3);
+    const match = allSchools.filter((s) => s.type === "match").slice(0, 3);
+    const safety = allSchools.filter((s) => s.type === "safety").slice(0, 3);
+    return [...reach, ...match, ...safety];
+  }
+
+  const filtered = allSchools.filter((school) => {
+    const regionMatch = regions.length === 0 || regions.includes(school.region);
+    const sizeMatch = sizes.length === 0 || sizes.includes(school.campusSize);
+    return regionMatch && sizeMatch;
+  });
+
+  const reachFiltered = filtered.filter((s) => s.type === "reach");
+  const matchFiltered = filtered.filter((s) => s.type === "match");
+  const safetyFiltered = filtered.filter((s) => s.type === "safety");
+
+  const usedNames = new Set<string>();
+
+  const pickSchools = (
+    filteredList: RecommendedSchool[],
+    type: "reach" | "match" | "safety",
+    count: number
+  ): RecommendedSchool[] => {
+    const result: RecommendedSchool[] = [];
+    for (const school of filteredList) {
+      if (result.length >= count) break;
+      if (!usedNames.has(school.name)) {
+        result.push(school);
+        usedNames.add(school.name);
+      }
+    }
+
+    if (result.length < count) {
+      const fallbacks = allSchools.filter((s) => s.type === type);
+      for (const school of fallbacks) {
+        if (result.length >= count) break;
+        if (!usedNames.has(school.name)) {
+          result.push(school);
+          usedNames.add(school.name);
+        }
+      }
+    }
+
+    return result;
+  };
+
+  const reach = pickSchools(reachFiltered, "reach", 3);
+  const match = pickSchools(matchFiltered, "match", 3);
+  const safety = pickSchools(safetyFiltered, "safety", 3);
+
+  return [...reach, ...match, ...safety];
 }
 
 function getTypeIcon(type: RecommendedSchool["type"]) {
@@ -63,273 +125,32 @@ function formatEnrollment(enrollment: number): string {
   return `${enrollment} students`;
 }
 
-// ── Display Odds Normalization (client-side mirror of server logic) ──────────
-// Reach → below 35% | Match → 45–65% | Safety → as-is
-function clientNameHash(name: string): number {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash);
-}
-
-function normalizeDisplayOdds(school: RecommendedSchool): RecommendedSchool {
-  const odds = school.acceptanceProbability ?? 50;
-  let displayOdds = odds;
-
-  if (school.type === "match") {
-    if (odds < 45 || odds > 65) {
-      displayOdds = 45 + (clientNameHash(school.name) % 21); // 45–65
-    }
-  } else if (school.type === "reach") {
-    if (odds >= 35) {
-      displayOdds = 15 + (clientNameHash(school.name) % 20); // 15–34
-    }
-  }
-  return { ...school, acceptanceProbability: displayOdds };
-}
-
-/** Normalize school names to catch abbreviation variants during dedup (client-side mirror). */
-function normalizeSchoolName(name: string): string {
-  let n = name.toLowerCase().trim();
-  const aliases: Record<string, string> = {
-    "mit": "massachusetts institute of technology",
-    "ucla": "university of california, los angeles",
-    "usc": "university of southern california",
-    "uchicago": "university of chicago",
-    "upenn": "university of pennsylvania",
-    "uva": "university of virginia",
-    "unc": "university of north carolina",
-    "nyu": "new york university",
-    "cmu": "carnegie mellon university",
-    "caltech": "california institute of technology",
-    "georgia tech": "georgia institute of technology",
-    "washu": "washington university in st louis",
-    "wustl": "washington university in st louis",
-  };
-  for (const [abbr, full] of Object.entries(aliases)) {
-    if (n === abbr) return full;
-  }
-  return n;
-}
-
-/** Strict deduplication — no school name may appear more than once (client-side).
- *  Uses abbreviation normalization to catch variants like "MIT" vs full name. */
-function deduplicateByName(schools: RecommendedSchool[]): RecommendedSchool[] {
-  const seen = new Set<string>();
-  return schools.filter((s) => {
-    const key = normalizeSchoolName(s.name);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-/** ABSOLUTE KILL-GATE: physically destroy any school whose enrollment is outside
- *  the allowed size range. If "Small" is selected, enrollment > 5,000 = DEAD. */
-function absoluteEnrollmentKill(schools: RecommendedSchool[], sizes: CampusSizeType[]): RecommendedSchool[] {
-  if (sizes.length === 0) return schools;
-  return schools.filter((s) => {
-    const enrollment = s.enrollment ?? 0;
-    const ok = sizes.some((size) => {
-      switch (size) {
-        case "Micro": return enrollment > 0 && enrollment < 2000;
-        case "Small": return enrollment >= 2000 && enrollment <= 5000;
-        case "Medium": return enrollment > 5000 && enrollment <= 15000;
-        case "Large": return enrollment > 15000 && enrollment <= 30000;
-        case "Mega": return enrollment > 30000;
-        default: return false;
-      }
-    });
-    if (!ok) {
-      console.log(`[CLIENT-KILL] DESTROYED ${s.name}: enrollment=${enrollment} not in ${sizes.join("/")}`);
-    }
-    return ok;
-  });
-}
-
-/** Derive campusSize from enrollment number (client-side, mirrors server getEnrollmentSize). */
-function getEnrollmentSize(enrollment: number): CampusSizeType {
-  if (enrollment < 2000) return "Micro";
-  if (enrollment <= 5000) return "Small";
-  if (enrollment <= 15000) return "Medium";
-  if (enrollment <= 30000) return "Large";
-  return "Mega";
-}
-
-/** Correct ALL metadata (region, campusSize, testPolicy) then filter against active filters.
- *  This is the client-side mirror of the server's correctSchoolMetadata + filter pipeline. */
-function clientCorrectAndFilter(
-  schools: RecommendedSchool[],
-  regions: RegionType[],
-  sizes: CampusSizeType[],
-  policies: TestPolicyType[],
-): RecommendedSchool[] {
-  // Step 1: Correct ALL metadata — region, campusSize, testPolicy
-  const corrected = schools.map((s) => {
-    let fixed = s;
-
-    // Correct region from hard-coded state mapping
-    const correctRegion = getSchoolRegion(fixed.name);
-    if (correctRegion && correctRegion !== fixed.region) {
-      console.log(`[ClientRegionCorrect] ${fixed.name}: "${fixed.region}" → "${correctRegion}"`);
-      fixed = { ...fixed, region: correctRegion };
-    }
-
-    // Correct campusSize from enrollment number
-    if (fixed.enrollment > 0) {
-      const correctSize = getEnrollmentSize(fixed.enrollment);
-      if (correctSize !== fixed.campusSize) {
-        fixed = { ...fixed, campusSize: correctSize };
-      }
-    }
-
-    // Correct testPolicy from hard-coded override list
-    if (isTestRequiredSchool(fixed.name) && fixed.testPolicy !== "Test Required") {
-      fixed = { ...fixed, testPolicy: "Test Required" as TestPolicyType };
-    }
-
-    return fixed;
-  });
-
-  // Step 2: If no filters active, return corrected schools only
-  if (regions.length === 0 && sizes.length === 0 && policies.length === 0) {
-    return corrected;
-  }
-
-  // Step 3: Strict AND filter — region + size (numeric enrollment) + policy
-  return corrected.filter((school) => {
-    const regionOk = regions.length === 0 || regions.includes(school.region);
-    const enrollment = school.enrollment ?? 0;
-    const sizeOk = sizes.length === 0 || sizes.some((size) => {
-      switch (size) {
-        case "Micro": return enrollment > 0 && enrollment < 2000;
-        case "Small": return enrollment >= 2000 && enrollment <= 5000;
-        case "Medium": return enrollment > 5000 && enrollment <= 15000;
-        case "Large": return enrollment > 15000 && enrollment <= 30000;
-        case "Mega": return enrollment > 30000;
-        default: return false;
-      }
-    });
-    const policyOk = policies.length === 0 || policies.includes(school.testPolicy || "Test Optional");
-
-    if (!regionOk || !sizeOk || !policyOk) {
-      console.log(`[ClientFilter] REJECTED ${school.name}: enrollment=${enrollment} region=${school.region} policy=${school.testPolicy}`);
-    }
-    return regionOk && sizeOk && policyOk;
-  });
-}
-
-/**
- * MANDATORY 3-3-3 balanced list (9 schools total).
- *
- * HARD RULE: Schools with odds < 25% are LOCKED as Reach — they can never
- * be promoted to Match or Safety. This covers all sub-15% admit rate schools
- * and Top 30 elites (the server caps their odds below 25%).
- *
- * Filling order: Reach first (3), then Match (3), then Safety (3).
- * Demotion is allowed (Safety → Match, Match → Reach) to fill quotas.
- * Promotion is NEVER allowed for locked Reach schools.
- */
-function balanceSchools(schools: RecommendedSchool[]): RecommendedSchool[] {
-  const all = schools.map((s) => ({
-    ...s,
-    acceptanceProbability: Math.max(1, Math.min(95, s.acceptanceProbability ?? 50)),
-  }));
-
-  // Sort ascending by odds (lowest first)
-  all.sort((a, b) => a.acceptanceProbability - b.acceptanceProbability);
-
-  // Locked Reach: odds < 25% — CANNOT be promoted, ever
-  const lockedReach = all.filter((s) => s.acceptanceProbability < 25);
-  // Flexible: odds >= 25% — can be assigned to Match or Safety
-  const flexible = all.filter((s) => s.acceptanceProbability >= 25);
-  // Sort flexible ascending by odds
-  flexible.sort((a, b) => a.acceptanceProbability - b.acceptanceProbability);
-
-  const reach: RecommendedSchool[] = [];
-  const match: RecommendedSchool[] = [];
-  const safety: RecommendedSchool[] = [];
-
-  // ── Step 1: Fill Reach (target 3) ──
-  // All locked reach schools go here first
-  for (const s of lockedReach) {
-    reach.push({ ...s, type: "reach" });
-  }
-  // If we still need more reach, demote lowest-odds flexible schools
-  while (reach.length < 3 && flexible.length > 0) {
-    const next = flexible.shift()!;
-    reach.push({ ...next, type: "reach" });
-  }
-
-  // ── Step 2: Fill Safety (target 3) from highest-odds flexible ──
-  const flexDescending = [...flexible].reverse();
-  const safetyNames = new Set<string>();
-  for (const s of flexDescending) {
-    if (safety.length >= 3) break;
-    safety.push({ ...s, type: "safety" });
-    safetyNames.add(s.name);
-  }
-
-  // ── Step 3: Fill Match (target 3) from remaining flexible ──
-  const remaining = flexible.filter((s) => !safetyNames.has(s.name));
-  for (const s of remaining) {
-    if (match.length >= 3) break;
-    match.push({ ...s, type: "match" });
-  }
-
-  // ── Step 4: Handle any leftover (more than 9 schools, or unplaced) ──
-  const usedNames = new Set([...reach, ...match, ...safety].map((s) => s.name));
-  const leftover = all.filter((s) => !usedNames.has(s.name));
-  for (const s of leftover) {
-    if (match.length < 3) match.push({ ...s, type: "match" });
-    else if (safety.length < 3) safety.push({ ...s, type: "safety" });
-    else reach.push({ ...s, type: "reach" });
-  }
-
-  // Sort within each bucket
-  reach.sort((a, b) => (a.acceptanceProbability ?? 0) - (b.acceptanceProbability ?? 0));
-  match.sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
-  safety.sort((a, b) => (b.acceptanceProbability ?? 0) - (a.acceptanceProbability ?? 0));
-
-  // Display order: Reach → Match → Safety — normalize odds to match labels
-  return [...reach, ...match, ...safety].map(normalizeDisplayOdds);
-}
-
 export function RecommendedSchools({
-  schools: initialSchools,
+  schools: allSchools,
+  transcriptSummary,
+  schoolProfileSummary,
+  overallScore,
 }: RecommendedSchoolsProps) {
-  // Correct metadata on the full pool once, then keep it as the master list
-  const correctedPool = clientCorrectAndFilter(deduplicateByName(initialSchools), [], [], []);
-
-  const [schools, setSchools] = useState<RecommendedSchool[]>(() =>
-    selectTop9(correctedPool, [], [], [])
-  );
   const [selectedRegions, setSelectedRegions] = useState<RegionType[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<CampusSizeType[]>([]);
-  const [selectedPolicies, setSelectedPolicies] = useState<TestPolicyType[]>([]);
   const [pendingRegions, setPendingRegions] = useState<RegionType[]>([]);
   const [pendingSizes, setPendingSizes] = useState<CampusSizeType[]>([]);
-  const [pendingPolicies, setPendingPolicies] = useState<TestPolicyType[]>([]);
-  const [filtersApplied, setFiltersApplied] = useState(false);
 
-  /** Select the best 9 schools (3 reach, 3 match, 3 safety) from filtered pool. */
-  function selectTop9(
-    pool: RecommendedSchool[],
-    regions: RegionType[],
-    sizes: CampusSizeType[],
-    policies: TestPolicyType[],
-  ): RecommendedSchool[] {
-    // Filter the pool
-    const filtered = clientCorrectAndFilter(pool, regions, sizes, policies);
-    // Kill-gate on enrollment
-    const killed = absoluteEnrollmentKill(filtered, sizes);
-    // Balance into 3-3-3 (takes up to 9)
-    const balanced = balanceSchools(killed);
-    // Final verify + dedup
-    const verified = clientCorrectAndFilter(balanced, regions, sizes, policies);
-    return deduplicateByName(absoluteEnrollmentKill(verified, sizes));
-  }
+  const displaySchools = useMemo(
+    () => selectDisplaySchools(allSchools, selectedRegions, selectedSizes),
+    [allSchools, selectedRegions, selectedSizes]
+  );
+
+  const filterMatchCount = useMemo(() => {
+    if (selectedRegions.length === 0 && selectedSizes.length === 0) return displaySchools.length;
+    return displaySchools.filter((school) => {
+      const regionMatch = selectedRegions.length === 0 || selectedRegions.includes(school.region);
+      const sizeMatch = selectedSizes.length === 0 || selectedSizes.includes(school.campusSize);
+      return regionMatch && sizeMatch;
+    }).length;
+  }, [displaySchools, selectedRegions, selectedSizes]);
+
+  const filtersApplied = selectedRegions.length > 0 || selectedSizes.length > 0;
 
   const toggleRegion = (region: RegionType) => {
     setPendingRegions((prev) =>
@@ -343,77 +164,37 @@ export function RecommendedSchools({
     );
   };
 
-  const togglePolicy = (policy: TestPolicyType) => {
-    setPendingPolicies((prev) =>
-      prev.includes(policy) ? prev.filter((p) => p !== policy) : [...prev, policy]
-    );
-  };
-
-  const applyFiltersWithValues = (regions: RegionType[], sizes: CampusSizeType[], policies: TestPolicyType[]) => {
-    if (regions.length === 0 && sizes.length === 0 && policies.length === 0) {
-      setSchools(selectTop9(correctedPool, [], [], []));
-      setFiltersApplied(false);
-      return;
-    }
-    setSchools(selectTop9(correctedPool, regions, sizes, policies));
-    setFiltersApplied(true);
-  };
-
   const removeRegionChip = (region: RegionType) => {
     const newRegions = selectedRegions.filter((r) => r !== region);
     setSelectedRegions(newRegions);
     setPendingRegions(newRegions);
-    applyFiltersWithValues(newRegions, selectedSizes, selectedPolicies);
   };
 
   const removeSizeChip = (size: CampusSizeType) => {
     const newSizes = selectedSizes.filter((s) => s !== size);
     setSelectedSizes(newSizes);
     setPendingSizes(newSizes);
-    applyFiltersWithValues(selectedRegions, newSizes, selectedPolicies);
-  };
-
-  const removePolicyChip = (policy: TestPolicyType) => {
-    const newPolicies = selectedPolicies.filter((p) => p !== policy);
-    setSelectedPolicies(newPolicies);
-    setPendingPolicies(newPolicies);
-    applyFiltersWithValues(selectedRegions, selectedSizes, newPolicies);
   };
 
   const clearAllFilters = () => {
     setSelectedRegions([]);
     setSelectedSizes([]);
-    setSelectedPolicies([]);
     setPendingRegions([]);
     setPendingSizes([]);
-    setPendingPolicies([]);
-    setSchools(selectTop9(correctedPool, [], [], []));
-    setFiltersApplied(false);
   };
 
   const applyFilters = () => {
-    setSelectedRegions(pendingRegions);
-    setSelectedSizes(pendingSizes);
-    setSelectedPolicies(pendingPolicies);
-    applyFiltersWithValues(pendingRegions, pendingSizes, pendingPolicies);
+    setSelectedRegions([...pendingRegions]);
+    setSelectedSizes([...pendingSizes]);
   };
 
   const hasFilterChanges =
-    JSON.stringify(pendingRegions.sort()) !== JSON.stringify(selectedRegions.sort()) ||
-    JSON.stringify(pendingSizes.sort()) !== JSON.stringify(selectedSizes.sort()) ||
-    JSON.stringify(pendingPolicies.sort()) !== JSON.stringify(selectedPolicies.sort());
+    JSON.stringify([...pendingRegions].sort()) !== JSON.stringify([...selectedRegions].sort()) ||
+    JSON.stringify([...pendingSizes].sort()) !== JSON.stringify([...selectedSizes].sort());
 
-  const reachSchools = schools.filter((s) => s.type === "reach");
-  const matchSchools = schools.filter((s) => s.type === "match");
-  const safetySchools = schools.filter((s) => s.type === "safety");
-
-  // UI verification: 3-3-3 required when unfiltered; partial results OK when filters are active
-  const is333Valid =
-    reachSchools.length === 3 &&
-    matchSchools.length === 3 &&
-    safetySchools.length === 3;
-  const hasActiveFilters = selectedRegions.length > 0 || selectedSizes.length > 0 || selectedPolicies.length > 0;
-
+  const reachSchools = displaySchools.filter((s) => s.type === "reach");
+  const matchSchools = displaySchools.filter((s) => s.type === "match");
+  const safetySchools = displaySchools.filter((s) => s.type === "safety");
 
   return (
     <Card>
@@ -430,14 +211,12 @@ export function RecommendedSchools({
           </div>
         </div>
 
-        {/* Filter Controls */}
         <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
           <div className="flex items-center gap-2 text-sm font-medium">
             <SlidersHorizontal className="h-4 w-4" />
             Filter Recommendations
           </div>
 
-          {/* Region Checkboxes */}
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-2">
               Region (select multiple)
@@ -458,7 +237,6 @@ export function RecommendedSchools({
             </div>
           </div>
 
-          {/* Size Checkboxes */}
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-2">
               Campus Size (select multiple)
@@ -482,31 +260,6 @@ export function RecommendedSchools({
             </div>
           </div>
 
-          {/* Test Policy Checkboxes */}
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2">
-              Testing Policy (select any that apply)
-            </p>
-            <div className="flex flex-wrap gap-3">
-              {TEST_POLICIES.map((policy) => (
-                <label
-                  key={policy.value}
-                  className="flex items-center gap-2 cursor-pointer"
-                >
-                  <Checkbox
-                    checked={pendingPolicies.includes(policy.value)}
-                    onCheckedChange={() => togglePolicy(policy.value)}
-                  />
-                  <span className="text-sm">{policy.label}</span>
-                </label>
-              ))}
-            </div>
-            <p className="text-[10px] text-muted-foreground/70 mt-1.5">
-              Selecting multiple shows schools matching any selected policy
-            </p>
-          </div>
-
-          {/* Apply Button */}
           <div className="flex items-center gap-3 pt-2">
             <Button
               onClick={applyFilters}
@@ -515,7 +268,7 @@ export function RecommendedSchools({
             >
               Apply Filters
             </Button>
-            {(selectedRegions.length > 0 || selectedSizes.length > 0 || selectedPolicies.length > 0) && (
+            {filtersApplied && (
               <Button variant="ghost" size="sm" onClick={clearAllFilters}>
                 Clear All
               </Button>
@@ -528,8 +281,7 @@ export function RecommendedSchools({
           </div>
         </div>
 
-        {/* Active Filter Chips */}
-        {(selectedRegions.length > 0 || selectedSizes.length > 0 || selectedPolicies.length > 0) && (
+        {filtersApplied && (
           <div className="flex flex-wrap gap-2">
             <span className="text-xs text-muted-foreground self-center mr-1">
               Active:
@@ -561,52 +313,32 @@ export function RecommendedSchools({
                 </Badge>
               );
             })}
-            {selectedPolicies.map((policy) => (
-              <Badge
-                key={policy}
-                variant="secondary"
-                className="pl-2 pr-1 gap-1 cursor-pointer hover:bg-secondary/80"
-                onClick={() => removePolicyChip(policy)}
-              >
-                <FileCheck className="h-3 w-3" />
-                {policy}
-                <X className="h-3 w-3 ml-1" />
-              </Badge>
-            ))}
           </div>
         )}
 
-        {/* Results Summary */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>{schools.length} schools</span>
-          <span className="text-muted-foreground/60">
+          <span>{displaySchools.length} schools</span>
+          <span>
             ({reachSchools.length} reach, {matchSchools.length} match, {safetySchools.length} safety)
           </span>
-          {filtersApplied && <span>— filtered</span>}
+          {filtersApplied && filterMatchCount < displaySchools.length && (
+            <span className="text-xs">
+              · {filterMatchCount} match your filters, {displaySchools.length - filterMatchCount} additional shown to fill 3/3/3
+            </span>
+          )}
         </div>
       </CardHeader>
 
       <CardContent className="space-y-6">
+        {displaySchools.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <GraduationCap className="h-8 w-8 text-muted-foreground/50 mb-3" />
+            <p className="text-sm text-muted-foreground">
+              No schools available. Try adjusting your criteria.
+            </p>
+          </div>
+        ) : (
           <>
-            {/* Disclaimer when filters narrow the pool below 3-3-3 */}
-            {!is333Valid && hasActiveFilters && schools.length > 0 && (
-              <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800 p-3 mb-4">
-                <p className="text-sm text-blue-700 dark:text-blue-400">
-                  Showing {schools.length} schools closest to your academic profile within the selected size/region.
-                  Try broadening your filters for a full 3/3/3 recommendation list.
-                </p>
-              </div>
-            )}
-            {!is333Valid && !hasActiveFilters && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 p-3 mb-4">
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                  Partial results: {reachSchools.length} reach, {matchSchools.length} match, {safetySchools.length} safety.
-                  Please try again for a full 3/3/3 recommendation list.
-                </p>
-              </div>
-            )}
-
-            {/* Reach Schools */}
             {reachSchools.length > 0 && (
               <div>
                 <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
@@ -615,13 +347,20 @@ export function RecommendedSchools({
                 </h4>
                 <div className="space-y-3">
                   {reachSchools.map((school, index) => (
-                    <SchoolCard key={index} school={school} />
+                    <SchoolCard
+                      key={index}
+                      school={school}
+                      isFilterMatch={
+                        !filtersApplied ||
+                        ((selectedRegions.length === 0 || selectedRegions.includes(school.region)) &&
+                         (selectedSizes.length === 0 || selectedSizes.includes(school.campusSize)))
+                      }
+                    />
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Match Schools */}
             {matchSchools.length > 0 && (
               <div>
                 <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
@@ -630,13 +369,20 @@ export function RecommendedSchools({
                 </h4>
                 <div className="space-y-3">
                   {matchSchools.map((school, index) => (
-                    <SchoolCard key={index} school={school} />
+                    <SchoolCard
+                      key={index}
+                      school={school}
+                      isFilterMatch={
+                        !filtersApplied ||
+                        ((selectedRegions.length === 0 || selectedRegions.includes(school.region)) &&
+                         (selectedSizes.length === 0 || selectedSizes.includes(school.campusSize)))
+                      }
+                    />
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Safety Schools */}
             {safetySchools.length > 0 && (
               <div>
                 <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
@@ -645,47 +391,29 @@ export function RecommendedSchools({
                 </h4>
                 <div className="space-y-3">
                   {safetySchools.map((school, index) => (
-                    <SchoolCard key={index} school={school} />
+                    <SchoolCard
+                      key={index}
+                      school={school}
+                      isFilterMatch={
+                        !filtersApplied ||
+                        ((selectedRegions.length === 0 || selectedRegions.includes(school.region)) &&
+                         (selectedSizes.length === 0 || selectedSizes.includes(school.campusSize)))
+                      }
+                    />
                   ))}
                 </div>
               </div>
             )}
           </>
+        )}
       </CardContent>
     </Card>
   );
 }
 
-function getPolicyBadgeStyle(policy: string) {
-  switch (policy) {
-    case "Test Required":
-      return "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800";
-    case "Test Blind":
-      return "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800";
-    default: // Test Optional
-      return "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800";
-  }
-}
-
-function getProbabilityColor(prob: number): string {
-  if (prob > 60) return "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800";
-  if (prob >= 25) return "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800";
-  return "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800";
-}
-
-function SchoolCard({ school }: { school: RecommendedSchool }) {
-  // Use hard-coded override for known Test Required schools
-  const testPolicy: TestPolicyType = isTestRequiredSchool(school.name)
-    ? "Test Required"
-    : (school.testPolicy || "Test Optional");
-
-  // Cap probability at 95%, floor at 1%
-  const probability = school.acceptanceProbability
-    ? Math.max(1, Math.min(95, school.acceptanceProbability))
-    : null;
-
+function SchoolCard({ school, isFilterMatch }: { school: RecommendedSchool; isFilterMatch: boolean }) {
   return (
-    <div className="rounded-lg border p-4">
+    <div className={`rounded-lg border p-4 ${!isFilterMatch ? "opacity-60 border-dashed" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -701,14 +429,10 @@ function SchoolCard({ school }: { school: RecommendedSchool }) {
               {getTypeIcon(school.type)}
               <span className="ml-1">{getTypeLabel(school.type)}</span>
             </Badge>
-            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${getPolicyBadgeStyle(testPolicy)}`}>
-              <FileCheck className="h-2.5 w-2.5" />
-              {testPolicy}
-            </span>
-            {probability != null && (
-              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${getProbabilityColor(probability)}`}>
-                Your Odds: {probability}%
-              </span>
+            {!isFilterMatch && (
+              <Badge variant="outline" className="text-xs text-muted-foreground">
+                Outside filter
+              </Badge>
             )}
           </div>
           <div className="flex items-center gap-3 mb-2 text-xs text-muted-foreground flex-wrap">
