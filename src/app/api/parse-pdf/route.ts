@@ -2,7 +2,7 @@ import "@ungap/with-resolvers";
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
-import type { AnalysisResult, TestScores } from "@/lib/types";
+import type { AnalysisResult, TestScores, RecommendedSchool } from "@/lib/types";
 import { enforce343Distribution, getEnrollmentSize, deduplicateByName } from "@/lib/scorecard";
 import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS, getSchoolRegion } from "@/lib/constants";
 
@@ -458,7 +458,7 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
     }
 
     // BACKUP: Guarantee every size and region category has schools
-    const backupSchools = [
+    const backupSchools: RecommendedSchool[] = [
       { name: "Williams College", url: "https://www.williams.edu", type: "reach", region: "Northeast", campusSize: "Micro", enrollment: 2000, matchReasoning: "Williams' rigorous liberal arts curriculum and small class sizes align well with this student's strong academic foundation." },
       { name: "Colby College", url: "https://www.colby.edu", type: "match", region: "Northeast", campusSize: "Micro", enrollment: 2000, matchReasoning: "Colby's commitment to undergraduate research and global engagement align with this student's academic trajectory." },
       { name: "Bates College", url: "https://www.bates.edu", type: "safety", region: "Northeast", campusSize: "Micro", enrollment: 1800, matchReasoning: "Bates' test-optional policy and emphasis on experiential learning make it an accessible option." },
