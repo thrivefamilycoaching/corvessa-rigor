@@ -502,33 +502,64 @@ async function callGPTForSchools(
   openai: OpenAI,
   systemPrompt: string,
   userMessage: string,
-  _count: number,
+  expectedCount: number,
 ): Promise<RecommendedSchool[]> {
-  try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage },
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.7,
-    });
+  const MAX_ATTEMPTS = 3;
+  let currentUserMsg = userMessage;
 
-    const content = response.choices[0]?.message?.content;
-    if (!content) return [];
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: currentUserMsg },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.7,
+      });
 
-    const result = JSON.parse(content) as { schools: RecommendedSchool[] };
-    const raw = result.schools ?? [];
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        console.log(`[GPT-Filter] Attempt ${attempt}: empty response`);
+        continue;
+      }
 
-    // CORRECT metadata at source — fix campusSize/region/testPolicy IMMEDIATELY
-    const corrected = correctSchoolMetadata(raw);
-    // DEDUPLICATE at source — GPT can return the same school twice
-    return deduplicateByName(corrected);
-  } catch (err) {
-    console.error("[GPT-Filter] Call failed:", err);
-    return [];
+      const result = JSON.parse(content) as { schools: RecommendedSchool[] };
+      const raw = result.schools ?? [];
+
+      // CORRECT metadata at source — fix campusSize/region/testPolicy IMMEDIATELY
+      const corrected = correctSchoolMetadata(raw);
+      // DEDUPLICATE at source — GPT can return the same school twice
+      const schools = deduplicateByName(corrected);
+
+      // Validate count and 3/3/3 distribution
+      const reach = schools.filter(s => s.type === "reach").length;
+      const match = schools.filter(s => s.type === "match").length;
+      const safety = schools.filter(s => s.type === "safety").length;
+      const is333 = reach >= 3 && match >= 3 && safety >= 3;
+
+      console.log(`[GPT-Filter] Attempt ${attempt}: ${schools.length} schools (${reach}R/${match}M/${safety}S)`);
+
+      if (schools.length >= expectedCount && is333) {
+        return schools;
+      }
+
+      // On last attempt, accept whatever we got
+      if (attempt === MAX_ATTEMPTS) {
+        console.log(`[GPT-Filter] Accepting ${schools.length} schools after ${MAX_ATTEMPTS} attempts`);
+        return schools;
+      }
+
+      // Retry with correction appended to user message
+      currentUserMsg = userMessage + `\n\nIMPORTANT: Your previous response had ${schools.length} schools instead of ${expectedCount}. You MUST return EXACTLY ${expectedCount} schools: 3 reach, 3 match, 3 safety. This is a hard requirement.`;
+    } catch (err) {
+      console.error(`[GPT-Filter] Attempt ${attempt} failed:`, err);
+      if (attempt === MAX_ATTEMPTS) return [];
+    }
   }
+
+  return [];
 }
 
 // ── Helper: enrollment-based size check (numeric, not label) ──────────
