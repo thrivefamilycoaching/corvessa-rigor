@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { RecommendedSchool, RegionType, CampusSizeType, TestPolicyType, TestScores } from "@/lib/types";
 import { REGIONS, CAMPUS_SIZES, TEST_POLICIES, isTestRequiredSchool, getSchoolRegion } from "@/lib/constants";
-import { getFilteredRecommendations } from "@/app/actions/analyze";
 import {
   GraduationCap,
   TrendingUp,
@@ -413,11 +412,13 @@ export function RecommendedSchools({
     setIsLoading(true);
     setFilterError(null);
     try {
-      const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Search timed out — please try again")), 25000)
-      );
-      const newSchools = await Promise.race([
-        getFilteredRecommendations({
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 55000);
+
+      const res = await fetch("/api/filtered-recommendations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           transcriptSummary,
           schoolProfileSummary,
           overallScore,
@@ -427,15 +428,25 @@ export function RecommendedSchools({
           policies,
           testScores,
         }),
-        timeout,
-      ]);
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        throw new Error(`Server error (${res.status})`);
+      }
+
+      const data = await res.json();
+      const newSchools = (data.schools ?? []) as RecommendedSchool[];
 
       // Centralized purge + balance + verify — zero tolerance
       setFilteredSchools(newSchools, regions, sizes, policies);
       setFiltersApplied(true);
     } catch (error) {
       console.error("Failed to fetch filtered recommendations:", error);
-      const message = error instanceof Error ? error.message : "An unexpected error occurred";
+      const message = error instanceof Error
+        ? (error.name === "AbortError" ? "Search timed out — please try again" : error.message)
+        : "An unexpected error occurred";
       setFilterError(`Filter search failed: ${message}. Please try again or adjust your filters.`);
     } finally {
       setIsLoading(false);
