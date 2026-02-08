@@ -852,3 +852,167 @@ export async function enrichAndPick343(
   enriched = deduplicateByName(enriched);
   return pick343(enriched);
 }
+
+// ── Scorecard-based gap filling ─────────────────────────────────────────────
+// Query the College Scorecard API directly to fill size+region gaps in the
+// recommended schools pool.  This uses real federal data rather than GPT
+// hallucinations to backfill underrepresented categories.
+
+const REGION_STATES: Record<RegionType, string[]> = {
+  "Northeast": ["MA", "CT", "NY", "RI", "ME", "VT", "NH"],
+  "Mid-Atlantic": ["VA", "DC", "MD", "PA", "DE", "NJ"],
+  "South": ["TX", "GA", "NC", "FL", "TN", "SC", "AL", "LA"],
+  "Midwest": ["IL", "MI", "OH", "WI", "MN", "IN", "IA", "MO"],
+  "West": ["CA", "OR", "WA", "CO", "AZ", "UT", "NV"],
+};
+
+const STATE_TO_REGION: Record<string, RegionType> = {};
+for (const [region, states] of Object.entries(REGION_STATES)) {
+  for (const st of states) {
+    STATE_TO_REGION[st] = region as RegionType;
+  }
+}
+
+interface ScorecardFillResult {
+  "school.name": string;
+  "school.school_url": string;
+  "latest.student.size": number | null;
+  "latest.admissions.admission_rate.overall": number | null;
+  "school.state": string;
+}
+
+const FILL_FIELDS = [
+  "school.name",
+  "school.school_url",
+  "latest.student.size",
+  "latest.admissions.admission_rate.overall",
+  "school.state",
+].join(",");
+
+export async function fillGapsFromScorecard(
+  schools: RecommendedSchool[]
+): Promise<RecommendedSchool[]> {
+  const apiKey = process.env.COLLEGE_SCORECARD_API_KEY;
+  if (!apiKey) {
+    console.log("[ScorecardFill] No API key — skipping");
+    return schools;
+  }
+
+  const sizes: CampusSizeType[] = ["Micro", "Small", "Medium", "Large", "Mega"];
+  const regions: RegionType[] = ["Northeast", "Mid-Atlantic", "South", "Midwest", "West"];
+
+  // Find gaps: size OR region categories with fewer than 3 schools
+  const sizeGaps: CampusSizeType[] = [];
+  const regionGaps: RegionType[] = [];
+
+  for (const size of sizes) {
+    if (schools.filter((s) => s.campusSize === size).length < 3) {
+      sizeGaps.push(size);
+    }
+  }
+  for (const region of regions) {
+    if (schools.filter((s) => s.region === region).length < 3) {
+      regionGaps.push(region);
+    }
+  }
+
+  if (sizeGaps.length === 0 && regionGaps.length === 0) {
+    console.log("[ScorecardFill] No gaps — all sizes and regions have 3+ schools");
+    return schools;
+  }
+
+  console.log(`[ScorecardFill] Gaps found — sizes: [${sizeGaps.join(", ")}] regions: [${regionGaps.join(", ")}]`);
+
+  const existingNames = new Set(schools.map((s) => s.name.toLowerCase().trim()));
+  const added: RecommendedSchool[] = [];
+
+  // Build queries for each gap combo
+  const queries: Array<{ size: CampusSizeType; region: RegionType }> = [];
+  for (const size of sizeGaps.length > 0 ? sizeGaps : sizes) {
+    for (const region of regionGaps.length > 0 ? regionGaps : regions) {
+      // Only query combos where at least one dimension is a gap
+      if (sizeGaps.includes(size) || regionGaps.includes(region)) {
+        queries.push({ size, region });
+      }
+    }
+  }
+
+  // 3-second total timeout via AbortController
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
+
+  try {
+    const fetches = queries.map(async ({ size, region }) => {
+      const [minEnroll, maxEnroll] = SIZE_RANGES[size];
+      const maxStr = maxEnroll === Infinity ? "" : `${maxEnroll}`;
+      const states = REGION_STATES[region];
+      if (!states || states.length === 0) return [];
+
+      const params = new URLSearchParams({
+        "api_key": apiKey,
+        "fields": FILL_FIELDS,
+        "school.degrees_awarded.predominant": "3",
+        "latest.student.size__range": `${minEnroll}..${maxStr}`,
+        "school.state": states.join(","),
+        "sort": "latest.admissions.admission_rate.overall:desc",
+        "per_page": "5",
+      });
+
+      const url = `https://api.data.gov/ed/collegescorecard/v1/schools.json?${params.toString()}`;
+
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) return [];
+        const data = (await res.json()) as { results: ScorecardFillResult[] };
+        return (data.results ?? []).map((r) => ({ ...r, _size: size, _region: region }));
+      } catch {
+        return [];
+      }
+    });
+
+    const results = await Promise.allSettled(fetches);
+
+    for (const result of results) {
+      if (result.status !== "fulfilled") continue;
+      for (const r of result.value) {
+        const name = r["school.name"];
+        if (!name || existingNames.has(name.toLowerCase().trim())) continue;
+
+        const enrollment = r["latest.student.size"] ?? 0;
+        if (enrollment <= 0) continue;
+
+        const admitRate = r["latest.admissions.admission_rate.overall"];
+        let type: "reach" | "match" | "safety" = "match";
+        if (admitRate != null) {
+          if (admitRate < 0.30) type = "reach";
+          else if (admitRate > 0.70) type = "safety";
+        }
+
+        const state = r["school.state"] ?? "";
+        const region = STATE_TO_REGION[state] ?? r._region;
+        const campusSize = getEnrollmentSize(enrollment);
+
+        const rawUrl = r["school.school_url"] ?? "";
+        const url = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
+
+        const school: RecommendedSchool = {
+          name,
+          url,
+          type,
+          region,
+          campusSize,
+          enrollment,
+          matchReasoning: `${name} is a ${campusSize.toLowerCase()}-sized institution in the ${region} region, offering a strong fit based on campus size and geographic preferences.`,
+        };
+
+        added.push(school);
+        existingNames.add(name.toLowerCase().trim());
+      }
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  console.log(`[ScorecardFill] Added ${added.length} schools for ${queries.length} gaps`);
+  return deduplicateByName([...schools, ...added]);
+}

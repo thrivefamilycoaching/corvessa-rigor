@@ -3,7 +3,7 @@ import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import type { AnalysisResult, TestScores, RecommendedSchool } from "@/lib/types";
-import { enforce343Distribution, getEnrollmentSize, deduplicateByName } from "@/lib/scorecard";
+import { enforce343Distribution, getEnrollmentSize, deduplicateByName, fillGapsFromScorecard } from "@/lib/scorecard";
 import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS, getSchoolRegion } from "@/lib/constants";
 
 // Disable all Vercel caching — always fetch fresh Scorecard data
@@ -524,6 +524,14 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
     }
 
     console.log("[Backup] Final school count:", analysis.recommendedSchools.length, "Micro:", analysis.recommendedSchools.filter((s: any) => s.campusSize === "Micro").length);
+
+    try {
+      const filledSchools = await fillGapsFromScorecard(analysis.recommendedSchools);
+      analysis.recommendedSchools = filledSchools;
+      console.log("[ScorecardFill] Final pool:", analysis.recommendedSchools.length, "schools");
+    } catch (e) {
+      console.log("[ScorecardFill] Failed, continuing with existing schools:", e);
+    }
 
     return NextResponse.json(analysis);
   } catch (error) {
