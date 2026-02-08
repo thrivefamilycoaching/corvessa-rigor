@@ -429,6 +429,16 @@ function SchoolCard({ school, isFilterMatch }: { school: RecommendedSchool; isFi
               {getTypeIcon(school.type)}
               <span className="ml-1">{getTypeLabel(school.type)}</span>
             </Badge>
+            {school.testPolicy && (
+              <Badge variant="outline" className="text-xs">
+                📋 {school.testPolicy}
+              </Badge>
+            )}
+            {school.acceptanceProbability !== undefined && (
+              <Badge variant="outline" className="text-xs">
+                Your Odds: {school.acceptanceProbability}%
+              </Badge>
+            )}
             {!isFilterMatch && (
               <Badge variant="outline" className="text-xs text-muted-foreground">
                 Outside filter
