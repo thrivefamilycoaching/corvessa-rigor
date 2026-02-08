@@ -8,7 +8,7 @@ import type {
   RecommendedSchool,
   FilteredRecommendationsRequest,
 } from "@/lib/types";
-import { enforce343Distribution, enrichAndPick343, getEnrollmentSize, deduplicateByName } from "@/lib/scorecard";
+import { enforce343Distribution, enrichAndPick343, getEnrollmentSize, deduplicateByName, normalizeSchoolName } from "@/lib/scorecard";
 import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS, getSchoolRegion } from "@/lib/constants";
 
 export async function getFilteredRecommendations(
@@ -66,17 +66,20 @@ export async function getFilteredRecommendations(
     expandPool = preFilterPool(expandPool, request.regions, request.sizes, request.policies);
     expandPool = deduplicateByName(expandPool);
 
-    // Merge into pool (inline Set dedup)
-    const seenNames = new Set(pool.map((s) => s.name.toLowerCase()));
+    // Merge into pool (inline Set dedup with normalization)
+    const seenNames = new Set(pool.map((s) => normalizeSchoolName(s.name)));
     for (const s of expandPool) {
-      if (!seenNames.has(s.name.toLowerCase())) {
+      if (!seenNames.has(normalizeSchoolName(s.name))) {
         pool.push(s);
-        seenNames.add(s.name.toLowerCase());
+        seenNames.add(normalizeSchoolName(s.name));
       }
     }
     pool = deduplicateByName(pool);
     console.log(`[Stage2] Pool now ${pool.length} after expansion`);
   }
+
+  // ── Save pre-enrichment pool for min-6 backfill ──
+  const physicalPool = [...pool];
 
   // ── Enrich + Pick 3-3-3 (no internal GPT calls, no redundant filtering) ──
   let passed = await enrichAndPick343(pool, studentProfile);
@@ -89,6 +92,46 @@ export async function getFilteredRecommendations(
   passed = verifyFinalEnrollment(passed, request.sizes, request.regions, request.policies);
   passed = deduplicateByName(passed);
   passed = absoluteEnrollmentKill(passed, request.sizes);
+
+  // ── MIN-6 BACKFILL: guarantee at least 6 schools when filters are active ──
+  if (hasFilters && passed.length < 6) {
+    console.log(`[Backfill] Only ${passed.length} schools — backfilling from physical pool (${physicalPool.length} candidates)`);
+    const usedNames = new Set(passed.map(s => normalizeSchoolName(s.name)));
+    const backfill = physicalPool
+      .filter(s => !usedNames.has(normalizeSchoolName(s.name)))
+      .map(s => ({ ...s, type: "match" as const }));
+    for (const s of backfill) {
+      if (passed.length >= 6) break;
+      passed.push(s);
+    }
+    passed = deduplicateByName(passed);
+    console.log(`[Backfill] After pool backfill: ${passed.length} schools`);
+  }
+
+  // ── STAGE 3 GPT FALLBACK: if still < 6 after pool backfill ──
+  if (hasFilters && passed.length < 6) {
+    console.log(`[Stage3] Still only ${passed.length} schools — firing physical-only GPT call`);
+    const needed = 6 - passed.length + 3; // request extras to account for filter kills
+    const excludeNames = passed.map(s => s.name);
+    const stage3Msg = buildPhysicalOnlyMessage(request, needed, excludeNames);
+
+    let stage3Pool = await callGPTForSchools(openai, filterPrompt, stage3Msg, needed);
+    stage3Pool = preFilterPool(stage3Pool, request.regions, request.sizes, request.policies);
+    stage3Pool = deduplicateByName(stage3Pool);
+
+    // Merge with existing results (normalized dedup)
+    const seenNames = new Set(passed.map(s => normalizeSchoolName(s.name)));
+    for (const s of stage3Pool) {
+      if (passed.length >= 6) break;
+      if (!seenNames.has(normalizeSchoolName(s.name))) {
+        passed.push({ ...s, type: "match" as const });
+        seenNames.add(normalizeSchoolName(s.name));
+      }
+    }
+    passed = deduplicateByName(passed);
+    passed = absoluteEnrollmentKill(passed, request.sizes);
+    console.log(`[Stage3] After GPT fallback: ${passed.length} schools`);
+  }
 
   console.log(`[Final] Returning ${passed.length} unique, filter-verified schools`);
   return passed;
@@ -355,6 +398,63 @@ Do NOT repeat any of these already-selected schools: ${excludeNames.join(", ")}
 Return EXACTLY ${count} schools in the same JSON format.
 The "enrollment" field MUST be the REAL undergraduate enrollment number.
 Include a mix of Reach (< 40%), Match (40-70%), and Safety (> 70%).`;
+}
+
+// ── Helper: physical-only message (Stage 3 — min-6 fallback, no academic criteria) ──
+
+function buildPhysicalOnlyMessage(
+  request: FilteredRecommendationsRequest,
+  count: number,
+  excludeNames: string[],
+): string {
+  const regionStateMap: Record<string, string> = {
+    "Northeast": "Massachusetts, Connecticut, Rhode Island, Maine, Vermont, New Hampshire, New York",
+    "Mid-Atlantic": "Pennsylvania, New Jersey, Delaware, Maryland, Virginia, West Virginia, DC",
+    "South": "North Carolina, South Carolina, Georgia, Florida, Alabama, Mississippi, Louisiana, Tennessee, Kentucky, Arkansas, Texas, Oklahoma",
+    "Midwest": "Ohio, Michigan, Indiana, Illinois, Wisconsin, Minnesota, Iowa, Missouri, Kansas, Nebraska, South Dakota, North Dakota",
+    "West": "California, Oregon, Washington, Colorado, Arizona, Nevada, Utah, New Mexico, Idaho, Montana, Wyoming, Hawaii, Alaska",
+  };
+
+  const constraints: string[] = [];
+
+  if (request.sizes.length > 0 && request.sizes.length < 5) {
+    const sizeDescs = request.sizes.map(s => `${s} (${SIZE_DESCRIPTIONS[s]} undergrads)`).join(" OR ");
+    constraints.push(
+      `ABSOLUTE REQUIREMENT — ENROLLMENT SIZE: Every school MUST have undergraduate enrollment within: ${sizeDescs}. A school with enrollment outside this range is WRONG.`
+    );
+  }
+
+  if (request.regions.length > 0 && request.regions.length < 5) {
+    const regionDetails = request.regions.map((r) => `${r} (${regionStateMap[r] ?? ""})`).join(" OR ");
+    constraints.push(
+      `ABSOLUTE REQUIREMENT — REGION: Every school MUST be in: ${regionDetails}. Verify each school's actual state.`
+    );
+  }
+
+  if (request.policies.length > 0 && request.policies.length < 3) {
+    let policyLine = `ABSOLUTE REQUIREMENT — TESTING POLICY: Every school MUST have policy: ${request.policies.join(" OR ")}.`;
+    if (!request.policies.includes("Test Required")) {
+      const shortNames = [...new Set(TEST_REQUIRED_SCHOOLS.filter((n) => n.includes(" ")))].slice(0, 20);
+      policyLine += ` DO NOT include: ${shortNames.join(", ")}.`;
+    }
+    constraints.push(policyLine);
+  }
+
+  const constraintBlock = constraints.length > 0 ? constraints.join("\n\n") : "";
+
+  return `PHYSICAL FILTERS ONLY — ignore GPA, SAT, ACT, and academic matching entirely.
+Select schools based ONLY on the physical constraints below.
+
+${constraintBlock}
+
+List EXACTLY ${count} accredited 4-year US colleges that match ALL of the above physical filters.
+Search the COMPLETE national database — include lesser-known regional universities, state colleges, liberal arts colleges, HBCUs, and small private institutions.
+Include a BROAD range of selectivity levels.
+
+Do NOT repeat any of these already-selected schools: ${excludeNames.join(", ")}
+
+The "enrollment" field MUST be the REAL undergraduate enrollment number.
+Set acceptanceProbability to 50 for all schools (academic matching is not relevant here).`;
 }
 
 // ── Helper: student description for Scorecard enrichment ─────────────

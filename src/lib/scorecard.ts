@@ -58,12 +58,37 @@ function applyHardFilters(schools: RecommendedSchool[], filters?: FilterConstrai
   });
 }
 
+/** Normalize school names to catch abbreviation variants during dedup.
+ *  Maps known abbreviations to their canonical full form. */
+export function normalizeSchoolName(name: string): string {
+  let n = name.toLowerCase().trim();
+  const aliases: Record<string, string> = {
+    "mit": "massachusetts institute of technology",
+    "ucla": "university of california, los angeles",
+    "usc": "university of southern california",
+    "uchicago": "university of chicago",
+    "upenn": "university of pennsylvania",
+    "uva": "university of virginia",
+    "unc": "university of north carolina",
+    "nyu": "new york university",
+    "cmu": "carnegie mellon university",
+    "caltech": "california institute of technology",
+    "georgia tech": "georgia institute of technology",
+    "washu": "washington university in st louis",
+    "wustl": "washington university in st louis",
+  };
+  for (const [abbr, full] of Object.entries(aliases)) {
+    if (n === abbr) return full;
+  }
+  return n;
+}
+
 /** Strict deduplication — no school name may appear more than once.
- *  Case-insensitive. Keeps the FIRST occurrence (highest-priority). */
+ *  Case-insensitive with abbreviation normalization. Keeps the FIRST occurrence (highest-priority). */
 export function deduplicateByName(schools: RecommendedSchool[]): RecommendedSchool[] {
   const seen = new Set<string>();
   return schools.filter((s) => {
-    const key = s.name.toLowerCase().trim();
+    const key = normalizeSchoolName(s.name);
     if (seen.has(key)) {
       console.log(`[Dedup] REMOVED duplicate: ${s.name}`);
       return false;
@@ -683,7 +708,7 @@ function pick343(pool: RecommendedSchool[]): RecommendedSchool[] {
   // Loop 1: Fill Reach (exactly 3)
   for (const s of reach) {
     if (result.filter((r) => r.type === "reach").length >= 3) break;
-    const key = s.name.toLowerCase().trim();
+    const key = normalizeSchoolName(s.name);
     if (usedKeys.has(key)) continue;
     result.push(s);
     usedKeys.add(key);
@@ -691,7 +716,7 @@ function pick343(pool: RecommendedSchool[]): RecommendedSchool[] {
 
   // Loop 2: Fill Match (exactly 3)
   for (const s of match) {
-    const key = s.name.toLowerCase().trim();
+    const key = normalizeSchoolName(s.name);
     if (usedKeys.has(key)) continue;
     if (result.filter((r) => r.type === "match").length >= 3) break;
     result.push(s);
@@ -700,7 +725,7 @@ function pick343(pool: RecommendedSchool[]): RecommendedSchool[] {
 
   // Loop 3: Fill Safety (exactly 3)
   for (const s of safety) {
-    const key = s.name.toLowerCase().trim();
+    const key = normalizeSchoolName(s.name);
     if (usedKeys.has(key)) continue;
     if (result.filter((r) => r.type === "safety").length >= 3) break;
     result.push(s);
@@ -713,7 +738,7 @@ function pick343(pool: RecommendedSchool[]): RecommendedSchool[] {
   const MIDPOINTS: Record<string, number> = { reach: 20, match: 45, safety: 80 };
 
   while (result.length < 9) {
-    const unused = pool.filter((s) => !usedKeys.has(s.name.toLowerCase().trim()));
+    const unused = pool.filter((s) => !usedKeys.has(normalizeSchoolName(s.name)));
     if (unused.length === 0) break;
 
     const mCount = result.filter((r) => r.type === "match").length;
@@ -735,7 +760,7 @@ function pick343(pool: RecommendedSchool[]): RecommendedSchool[] {
       `[343-Backfill] Reassigning "${best.name}" (odds=${best.acceptanceProbability}%) from ${best.type} → ${needType}`
     );
     result.push({ ...best, type: needType });
-    usedKeys.add(best.name.toLowerCase().trim());
+    usedKeys.add(normalizeSchoolName(best.name));
   }
 
   console.log(

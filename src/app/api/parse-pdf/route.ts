@@ -249,6 +249,13 @@ export async function POST(request: NextRequest) {
         - Only courses associated with the student's CURRENT or PREVIOUS grade years count as "taken"
         - Future-year courses (e.g., 11th-grade courses for a 10th grader) are NEVER "taken"
 
+        FRESHMAN (9th GRADE) SPECIAL RULE:
+        - A freshman transcript will contain VERY FEW courses (typically only 1 year of each subject)
+        - Do NOT assume ANY prerequisites were taken. A freshman showing "Honors Biology" does NOT imply they took "Biology" first
+        - The "taken" array for a freshman should be SHORT — typically 5-7 courses total
+        - Any course NOT explicitly listed with a grade on the transcript is NOT taken, period
+        - This rule applies regardless of how "obvious" the prerequisite seems
+
         STEP 1 — HARD MATCH "TAKEN" POLICY (CRITICAL):
         - A course is "taken" ONLY if its EXACT course title appears in the TRANSCRIPT PDF with an associated grade or mark
         - HARD MATCH means literal string matching — the course title on the transcript must match the course title in the school profile

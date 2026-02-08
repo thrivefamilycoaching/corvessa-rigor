@@ -96,11 +96,36 @@ function normalizeDisplayOdds(school: RecommendedSchool): RecommendedSchool {
   return { ...school, acceptanceProbability: displayOdds };
 }
 
-/** Strict deduplication — no school name may appear more than once (client-side). */
+/** Normalize school names to catch abbreviation variants during dedup (client-side mirror). */
+function normalizeSchoolName(name: string): string {
+  let n = name.toLowerCase().trim();
+  const aliases: Record<string, string> = {
+    "mit": "massachusetts institute of technology",
+    "ucla": "university of california, los angeles",
+    "usc": "university of southern california",
+    "uchicago": "university of chicago",
+    "upenn": "university of pennsylvania",
+    "uva": "university of virginia",
+    "unc": "university of north carolina",
+    "nyu": "new york university",
+    "cmu": "carnegie mellon university",
+    "caltech": "california institute of technology",
+    "georgia tech": "georgia institute of technology",
+    "washu": "washington university in st louis",
+    "wustl": "washington university in st louis",
+  };
+  for (const [abbr, full] of Object.entries(aliases)) {
+    if (n === abbr) return full;
+  }
+  return n;
+}
+
+/** Strict deduplication — no school name may appear more than once (client-side).
+ *  Uses abbreviation normalization to catch variants like "MIT" vs full name. */
 function deduplicateByName(schools: RecommendedSchool[]): RecommendedSchool[] {
   const seen = new Set<string>();
   return schools.filter((s) => {
-    const key = s.name.toLowerCase().trim();
+    const key = normalizeSchoolName(s.name);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -384,7 +409,7 @@ export function RecommendedSchools({
     const filteredExisting = clientCorrectAndFilter(initialSchools, regions, sizes, policies);
 
     // If enough schools match locally, use them directly.
-    if (filteredExisting.length >= 9) {
+    if (filteredExisting.length >= 6) {
       setFilteredSchools(filteredExisting, regions, sizes, policies);
       setFiltersApplied(true);
       return;
