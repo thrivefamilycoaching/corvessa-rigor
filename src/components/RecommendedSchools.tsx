@@ -320,6 +320,7 @@ export function RecommendedSchools({
   const [pendingPolicies, setPendingPolicies] = useState<TestPolicyType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [filtersApplied, setFiltersApplied] = useState(false);
+  const [filterError, setFilterError] = useState<string | null>(null);
 
   const toggleRegion = (region: RegionType) => {
     setPendingRegions((prev) =>
@@ -372,6 +373,7 @@ export function RecommendedSchools({
     setPendingPolicies([]);
     setSchools(deduplicateByName(balanceSchools(deduplicateByName(initialSchools))));
     setFiltersApplied(false);
+    setFilterError(null);
   };
 
   /** Centralized school setter — ALWAYS purges by active filters before display.
@@ -401,27 +403,18 @@ export function RecommendedSchools({
     if (regions.length === 0 && sizes.length === 0 && policies.length === 0) {
       setSchools(deduplicateByName(balanceSchools(deduplicateByName(initialSchools))));
       setFiltersApplied(false);
+      setFilterError(null);
       return;
     }
 
-    // FILTER FIRST: filter the master list to ONLY matching schools,
-    // then pick the best academic matches from that pile.
-    const filteredExisting = clientCorrectAndFilter(initialSchools, regions, sizes, policies);
-
-    // If enough schools match locally, use them directly.
-    if (filteredExisting.length >= 6) {
-      setFilteredSchools(filteredExisting, regions, sizes, policies);
-      setFiltersApplied(true);
-      return;
-    }
-
-    // Not enough matches locally — fetch new recommendations from GPT
-    // with strict filter constraints, broadened academic range, and a
-    // 20s timeout.  Merge with local matches to maximize 3-3-3 fill.
+    // ALWAYS call the server when filters are active — the server pipeline
+    // has the full GPT + Scorecard enrichment + backfill logic needed to
+    // reliably return 9 schools. Local filtering alone drops too many.
     setIsLoading(true);
+    setFilterError(null);
     try {
       const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Search timed out")), 20000)
+        setTimeout(() => reject(new Error("Search timed out — please try again")), 25000)
       );
       const newSchools = await Promise.race([
         getFilteredRecommendations({
@@ -437,26 +430,13 @@ export function RecommendedSchools({
         timeout,
       ]);
 
-      // Merge GPT results with local matches (deduped), prioritizing
-      // local matches to preserve Scorecard-enriched data.
-      const merged = [...filteredExisting];
-      const seenNames = new Set(merged.map((s) => s.name.toLowerCase()));
-      for (const s of newSchools) {
-        if (!seenNames.has(s.name.toLowerCase())) {
-          merged.push(s);
-          seenNames.add(s.name.toLowerCase());
-        }
-      }
-
       // Centralized purge + balance + verify — zero tolerance
-      setFilteredSchools(merged, regions, sizes, policies);
+      setFilteredSchools(newSchools, regions, sizes, policies);
       setFiltersApplied(true);
     } catch (error) {
       console.error("Failed to fetch filtered recommendations:", error);
-      // On timeout/error: show only schools that match the active filters.
-      // NEVER fall back to unfiltered initialSchools.
-      setFilteredSchools([...filteredExisting, ...initialSchools], regions, sizes, policies);
-      setFiltersApplied(true);
+      const message = error instanceof Error ? error.message : "An unexpected error occurred";
+      setFilterError(`Filter search failed: ${message}. Please try again or adjust your filters.`);
     } finally {
       setIsLoading(false);
     }
@@ -674,6 +654,15 @@ export function RecommendedSchools({
           </div>
         ) : (
           <>
+            {/* Filter error banner */}
+            {filterError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 p-3 mb-4">
+                <p className="text-sm text-red-700 dark:text-red-400">
+                  {filterError}
+                </p>
+              </div>
+            )}
+
             {/* Disclaimer when filters narrow the pool below 3-3-3 */}
             {!is333Valid && hasActiveFilters && schools.length > 0 && (
               <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800 p-3 mb-4">

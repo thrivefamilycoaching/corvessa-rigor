@@ -191,6 +191,13 @@ Include schools with various testing policies (Test Optional, Test Required, Tes
 
 ${constraintBlock}
 
+CRITICAL COUNT REQUIREMENT: You MUST return EXACTLY 9 schools — no more, no fewer. The response MUST contain exactly 3 Reach, 3 Match, and 3 Safety schools. A response with fewer than 9 schools is WRONG.
+
+CRITICAL FILTER COMPLIANCE: Every single school MUST satisfy ALL active filter constraints (region, size, testing policy). Before including any school, verify:
+1. Its real undergraduate enrollment falls within the allowed size range(s)
+2. Its actual geographic location matches the allowed region(s)
+3. Its testing policy matches the allowed policy filter(s)
+
 Return ONLY a JSON object: { "schools": [{ "name", "url", "type", "region", "campusSize", "enrollment", "testPolicy", "acceptanceProbability", "matchReasoning" }] }
 
 The "enrollment" field MUST be the REAL undergraduate enrollment number for each school. Double-check it.
@@ -207,7 +214,11 @@ REGION DEFINITIONS:
 SIZE DEFINITIONS:
 - Micro: Under 2,000 undergrads | Small: 2,000-5,000 | Medium: 5,000-15,000 | Large: 15,000-30,000 | Mega: 30,000+
 
-Distribution target: 3 Reach, 3 Match, 3 Safety.`;
+BEFORE RESPONDING — VERIFICATION CHECKLIST:
+- Count the schools array: is it exactly 9? If not, add or remove schools until it is.
+- For each school, re-verify enrollment is within the allowed size range.
+- For each school, re-verify the state/region matches the allowed region filter.
+- Confirm distribution: exactly 3 Reach, 3 Match, 3 Safety.`;
 }
 
 // ── Helper: initial student message ──────────────────────────────────
@@ -256,8 +267,9 @@ ${request.recalculatedGPA ? `- Recalculated Core GPA: ${request.recalculatedGPA}
 ${request.testScores?.satReading && request.testScores?.satMath ? `- SAT Score: ${request.testScores.satReading + request.testScores.satMath} (${request.testScores.satReading} R/W + ${request.testScores.satMath} Math)` : ""}
 ${request.testScores?.actComposite ? `- ACT Composite: ${request.testScores.actComposite}` : ""}
 
-Recommend EXACTLY ${count} colleges matching ALL specified Region, Size, and Policy filters. Include an exact acceptanceProbability (1-95%) for each.${request.testScores?.satReading || request.testScores?.satMath || request.testScores?.actComposite ? " Use test scores to refine categorization." : ""}
-The "enrollment" field MUST be the REAL undergraduate enrollment number for each school.${constraintBlock}`;
+You MUST return EXACTLY ${count} colleges — no more, no fewer. Every single school MUST match ALL specified Region, Size, and Policy filters. Include an exact acceptanceProbability (1-95%) for each. Distribution: exactly 3 Reach, 3 Match, 3 Safety.${request.testScores?.satReading || request.testScores?.satMath || request.testScores?.actComposite ? " Use test scores to refine categorization." : ""}
+The "enrollment" field MUST be the REAL undergraduate enrollment number for each school.
+BEFORE RESPONDING: Count your schools array — if it is not exactly ${count}, fix it.${constraintBlock}`;
 }
 
 // ── Helper: checkbox pool message (Stage 1 — checkboxes are PRIMARY) ──
@@ -313,10 +325,10 @@ function buildCheckboxPoolMessage(
     secondaryParts.push(`ACT: ${request.testScores.actComposite}`);
   }
 
-  return `PRIMARY SELECTION CRITERIA (use ONLY these to choose which schools to include):
+  return `CRITICAL FILTER REQUIREMENTS (use ONLY these to choose which schools to include):
 ${primaryBlock}
 
-List EXACTLY ${count} accredited 4-year US colleges that match ALL of the above physical filters.
+You MUST return EXACTLY ${count} accredited 4-year US colleges. Every single school MUST match ALL of the above physical filters — no exceptions.
 Search the COMPLETE national database — include lesser-known regional universities, state colleges, liberal arts colleges, HBCUs, and small private institutions, not just nationally ranked schools.
 Include a BROAD range of selectivity levels: highly selective, moderately selective, and open/easy admission.
 
@@ -326,7 +338,8 @@ School Context: ${request.schoolProfileSummary}
 Academic Summary: ${request.transcriptSummary}
 
 The "enrollment" field MUST be the REAL undergraduate enrollment number for each school.
-Return a mix of Reach (< 40%), Match (40-70%), and Safety (> 70%).`;
+Return a mix of Reach (< 40%), Match (40-70%), and Safety (> 70%).
+BEFORE RESPONDING: Count your schools array — if it is not exactly ${count}, fix it. Verify every school's enrollment and region against the filters.`;
 }
 
 // ── Helper: checkbox expand message (Stage 2 — additional schools) ─────
