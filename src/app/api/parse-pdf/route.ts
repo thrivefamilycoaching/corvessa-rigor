@@ -167,10 +167,12 @@ export async function POST(request: NextRequest) {
 
         For recommendedSchools:
         - Conduct a NATIONAL search across the entire United States - do NOT limit to any single state or region
-        - You MUST return EXACTLY 27 schools. No more, no fewer.
-        - Categorize by acceptanceProbability: Safety (>70%), Match (40-70%), Reach (<40%). Distribution: 9 Safety, 9 Match, 9 Reach. No exceptions.
-        - Include at least 2-3 schools from EACH region (Northeast, Mid-Atlantic, South, Midwest, West)
-        - Include at least 2-3 schools from EACH size category (Micro, Small, Medium, Large, Mega)
+        - Generate exactly 30 recommended colleges in the recommendedSchools array:
+          * 10 reach, 10 match, 10 safety
+          * At least 2 schools per region (Northeast, Mid-Atlantic, South, Midwest, West) — that's at least 10 schools spread across regions
+          * At least 2 schools per size category (Micro, Small, Medium, Large, Mega) — that's at least 10 schools spread across sizes
+          * Every region+size combination does not need to be covered, but ensure broad coverage
+        - This large pool allows client-side filtering. The UI will show 9 schools (3/3/3) from this pool.
         - Specifically value independent school rigor and challenging curricula
         ABSOLUTE REQUIREMENT — TEST POLICY ACCURACY (CRITICAL):
         - Include "testPolicy" for each school: "Test Optional", "Test Required", or "Test Blind"
