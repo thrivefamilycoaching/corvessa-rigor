@@ -153,6 +153,7 @@ Provide your comprehensive rigor analysis in the specified JSON format. Remember
 
   try {
     const analysis = JSON.parse(content) as AnalysisResult;
+    console.log("GPT schools count:", analysis.recommendedSchools.length, "Micro:", analysis.recommendedSchools.filter((s: any) => s.campusSize === "Micro").length);
 
     // ── Post-processing: guarantee every size and region has schools ──
     const backupSchools: RecommendedSchool[] = [
@@ -216,6 +217,7 @@ Provide your comprehensive rigor analysis in the specified JSON format. Remember
         }
       }
     }
+    console.log("After backup schools count:", analysis.recommendedSchools.length, "Micro:", analysis.recommendedSchools.filter((s: any) => s.campusSize === "Micro").length);
 
     for (const region of regions) {
       const countForRegion = analysis.recommendedSchools.filter(s => s.region === region).length;
