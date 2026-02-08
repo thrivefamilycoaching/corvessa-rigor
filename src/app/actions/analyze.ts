@@ -191,14 +191,9 @@ Include schools with various testing policies (Test Optional, Test Required, Tes
 
 ${constraintBlock}
 
-CRITICAL COUNT REQUIREMENT: You MUST return EXACTLY 9 schools — no more, no fewer. The response MUST contain exactly 3 Reach, 3 Match, and 3 Safety schools. A response with fewer than 9 schools is WRONG.
+CRITICAL COUNT REQUIREMENT: You MUST return exactly 9 schools — 3 reach, 3 match, 3 safety. Never return fewer than 9 schools. A response with fewer than 9 schools is WRONG.
 
-CRITICAL FILTER COMPLIANCE: Every single school MUST satisfy ALL active filter constraints (region, size, testing policy). Before including any school, verify:
-1. Its real undergraduate enrollment falls within the allowed size range(s)
-2. Its actual geographic location matches the allowed region(s)
-3. Its testing policy matches the allowed policy filter(s)
-
-NARROW FILTER FALLBACK: If you cannot find 9 schools that exactly match all filters, prioritize the REGION filter and relax the size constraint slightly to fill all 9 slots. For example, if the user selected "Micro" but there aren't enough Micro schools in the selected region, include Small schools (next closest size) to reach exactly 9. Always note the actual enrollment and size category accurately — never misrepresent a school's size. The user would rather see 9 schools with a few slightly outside their size preference than only 6 schools.
+If fewer than 9 schools exist that match ALL filters exactly, expand to adjacent size categories (e.g., if Micro is selected, also include Small schools) to reach exactly 9. Always label each school's actual campusSize accurately based on its real enrollment — never misrepresent a school's size. The user would rather see 9 schools with a few slightly outside their size preference than only 6 schools. Prioritize the REGION filter above all others.
 
 Return ONLY a JSON object: { "schools": [{ "name", "url", "type", "region", "campusSize", "enrollment", "testPolicy", "acceptanceProbability", "matchReasoning" }] }
 
@@ -502,64 +497,33 @@ async function callGPTForSchools(
   openai: OpenAI,
   systemPrompt: string,
   userMessage: string,
-  expectedCount: number,
+  _count: number,
 ): Promise<RecommendedSchool[]> {
-  const MAX_ATTEMPTS = 3;
-  let currentUserMsg = userMessage;
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.3,
+    });
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    try {
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: currentUserMsg },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.7,
-      });
+    const content = response.choices[0]?.message?.content;
+    if (!content) return [];
 
-      const content = response.choices[0]?.message?.content;
-      if (!content) {
-        console.log(`[GPT-Filter] Attempt ${attempt}: empty response`);
-        continue;
-      }
+    const result = JSON.parse(content) as { schools: RecommendedSchool[] };
+    const raw = result.schools ?? [];
 
-      const result = JSON.parse(content) as { schools: RecommendedSchool[] };
-      const raw = result.schools ?? [];
-
-      // CORRECT metadata at source — fix campusSize/region/testPolicy IMMEDIATELY
-      const corrected = correctSchoolMetadata(raw);
-      // DEDUPLICATE at source — GPT can return the same school twice
-      const schools = deduplicateByName(corrected);
-
-      // Validate count and 3/3/3 distribution
-      const reach = schools.filter(s => s.type === "reach").length;
-      const match = schools.filter(s => s.type === "match").length;
-      const safety = schools.filter(s => s.type === "safety").length;
-      const is333 = reach >= 3 && match >= 3 && safety >= 3;
-
-      console.log(`[GPT-Filter] Attempt ${attempt}: ${schools.length} schools (${reach}R/${match}M/${safety}S)`);
-
-      if (schools.length >= expectedCount && is333) {
-        return schools;
-      }
-
-      // On last attempt, accept whatever we got
-      if (attempt === MAX_ATTEMPTS) {
-        console.log(`[GPT-Filter] Accepting ${schools.length} schools after ${MAX_ATTEMPTS} attempts`);
-        return schools;
-      }
-
-      // Retry with correction appended to user message
-      currentUserMsg = userMessage + `\n\nIMPORTANT: Your previous response had ${schools.length} schools instead of ${expectedCount}. You MUST return EXACTLY ${expectedCount} schools: 3 reach, 3 match, 3 safety. This is a hard requirement.`;
-    } catch (err) {
-      console.error(`[GPT-Filter] Attempt ${attempt} failed:`, err);
-      if (attempt === MAX_ATTEMPTS) return [];
-    }
+    // CORRECT metadata at source — fix campusSize/region/testPolicy IMMEDIATELY
+    const corrected = correctSchoolMetadata(raw);
+    // DEDUPLICATE at source — GPT can return the same school twice
+    return deduplicateByName(corrected);
+  } catch (err) {
+    console.error("[GPT-Filter] Call failed:", err);
+    return [];
   }
-
-  return [];
 }
 
 // ── Helper: enrollment-based size check (numeric, not label) ──────────
