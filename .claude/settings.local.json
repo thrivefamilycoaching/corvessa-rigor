@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(npx vercel:*)",
+      "Bash(npx next build:*)",
+      "Bash(npm install:*)",
+      "Bash(npm ls:*)",
+      "Bash(npx tsc:*)",
+      "Bash(REQUIREMENT — ENROLLMENT ACCURACY\" with exact range definitions and\nverification instructions. Adds post-GPT campusSize consistency check\nusing getEnrollmentSize\\(\\) to correct any enrollment/campusSize mismatches\nbefore schools reach the client.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(findstr:*)",
+      "Bash(dir:*)"
+    ]
+  }
+}
