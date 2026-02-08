@@ -93,25 +93,25 @@ export async function getFilteredRecommendations(
   passed = deduplicateByName(passed);
   passed = absoluteEnrollmentKill(passed, request.sizes);
 
-  // ── MIN-6 BACKFILL: guarantee at least 6 schools when filters are active ──
-  if (hasFilters && passed.length < 6) {
+  // ── MIN-9 BACKFILL: guarantee at least 9 schools when filters are active ──
+  if (hasFilters && passed.length < 9) {
     console.log(`[Backfill] Only ${passed.length} schools — backfilling from physical pool (${physicalPool.length} candidates)`);
     const usedNames = new Set(passed.map(s => normalizeSchoolName(s.name)));
     const backfill = physicalPool
       .filter(s => !usedNames.has(normalizeSchoolName(s.name)))
       .map(s => ({ ...s, type: "match" as const }));
     for (const s of backfill) {
-      if (passed.length >= 6) break;
+      if (passed.length >= 9) break;
       passed.push(s);
     }
     passed = deduplicateByName(passed);
     console.log(`[Backfill] After pool backfill: ${passed.length} schools`);
   }
 
-  // ── STAGE 3 GPT FALLBACK: if still < 6 after pool backfill ──
-  if (hasFilters && passed.length < 6) {
+  // ── STAGE 3 GPT FALLBACK: if still < 9 after pool backfill ──
+  if (hasFilters && passed.length < 9) {
     console.log(`[Stage3] Still only ${passed.length} schools — firing physical-only GPT call`);
-    const needed = 6 - passed.length + 3; // request extras to account for filter kills
+    const needed = 9 - passed.length + 3; // request extras to account for filter kills
     const excludeNames = passed.map(s => s.name);
     const stage3Msg = buildPhysicalOnlyMessage(request, needed, excludeNames);
 
@@ -122,7 +122,7 @@ export async function getFilteredRecommendations(
     // Merge with existing results (normalized dedup)
     const seenNames = new Set(passed.map(s => normalizeSchoolName(s.name)));
     for (const s of stage3Pool) {
-      if (passed.length >= 6) break;
+      if (passed.length >= 9) break;
       if (!seenNames.has(normalizeSchoolName(s.name))) {
         passed.push({ ...s, type: "match" as const });
         seenNames.add(normalizeSchoolName(s.name));
@@ -197,6 +197,8 @@ CRITICAL FILTER COMPLIANCE: Every single school MUST satisfy ALL active filter c
 1. Its real undergraduate enrollment falls within the allowed size range(s)
 2. Its actual geographic location matches the allowed region(s)
 3. Its testing policy matches the allowed policy filter(s)
+
+NARROW FILTER FALLBACK: If you cannot find 9 schools that exactly match all filters, prioritize the REGION filter and relax the size constraint slightly to fill all 9 slots. For example, if the user selected "Micro" but there aren't enough Micro schools in the selected region, include Small schools (next closest size) to reach exactly 9. Always note the actual enrollment and size category accurately — never misrepresent a school's size. The user would rather see 9 schools with a few slightly outside their size preference than only 6 schools.
 
 Return ONLY a JSON object: { "schools": [{ "name", "url", "type", "region", "campusSize", "enrollment", "testPolicy", "acceptanceProbability", "matchReasoning" }] }
 
@@ -339,6 +341,7 @@ Academic Summary: ${request.transcriptSummary}
 
 The "enrollment" field MUST be the REAL undergraduate enrollment number for each school.
 Return a mix of Reach (< 40%), Match (40-70%), and Safety (> 70%).
+If you cannot find ${count} schools matching all filters exactly, prioritize REGION and relax size slightly (e.g., include Small if Micro is too narrow). Always report actual enrollment accurately.
 BEFORE RESPONDING: Count your schools array — if it is not exactly ${count}, fix it. Verify every school's enrollment and region against the filters.`;
 }
 
@@ -467,7 +470,8 @@ Include a BROAD range of selectivity levels.
 Do NOT repeat any of these already-selected schools: ${excludeNames.join(", ")}
 
 The "enrollment" field MUST be the REAL undergraduate enrollment number.
-Set acceptanceProbability to 50 for all schools (academic matching is not relevant here).`;
+Set acceptanceProbability to 50 for all schools (academic matching is not relevant here).
+If you cannot find ${count} schools matching all filters exactly, prioritize REGION and relax size slightly (e.g., include Small if Micro is too narrow). Always report actual enrollment accurately.`;
 }
 
 // ── Helper: student description for Scorecard enrichment ─────────────
