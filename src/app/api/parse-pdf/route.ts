@@ -393,37 +393,7 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
       console.log(`[InitialPDF] ${analysis.recommendedSchools.length} schools after correction + dedup`);
     }
 
-    // ── Enrich GPT schools with Scorecard data (testPolicy, acceptanceProbability, odds) ──
-    const studentProfile = {
-      testScores,
-      gpa: analysis.recalculatedGPA,
-      rigorScore: analysis.scorecard?.overallScore,
-    };
-
-    // Race enrichment against a 20-second budget.
-    const enrichedPool = await Promise.race([
-      enrichSchoolsWithScorecardData(analysis.recommendedSchools, studentProfile),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 20_000)),
-    ]);
-
-    if (enrichedPool) {
-      analysis.recommendedSchools = enrichedPool;
-      console.log("[Enrichment] Enriched full pool:", analysis.recommendedSchools.length, "schools");
-    } else {
-      console.log("[Enrichment] Timeout, keeping unenriched pool");
-    }
-
-    // Reclassify any school whose type doesn't match its odds
-    analysis.recommendedSchools = analysis.recommendedSchools.map((s: any) => {
-      if (s.acceptanceProbability !== undefined) {
-        if (s.acceptanceProbability < 30) s.type = "reach";
-        else if (s.acceptanceProbability >= 80) s.type = "safety";
-        else s.type = "match";
-      }
-      return s;
-    });
-
-    // BACKUP: Guarantee every size and region category has schools
+    // BACKUP: Guarantee every size and region category has schools BEFORE enrichment
     const backupSchools: RecommendedSchool[] = [
       // MICRO - Northeast
       { name: "Williams College", url: "https://www.williams.edu", type: "reach", region: "Northeast", campusSize: "Micro", enrollment: 2000, matchReasoning: "Williams' rigorous liberal arts curriculum and small class sizes align well with this student's strong academic foundation." },
@@ -504,18 +474,47 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
       }
     }
 
-    console.log("[Backup] School count after backfill:", analysis.recommendedSchools.length, "Micro:", analysis.recommendedSchools.filter((s: any) => s.campusSize === "Micro").length);
+    console.log("[Backup] Pool before enrichment:", analysis.recommendedSchools.length, "Micro:", analysis.recommendedSchools.filter((s: any) => s.campusSize === "Micro").length);
 
     try {
       const filledSchools = await fillGapsFromScorecard(analysis.recommendedSchools);
       analysis.recommendedSchools = filledSchools;
-      console.log("[ScorecardFill] Final pool:", analysis.recommendedSchools.length, "schools");
+      console.log("[ScorecardFill] Pool before enrichment:", analysis.recommendedSchools.length, "schools");
     } catch (e) {
       console.log("[ScorecardFill] Failed, continuing with existing schools:", e);
     }
 
+    // Enrich all schools with Scorecard data (test policy, odds) but do NOT reduce to 9
+    const studentProfile = {
+      testScores,
+      gpa: analysis.recalculatedGPA,
+      rigorScore: analysis.scorecard?.overallScore,
+    };
+
+    const enrichedPool = await Promise.race([
+      enrichSchoolsWithScorecardData(analysis.recommendedSchools, studentProfile),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 20_000)),
+    ]);
+
+    if (enrichedPool) {
+      analysis.recommendedSchools = enrichedPool;
+      console.log("[Enrichment] Enriched pool:", analysis.recommendedSchools.length, "schools");
+    } else {
+      console.log("[Enrichment] Timeout, keeping unenriched pool");
+    }
+
+    // Reclassify every school so type matches its odds
+    analysis.recommendedSchools = analysis.recommendedSchools.map((s: any) => {
+      if (s.acceptanceProbability !== undefined) {
+        if (s.acceptanceProbability < 30) s.type = "reach";
+        else if (s.acceptanceProbability >= 80) s.type = "safety";
+        else s.type = "match";
+      }
+      return s;
+    });
+    console.log("[Reclassify] Pool:", analysis.recommendedSchools.length, "R:", analysis.recommendedSchools.filter((s: any) => s.type === "reach").length, "M:", analysis.recommendedSchools.filter((s: any) => s.type === "match").length, "S:", analysis.recommendedSchools.filter((s: any) => s.type === "safety").length);
+
     // ── Final metadata re-correction + dedup ────────────
-    // Ensure backup + ScorecardFill schools also get corrected metadata.
     if (analysis.recommendedSchools) {
       analysis.recommendedSchools = analysis.recommendedSchools.map((s) => {
         let fixed = s;
