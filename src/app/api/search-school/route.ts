@@ -51,7 +51,7 @@ const SCHOOLS = [
   { name: "University of Tennessee", state: "TN", enrollment: 30000, admitRate: 0.83, url: "utk.edu", testPolicy: "Test Required" },
   { name: "Virginia Tech", state: "VA", enrollment: 35000, admitRate: 0.57, url: "vt.edu", testPolicy: "Test Required" },
   { name: "James Madison University", state: "VA", enrollment: 22000, admitRate: 0.76, url: "jmu.edu", testPolicy: "Test Optional" },
-  { name: "George Mason University", state: "VA", enrollment: 38000, admitRate: 0.89, url: "gmu.edu", testPolicy: "Test Optional" },
+  { name: "George Mason University", state: "VA", enrollment: 38000, admitRate: 0.89, url: "gmu.edu", testPolicy: "Test Required" },
   { name: "University of Maryland College Park", state: "MD", enrollment: 36000, admitRate: 0.45, url: "umd.edu", testPolicy: "Test Required" },
   { name: "Penn State University", state: "PA", enrollment: 46000, admitRate: 0.55, url: "psu.edu", testPolicy: "Test Required" },
   { name: "Ohio State University", state: "OH", enrollment: 60000, admitRate: 0.53, url: "osu.edu", testPolicy: "Test Required" },
