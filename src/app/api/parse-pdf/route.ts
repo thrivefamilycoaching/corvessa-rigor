@@ -566,45 +566,43 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
     // ── In-state admission boost for public universities ──────────────────
     const STATE_TO_PUBLIC_BOOST: Record<string, string[]> = {
       "VA": ["University of Virginia", "Virginia Tech", "James Madison University", "George Mason University", "Old Dominion University", "Virginia Commonwealth University", "College of William & Mary", "Christopher Newport University", "Radford University"],
-      "MD": ["University of Maryland College Park", "University of Maryland, College Park", "Towson University", "Salisbury University"],
-      "PA": ["Penn State University", "University of Pittsburgh", "Temple University"],
-      "NC": ["University of North Carolina at Chapel Hill", "NC State University", "Appalachian State University"],
-      "CA": ["University of California Berkeley", "University of California Los Angeles", "University of California San Diego", "University of California Davis", "University of California Santa Barbara", "University of California Irvine"],
-      "NY": ["SUNY Binghamton", "SUNY Stony Brook", "University at Buffalo"],
-      "FL": ["University of Florida", "Florida State University", "University of South Florida", "University of Central Florida"],
-      "TX": ["University of Texas at Austin", "Texas A&M University"],
+      "MD": ["University of Maryland", "Towson University", "Salisbury University"],
+      "PA": ["Penn State", "University of Pittsburgh", "Temple University"],
+      "NC": ["University of North Carolina", "NC State", "Appalachian State"],
+      "CA": ["University of California", "California State"],
+      "NY": ["SUNY", "University at Buffalo"],
+      "FL": ["University of Florida", "Florida State", "University of South Florida", "University of Central Florida"],
+      "TX": ["University of Texas", "Texas A&M"],
       "GA": ["University of Georgia", "Georgia Institute of Technology"],
-      "OH": ["Ohio State University", "University of Cincinnati", "Miami University Ohio"],
-      "MI": ["University of Michigan", "Michigan State University"],
-      "IL": ["University of Illinois Urbana-Champaign", "University of Illinois at Urbana-Champaign"],
-      "WI": ["University of Wisconsin Madison", "University of Wisconsin-Madison"],
-      "IN": ["Indiana University Bloomington", "Purdue University"],
-      "SC": ["University of South Carolina", "Clemson University"],
-      "TN": ["University of Tennessee", "University of Tennessee, Knoxville"],
+      "OH": ["Ohio State", "University of Cincinnati", "Miami University"],
+      "MI": ["University of Michigan", "Michigan State"],
+      "IL": ["University of Illinois"],
+      "WI": ["University of Wisconsin"],
+      "IN": ["Indiana University", "Purdue University"],
+      "SC": ["University of South Carolina", "Clemson"],
+      "TN": ["University of Tennessee"],
       "AL": ["University of Alabama"],
-      "CO": ["University of Colorado Boulder", "Colorado State University"],
-      "OR": ["University of Oregon", "Oregon State University"],
-      "WA": ["University of Washington", "Washington State University"],
-      "AZ": ["University of Arizona", "Arizona State University"],
+      "CO": ["University of Colorado", "Colorado State"],
+      "OR": ["University of Oregon", "Oregon State"],
+      "WA": ["University of Washington", "Washington State"],
+      "AZ": ["University of Arizona", "Arizona State"],
       "MN": ["University of Minnesota"],
-      "IA": ["University of Iowa", "Iowa State University"],
+      "IA": ["University of Iowa", "Iowa State"],
       "MO": ["University of Missouri"],
     };
 
     if (homeState) {
-      const boostSchools = STATE_TO_PUBLIC_BOOST[homeState] || [];
+      const boostNames = STATE_TO_PUBLIC_BOOST[homeState] || [];
       analysis.recommendedSchools = analysis.recommendedSchools.map((s: any) => {
-        const nameMatch = boostSchools.some(bs => s.name.includes(bs) || bs.includes(s.name));
+        const nameMatch = boostNames.some(bn => s.name.includes(bn));
         if (nameMatch && s.acceptanceProbability !== undefined) {
-          const originalOdds = s.acceptanceProbability;
-          // In-state students typically have 1.5-2x better odds at public universities
+          const orig = s.acceptanceProbability;
           s.acceptanceProbability = Math.min(95, Math.round(s.acceptanceProbability * 1.7));
-          s.matchReasoning = `[In-State Advantage] ${s.matchReasoning}`;
-          // Reclassify based on new odds
+          s.matchReasoning = "[In-State Advantage] " + s.matchReasoning;
           if (s.acceptanceProbability < 30) s.type = "reach";
           else if (s.acceptanceProbability >= 80) s.type = "safety";
           else s.type = "match";
-          console.log(`[InState] ${s.name}: odds ${originalOdds}% → ${s.acceptanceProbability}% (${homeState} resident)`);
+          console.log("[InState] " + s.name + ": odds " + orig + "% → " + s.acceptanceProbability + "% (" + homeState + " resident)");
         }
         return s;
       });
