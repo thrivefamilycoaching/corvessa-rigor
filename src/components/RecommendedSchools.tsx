@@ -15,6 +15,7 @@ import {
   Users,
   X,
   SlidersHorizontal,
+  Search,
 } from "lucide-react";
 
 interface RecommendedSchoolsProps {
@@ -27,9 +28,10 @@ interface RecommendedSchoolsProps {
 function selectDisplaySchools(
   allSchools: RecommendedSchool[],
   regions: RegionType[],
-  sizes: CampusSizeType[]
+  sizes: CampusSizeType[],
+  types: string[]
 ): RecommendedSchool[] {
-  const hasFilters = regions.length > 0 || sizes.length > 0;
+  const hasFilters = regions.length > 0 || sizes.length > 0 || types.length > 0;
 
   if (!hasFilters) {
     const reach = allSchools.filter((s) => s.type === "reach").slice(0, 3);
@@ -42,7 +44,8 @@ function selectDisplaySchools(
   const filtered = allSchools.filter((school) => {
     const regionMatch = regions.length === 0 || regions.includes(school.region);
     const sizeMatch = sizes.length === 0 || sizes.includes(school.campusSize);
-    return regionMatch && sizeMatch;
+    const typeMatch = types.length === 0 || types.includes(school.type);
+    return regionMatch && sizeMatch && typeMatch;
   });
 
   const usedNames = new Set<string>();
@@ -128,24 +131,34 @@ export function RecommendedSchools({
 }: RecommendedSchoolsProps) {
   const [selectedRegions, setSelectedRegions] = useState<RegionType[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<CampusSizeType[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [pendingRegions, setPendingRegions] = useState<RegionType[]>([]);
   const [pendingSizes, setPendingSizes] = useState<CampusSizeType[]>([]);
+  const [pendingTypes, setPendingTypes] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const displaySchools = useMemo(
-    () => selectDisplaySchools(allSchools, selectedRegions, selectedSizes),
-    [allSchools, selectedRegions, selectedSizes]
+    () => selectDisplaySchools(allSchools, selectedRegions, selectedSizes, selectedTypes),
+    [allSchools, selectedRegions, selectedSizes, selectedTypes]
   );
 
+  const searchResults = useMemo(() => {
+    if (searchQuery.length < 2) return [];
+    const query = searchQuery.toLowerCase();
+    return allSchools.filter((s) => s.name.toLowerCase().includes(query));
+  }, [allSchools, searchQuery]);
+
   const filterMatchCount = useMemo(() => {
-    if (selectedRegions.length === 0 && selectedSizes.length === 0) return displaySchools.length;
+    if (selectedRegions.length === 0 && selectedSizes.length === 0 && selectedTypes.length === 0) return displaySchools.length;
     return displaySchools.filter((school) => {
       const regionMatch = selectedRegions.length === 0 || selectedRegions.includes(school.region);
       const sizeMatch = selectedSizes.length === 0 || selectedSizes.includes(school.campusSize);
-      return regionMatch && sizeMatch;
+      const typeMatch = selectedTypes.length === 0 || selectedTypes.includes(school.type);
+      return regionMatch && sizeMatch && typeMatch;
     }).length;
-  }, [displaySchools, selectedRegions, selectedSizes]);
+  }, [displaySchools, selectedRegions, selectedSizes, selectedTypes]);
 
-  const filtersApplied = selectedRegions.length > 0 || selectedSizes.length > 0;
+  const filtersApplied = selectedRegions.length > 0 || selectedSizes.length > 0 || selectedTypes.length > 0;
 
   const toggleRegion = (region: RegionType) => {
     setPendingRegions((prev) =>
@@ -171,21 +184,38 @@ export function RecommendedSchools({
     setPendingSizes(newSizes);
   };
 
+  const toggleType = (type: string) => {
+    setPendingTypes((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+    );
+  };
+
+  const removeTypeChip = (type: string) => {
+    const newTypes = selectedTypes.filter((t) => t !== type);
+    setSelectedTypes(newTypes);
+    setPendingTypes(newTypes);
+  };
+
   const clearAllFilters = () => {
     setSelectedRegions([]);
     setSelectedSizes([]);
+    setSelectedTypes([]);
     setPendingRegions([]);
     setPendingSizes([]);
+    setPendingTypes([]);
+    setSearchQuery("");
   };
 
   const applyFilters = () => {
     setSelectedRegions([...pendingRegions]);
     setSelectedSizes([...pendingSizes]);
+    setSelectedTypes([...pendingTypes]);
   };
 
   const hasFilterChanges =
     JSON.stringify([...pendingRegions].sort()) !== JSON.stringify([...selectedRegions].sort()) ||
-    JSON.stringify([...pendingSizes].sort()) !== JSON.stringify([...selectedSizes].sort());
+    JSON.stringify([...pendingSizes].sort()) !== JSON.stringify([...selectedSizes].sort()) ||
+    JSON.stringify([...pendingTypes].sort()) !== JSON.stringify([...selectedTypes].sort());
 
   const reachSchools = displaySchools.filter((s) => s.type === "reach");
   const matchSchools = displaySchools.filter((s) => s.type === "match");
@@ -255,6 +285,23 @@ export function RecommendedSchools({
             </div>
           </div>
 
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-2">
+              Admission Likelihood
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {(["reach", "match", "safety"] as const).map((type) => (
+                <label key={type} className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={pendingTypes.includes(type)}
+                    onCheckedChange={() => toggleType(type)}
+                  />
+                  <span className="text-sm capitalize">{type}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
           <div className="flex items-center gap-3 pt-2">
             <Button
               onClick={applyFilters}
@@ -308,8 +355,44 @@ export function RecommendedSchools({
                 </Badge>
               );
             })}
+            {selectedTypes.map((type) => (
+              <Badge
+                key={type}
+                variant="secondary"
+                className="pl-2 pr-1 gap-1 cursor-pointer hover:bg-secondary/80 capitalize"
+                onClick={() => removeTypeChip(type)}
+              >
+                {type === "reach" ? <TrendingUp className="h-3 w-3" /> : type === "match" ? <Target className="h-3 w-3" /> : <Shield className="h-3 w-3" />}
+                {type}
+                <X className="h-3 w-3 ml-1" />
+              </Badge>
+            ))}
           </div>
         )}
+
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <Search className="h-4 w-4" />
+            Search for a Specific School
+          </div>
+          <input
+            type="text"
+            placeholder="Type a school name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          {searchResults.length > 0 && (
+            <div className="space-y-2">
+              {searchResults.map((school, index) => (
+                <SchoolCard key={`search-${index}`} school={school} isFilterMatch={true} />
+              ))}
+            </div>
+          )}
+          {searchQuery.length >= 2 && searchResults.length === 0 && (
+            <p className="text-sm text-muted-foreground">No matching schools found in the recommendation pool.</p>
+          )}
+        </div>
 
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span>{displaySchools.length} schools</span>
@@ -337,7 +420,7 @@ export function RecommendedSchools({
             {reachSchools.length > 0 && (
               <div>
                 <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-red-500" />
+                  <TrendingUp className="h-4 w-4 text-[#E87722]" />
                   Reach Schools ({reachSchools.length})
                 </h4>
                 <div className="space-y-3">
@@ -348,7 +431,8 @@ export function RecommendedSchools({
                       isFilterMatch={
                         !filtersApplied ||
                         ((selectedRegions.length === 0 || selectedRegions.includes(school.region)) &&
-                         (selectedSizes.length === 0 || selectedSizes.includes(school.campusSize)))
+                         (selectedSizes.length === 0 || selectedSizes.includes(school.campusSize)) &&
+                         (selectedTypes.length === 0 || selectedTypes.includes(school.type)))
                       }
                     />
                   ))}
@@ -370,7 +454,8 @@ export function RecommendedSchools({
                       isFilterMatch={
                         !filtersApplied ||
                         ((selectedRegions.length === 0 || selectedRegions.includes(school.region)) &&
-                         (selectedSizes.length === 0 || selectedSizes.includes(school.campusSize)))
+                         (selectedSizes.length === 0 || selectedSizes.includes(school.campusSize)) &&
+                         (selectedTypes.length === 0 || selectedTypes.includes(school.type)))
                       }
                     />
                   ))}
@@ -392,7 +477,8 @@ export function RecommendedSchools({
                       isFilterMatch={
                         !filtersApplied ||
                         ((selectedRegions.length === 0 || selectedRegions.includes(school.region)) &&
-                         (selectedSizes.length === 0 || selectedSizes.includes(school.campusSize)))
+                         (selectedSizes.length === 0 || selectedSizes.includes(school.campusSize)) &&
+                         (selectedTypes.length === 0 || selectedTypes.includes(school.type)))
                       }
                     />
                   ))}

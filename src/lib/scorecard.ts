@@ -920,6 +920,8 @@ export async function fillGapsFromScorecard(
         "api_key": apiKey,
         "fields": FILL_FIELDS,
         "school.degrees_awarded.predominant": "3",
+        "school.carnegie_basic__range": "1..23",
+        "school.operating": "1",
         "latest.student.size__range": `${minEnroll}..${maxStr}`,
         "sort": "latest.admissions.admission_rate.overall:desc",
         "per_page": "50",
@@ -944,6 +946,10 @@ export async function fillGapsFromScorecard(
       for (const r of result.value) {
         const name = r["school.name"];
         if (!name) continue;
+
+        // Filter out specialized/nursing/health-only schools
+        const EXCLUDED_KEYWORDS = ["nursing", "seminary", "theological", "art institute", "beauty", "barber", "technical", "health sciences"];
+        if (EXCLUDED_KEYWORDS.some((kw) => name.toLowerCase().includes(kw))) continue;
 
         // Skip schools already in the pool
         if (existingNames.has(normalizeSchoolName(name))) continue;
