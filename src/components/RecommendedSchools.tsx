@@ -437,8 +437,8 @@ export function RecommendedSchools({
           <>
             {reachSchools.length > 0 && (
               <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-[#E87722]" />
+                <h4 className="text-sm font-semibold text-orange-600 mb-3 flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-orange-600" />
                   Reach Schools ({reachSchools.length})
                 </h4>
                 <div className="space-y-3">
@@ -460,8 +460,8 @@ export function RecommendedSchools({
 
             {matchSchools.length > 0 && (
               <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-                  <Target className="h-4 w-4 text-primary" />
+                <h4 className="text-sm font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                  <Target className="h-4 w-4 text-blue-800" />
                   Match Schools ({matchSchools.length})
                 </h4>
                 <div className="space-y-3">
@@ -483,8 +483,8 @@ export function RecommendedSchools({
 
             {safetySchools.length > 0 && (
               <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-green-500" />
+                <h4 className="text-sm font-semibold text-green-600 mb-3 flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-green-600" />
                   Safety Schools ({safetySchools.length})
                 </h4>
                 <div className="space-y-3">
@@ -524,19 +524,31 @@ function SchoolCard({ school, isFilterMatch }: { school: RecommendedSchool; isFi
             >
               {school.name}
             </a>
-            <Badge variant={getTypeBadgeVariant(school.type)} className="text-xs">
+            <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full text-white ${
+              school.type === "reach" ? "bg-orange-600" :
+              school.type === "match" ? "bg-blue-800" :
+              "bg-green-600"
+            }`}>
               {getTypeIcon(school.type)}
-              <span className="ml-1">{getTypeLabel(school.type)}</span>
-            </Badge>
-            {school.testPolicy && (
-              <Badge variant="outline" className="text-xs">
-                📋 {school.testPolicy}
-              </Badge>
+              <span>{getTypeLabel(school.type)}</span>
+            </span>
+            {school.testPolicy ? (
+              <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border border-gray-300">
+                {school.testPolicy}
+              </span>
+            ) : (
+              <span className="inline-flex items-center text-xs text-muted-foreground px-2 py-0.5 rounded-full border border-dashed border-gray-300">
+                Test Policy: N/A
+              </span>
             )}
-            {school.acceptanceProbability !== undefined && (
-              <Badge variant="outline" className="text-xs">
+            {school.acceptanceProbability !== undefined && school.acceptanceProbability !== null ? (
+              <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border border-gray-300">
                 Your Odds: {school.acceptanceProbability}%
-              </Badge>
+              </span>
+            ) : (
+              <span className="inline-flex items-center text-xs text-muted-foreground px-2 py-0.5 rounded-full border border-dashed border-gray-300">
+                Odds: N/A
+              </span>
             )}
             {!isFilterMatch && (
               <Badge variant="outline" className="text-xs text-muted-foreground">
