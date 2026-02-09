@@ -3,7 +3,7 @@ import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import type { AnalysisResult, TestScores, RecommendedSchool } from "@/lib/types";
-import { enforce343Distribution, getEnrollmentSize, deduplicateByName, fillGapsFromScorecard } from "@/lib/scorecard";
+import { enrichSchoolsWithScorecardData, getEnrollmentSize, deduplicateByName, fillGapsFromScorecard } from "@/lib/scorecard";
 import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS, getSchoolRegion } from "@/lib/constants";
 
 // Disable all Vercel caching — always fetch fresh Scorecard data
@@ -393,8 +393,27 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
       console.log(`[InitialPDF] ${analysis.recommendedSchools.length} schools after correction + dedup`);
     }
 
-    // BACKUP: Guarantee every size and region category has schools BEFORE enrichment
-    // so backup schools get testPolicy, acceptanceProbability, and odds calculated
+    // ── Enrich GPT schools with Scorecard data (testPolicy, acceptanceProbability, odds) ──
+    const studentProfile = {
+      testScores,
+      gpa: analysis.recalculatedGPA,
+      rigorScore: analysis.scorecard?.overallScore,
+    };
+
+    // Race enrichment against a 20-second budget.
+    const enrichedPool = await Promise.race([
+      enrichSchoolsWithScorecardData(analysis.recommendedSchools, studentProfile),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 20_000)),
+    ]);
+
+    if (enrichedPool) {
+      analysis.recommendedSchools = enrichedPool;
+      console.log("[Enrichment] Enriched full pool:", analysis.recommendedSchools.length, "schools");
+    } else {
+      console.log("[Enrichment] Timeout, keeping unenriched pool");
+    }
+
+    // BACKUP: Guarantee every size and region category has schools
     const backupSchools: RecommendedSchool[] = [
       // MICRO - Northeast
       { name: "Williams College", url: "https://www.williams.edu", type: "reach", region: "Northeast", campusSize: "Micro", enrollment: 2000, matchReasoning: "Williams' rigorous liberal arts curriculum and small class sizes align well with this student's strong academic foundation." },
@@ -475,62 +494,18 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
       }
     }
 
-    console.log("[Backup] School count before enrichment:", analysis.recommendedSchools.length, "Micro:", analysis.recommendedSchools.filter((s: any) => s.campusSize === "Micro").length);
+    console.log("[Backup] School count after backfill:", analysis.recommendedSchools.length, "Micro:", analysis.recommendedSchools.filter((s: any) => s.campusSize === "Micro").length);
 
     try {
       const filledSchools = await fillGapsFromScorecard(analysis.recommendedSchools);
       analysis.recommendedSchools = filledSchools;
-      console.log("[ScorecardFill] Pool before enrichment:", analysis.recommendedSchools.length, "schools");
+      console.log("[ScorecardFill] Final pool:", analysis.recommendedSchools.length, "schools");
     } catch (e) {
       console.log("[ScorecardFill] Failed, continuing with existing schools:", e);
     }
 
-    // Enforce 3-3-3 distribution with Scorecard API enrichment + targeted fill
-    const studentProfile = {
-      testScores,
-      gpa: analysis.recalculatedGPA,
-      rigorScore: analysis.scorecard?.overallScore,
-    };
-    const studentDesc = [
-      `Student Profile:`,
-      `- GPA: ${analysis.recalculatedGPA ?? "N/A"} (weighted)`,
-      `- Rigor Score: ${analysis.scorecard?.overallScore ?? "N/A"}/100`,
-      testScores.satReading && testScores.satMath
-        ? `- SAT: ${testScores.satReading + testScores.satMath}`
-        : "",
-      testScores.actComposite ? `- ACT: ${testScores.actComposite}` : "",
-      `- School Context: ${analysis.schoolProfileSummary}`,
-      `- Academic Summary: ${analysis.transcriptSummary}`,
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    // Race school enrichment against a 20-second budget.
-    // If enrichment takes too long, return GPT-only recommendations so
-    // the user never sees an HTML timeout page.
-    const enrichmentPromise = enforce343Distribution(
-      analysis.recommendedSchools,
-      studentProfile,
-      openai,
-      studentDesc,
-    );
-    const timeoutPromise = new Promise<null>((resolve) =>
-      setTimeout(() => resolve(null), 20_000)
-    );
-
-    const enriched = await Promise.race([enrichmentPromise, timeoutPromise]);
-
-    if (enriched) {
-      analysis.recommendedSchools = enriched;
-    } else {
-      console.warn(
-        "[Timeout] School enrichment exceeded 20 s — returning GPT-only schools"
-      );
-    }
-
-    // ── Final metadata re-correction + dedup after enrichment ────────────
-    // Belt-and-suspenders: ensure enrichment didn't introduce any metadata
-    // drift and no duplicates slipped through.
+    // ── Final metadata re-correction + dedup ────────────
+    // Ensure backup + ScorecardFill schools also get corrected metadata.
     if (analysis.recommendedSchools) {
       analysis.recommendedSchools = analysis.recommendedSchools.map((s) => {
         let fixed = s;
@@ -546,7 +521,7 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
         return fixed;
       });
       analysis.recommendedSchools = deduplicateByName(analysis.recommendedSchools);
-      console.log(`[InitialPDF] Final: ${analysis.recommendedSchools.length} schools after post-enrichment correction`);
+      console.log(`[InitialPDF] Final: ${analysis.recommendedSchools.length} schools after all correction + dedup`);
     }
 
     return NextResponse.json(analysis);
