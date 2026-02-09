@@ -149,7 +149,12 @@ export function ReportExport({ result, editedNarrative }: ReportExportProps) {
         addWrappedText("RECOMMENDED SCHOOLS", 14, true);
         yPos += 5;
 
-        for (const school of result.recommendedSchools) {
+        const reachForPdf = result.recommendedSchools.filter(s => s.type === "reach").slice(0, 3);
+        const matchForPdf = result.recommendedSchools.filter(s => s.type === "match").slice(0, 3);
+        const safetyForPdf = result.recommendedSchools.filter(s => s.type === "safety").slice(0, 3);
+        const pdfSchools = [...reachForPdf, ...matchForPdf, ...safetyForPdf];
+
+        for (const school of pdfSchools) {
           if (yPos > 240) {
             doc.addPage();
             addLogoPlaceholder();
