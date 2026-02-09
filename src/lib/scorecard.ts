@@ -904,15 +904,29 @@ export async function fillGapsFromScorecard(
   const existingNames = new Set(schools.map((s) => normalizeSchoolName(s.name)));
   const added: RecommendedSchool[] = [];
 
-  const sizes: CampusSizeType[] = ["Micro", "Small", "Medium", "Large", "Mega"];
+  const allSizes: CampusSizeType[] = ["Micro", "Small", "Medium", "Large", "Mega"];
+
+  // Only query size categories that have fewer than 3 schools in the current pool
+  const sizeCounts: Record<string, number> = {};
+  for (const s of schools) {
+    const sz = s.campusSize || "Medium";
+    sizeCounts[sz] = (sizeCounts[sz] || 0) + 1;
+  }
+  const sizes = allSizes.filter((sz) => (sizeCounts[sz] || 0) < 3);
+
+  if (sizes.length === 0) {
+    console.log("[ScorecardFill] All size categories have 3+ schools — skipping API calls");
+    return schools;
+  }
+
+  console.log(`[ScorecardFill] Querying ${sizes.length} size categories with gaps: ${sizes.join(", ")}`);
 
   // 5-second timeout for all API calls
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);
 
   try {
-    // Two API calls per size category (asc + desc) = 10 calls, 25 each = 250 max
-    // Ascending gets selective/reach schools, descending gets accessible/safety schools
+    // Two API calls per GAP size category (asc + desc), 10 each — reduced from 25
     const fetches = sizes.flatMap((size) => {
       const [minEnroll, maxEnroll] = SIZE_RANGES[size];
       const maxStr = maxEnroll === Infinity ? "" : `${maxEnroll}`;
@@ -926,7 +940,7 @@ export async function fillGapsFromScorecard(
           "school.operating": "1",
           "latest.student.size__range": `${minEnroll}..${maxStr}`,
           "sort": `latest.admissions.admission_rate.overall:${dir}`,
-          "per_page": "25",
+          "per_page": "10",
         });
 
         const url = `https://api.data.gov/ed/collegescorecard/v1/schools.json?${params.toString()}`;

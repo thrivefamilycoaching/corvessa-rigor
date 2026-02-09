@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 const API_KEY = process.env.COLLEGE_SCORECARD_API_KEY || process.env.NEXT_PUBLIC_COLLEGE_SCORECARD_API_KEY;
 
+const searchCache = new Map<string, { results: any[], timestamp: number }>();
+
 const STATE_TO_REGION: Record<string, string> = {
   "MA": "Northeast", "CT": "Northeast", "NY": "Northeast", "RI": "Northeast", "ME": "Northeast", "VT": "Northeast", "NH": "Northeast",
   "VA": "Mid-Atlantic", "DC": "Mid-Atlantic", "MD": "Mid-Atlantic", "PA": "Mid-Atlantic", "DE": "Mid-Atlantic", "NJ": "Mid-Atlantic",
@@ -26,15 +28,15 @@ export async function GET(request: NextRequest) {
 
   console.log("[SearchSchool] Query:", query, "API_KEY exists:", !!API_KEY);
 
-  try {
-    const url = `https://api.data.gov/ed/collegescorecard/v1/schools.json?api_key=${API_KEY}&school.name=${encodeURIComponent(query)}&school.degrees_awarded.predominant=3&school.operating=1&fields=school.name,school.school_url,latest.student.size,latest.admissions.admission_rate.overall,school.state&per_page=10&sort=latest.student.size:desc`;
+  // Check in-memory cache (60s TTL)
+  const cached = searchCache.get(query.toLowerCase());
+  if (cached && Date.now() - cached.timestamp < 60000) {
+    console.log("[SearchSchool] Cache hit for:", query);
+    return NextResponse.json({ results: cached.results });
+  }
 
-    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    const data = await response.json();
-
-    console.log("[SearchSchool] Response status:", response.status, "Results:", data.results?.length || 0);
-
-    const results = (data.results || []).map((r: any) => {
+  const mapResults = (data: any) => {
+    return (data.results || []).map((r: any) => {
       const enrollment = r["latest.student.size"] || 0;
       const admitRate = r["latest.admissions.admission_rate.overall"];
       const state = r["school.state"] || "";
@@ -61,6 +63,34 @@ export async function GET(request: NextRequest) {
         matchReasoning: `Located in ${state} (${region}). ${enrollment > 0 ? getEnrollmentSize(enrollment) + " campus with " + enrollment.toLocaleString() + " students." : ""}`,
       };
     }).filter((r: any) => r.name.length > 0);
+  };
+
+  try {
+    const url = `https://api.data.gov/ed/collegescorecard/v1/schools.json?api_key=${API_KEY}&school.name=${encodeURIComponent(query)}&school.degrees_awarded.predominant=3&school.operating=1&fields=school.name,school.school_url,latest.student.size,latest.admissions.admission_rate.overall,school.state&per_page=10&sort=latest.student.size:desc`;
+
+    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+
+    console.log("[SearchSchool] Response status:", response.status);
+
+    // Handle rate limiting with retry
+    if (response.status === 429) {
+      console.log("[SearchSchool] Rate limited — retrying in 1s");
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const retryResponse = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      const retryData = await retryResponse.json();
+      if (retryResponse.ok) {
+        const results = mapResults(retryData);
+        searchCache.set(query.toLowerCase(), { results, timestamp: Date.now() });
+        return NextResponse.json({ results });
+      }
+      return NextResponse.json({ results: [], error: "Rate limited" });
+    }
+
+    const data = await response.json();
+    console.log("[SearchSchool] Results:", data.results?.length || 0);
+
+    const results = mapResults(data);
+    searchCache.set(query.toLowerCase(), { results, timestamp: Date.now() });
 
     return NextResponse.json({ results });
   } catch (error) {
