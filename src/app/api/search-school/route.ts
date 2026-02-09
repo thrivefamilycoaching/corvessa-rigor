@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const API_KEY = process.env.COLLEGE_SCORECARD_API_KEY || process.env.NEXT_PUBLIC_COLLEGE_SCORECARD_API_KEY;
-
-const searchCache = new Map<string, { results: any[], timestamp: number }>();
-
 const STATE_TO_REGION: Record<string, string> = {
   "MA": "Northeast", "CT": "Northeast", "NY": "Northeast", "RI": "Northeast", "ME": "Northeast", "VT": "Northeast", "NH": "Northeast",
   "VA": "Mid-Atlantic", "DC": "Mid-Atlantic", "MD": "Mid-Atlantic", "PA": "Mid-Atlantic", "DE": "Mid-Atlantic", "NJ": "Mid-Atlantic",
@@ -12,13 +8,133 @@ const STATE_TO_REGION: Record<string, string> = {
   "CA": "West", "OR": "West", "WA": "West", "CO": "West", "AZ": "West", "UT": "West", "NV": "West",
 };
 
-function getEnrollmentSize(enrollment: number): string {
-  if (enrollment < 2000) return "Micro";
-  if (enrollment < 5000) return "Small";
-  if (enrollment < 15000) return "Medium";
-  if (enrollment < 30000) return "Large";
-  return "Mega";
-}
+function getSize(e: number) { return e < 2000 ? "Micro" : e < 5000 ? "Small" : e < 15000 ? "Medium" : e < 30000 ? "Large" : "Mega"; }
+
+const SCHOOLS = [
+  { name: "Harvard University", state: "MA", enrollment: 21000, admitRate: 0.03, url: "harvard.edu", testPolicy: "Test Optional" },
+  { name: "Yale University", state: "CT", enrollment: 12500, admitRate: 0.05, url: "yale.edu", testPolicy: "Test Optional" },
+  { name: "Princeton University", state: "NJ", enrollment: 8400, admitRate: 0.04, url: "princeton.edu", testPolicy: "Test Optional" },
+  { name: "Stanford University", state: "CA", enrollment: 16000, admitRate: 0.04, url: "stanford.edu", testPolicy: "Test Required" },
+  { name: "MIT", state: "MA", enrollment: 11500, admitRate: 0.04, url: "mit.edu", testPolicy: "Test Required" },
+  { name: "Columbia University", state: "NY", enrollment: 33000, admitRate: 0.04, url: "columbia.edu", testPolicy: "Test Optional" },
+  { name: "University of Pennsylvania", state: "PA", enrollment: 22000, admitRate: 0.06, url: "upenn.edu", testPolicy: "Test Optional" },
+  { name: "Duke University", state: "NC", enrollment: 16000, admitRate: 0.07, url: "duke.edu", testPolicy: "Test Optional" },
+  { name: "Northwestern University", state: "IL", enrollment: 22000, admitRate: 0.07, url: "northwestern.edu", testPolicy: "Test Required" },
+  { name: "Johns Hopkins University", state: "MD", enrollment: 27000, admitRate: 0.08, url: "jhu.edu", testPolicy: "Test Optional" },
+  { name: "Dartmouth College", state: "NH", enrollment: 6700, admitRate: 0.06, url: "dartmouth.edu", testPolicy: "Test Optional" },
+  { name: "Brown University", state: "RI", enrollment: 10000, admitRate: 0.05, url: "brown.edu", testPolicy: "Test Optional" },
+  { name: "Cornell University", state: "NY", enrollment: 25000, admitRate: 0.09, url: "cornell.edu", testPolicy: "Test Optional" },
+  { name: "Vanderbilt University", state: "TN", enrollment: 13000, admitRate: 0.06, url: "vanderbilt.edu", testPolicy: "Test Optional" },
+  { name: "Rice University", state: "TX", enrollment: 8000, admitRate: 0.09, url: "rice.edu", testPolicy: "Test Optional" },
+  { name: "University of Notre Dame", state: "IN", enrollment: 13000, admitRate: 0.13, url: "nd.edu", testPolicy: "Test Optional" },
+  { name: "Georgetown University", state: "DC", enrollment: 19000, admitRate: 0.13, url: "georgetown.edu", testPolicy: "Test Optional" },
+  { name: "Emory University", state: "GA", enrollment: 15000, admitRate: 0.13, url: "emory.edu", testPolicy: "Test Optional" },
+  { name: "University of Michigan", state: "MI", enrollment: 46000, admitRate: 0.18, url: "umich.edu", testPolicy: "Test Required" },
+  { name: "University of Virginia", state: "VA", enrollment: 24000, admitRate: 0.19, url: "virginia.edu", testPolicy: "Test Required" },
+  { name: "University of Southern California", state: "CA", enrollment: 42000, admitRate: 0.10, url: "usc.edu", testPolicy: "Test Optional" },
+  { name: "New York University", state: "NY", enrollment: 54000, admitRate: 0.13, url: "nyu.edu", testPolicy: "Test Optional" },
+  { name: "University of North Carolina at Chapel Hill", state: "NC", enrollment: 30000, admitRate: 0.19, url: "unc.edu", testPolicy: "Test Required" },
+  { name: "Wake Forest University", state: "NC", enrollment: 8000, admitRate: 0.22, url: "wfu.edu", testPolicy: "Test Optional" },
+  { name: "Tufts University", state: "MA", enrollment: 13000, admitRate: 0.10, url: "tufts.edu", testPolicy: "Test Optional" },
+  { name: "Boston College", state: "MA", enrollment: 14000, admitRate: 0.16, url: "bc.edu", testPolicy: "Test Optional" },
+  { name: "Boston University", state: "MA", enrollment: 36000, admitRate: 0.14, url: "bu.edu", testPolicy: "Test Optional" },
+  { name: "Tulane University", state: "LA", enrollment: 13000, admitRate: 0.15, url: "tulane.edu", testPolicy: "Test Optional" },
+  { name: "University of Florida", state: "FL", enrollment: 52000, admitRate: 0.25, url: "ufl.edu", testPolicy: "Test Required" },
+  { name: "University of Georgia", state: "GA", enrollment: 40000, admitRate: 0.43, url: "uga.edu", testPolicy: "Test Required" },
+  { name: "Georgia Institute of Technology", state: "GA", enrollment: 40000, admitRate: 0.17, url: "gatech.edu", testPolicy: "Test Required" },
+  { name: "University of Texas at Austin", state: "TX", enrollment: 51000, admitRate: 0.31, url: "utexas.edu", testPolicy: "Test Required" },
+  { name: "Texas A&M University", state: "TX", enrollment: 65000, admitRate: 0.63, url: "tamu.edu", testPolicy: "Test Required" },
+  { name: "Clemson University", state: "SC", enrollment: 27000, admitRate: 0.38, url: "clemson.edu", testPolicy: "Test Required" },
+  { name: "Florida State University", state: "FL", enrollment: 42000, admitRate: 0.25, url: "fsu.edu", testPolicy: "Test Required" },
+  { name: "University of Alabama", state: "AL", enrollment: 38000, admitRate: 0.74, url: "ua.edu", testPolicy: "Test Optional" },
+  { name: "University of South Carolina", state: "SC", enrollment: 35000, admitRate: 0.80, url: "sc.edu", testPolicy: "Test Required" },
+  { name: "University of Tennessee", state: "TN", enrollment: 30000, admitRate: 0.83, url: "utk.edu", testPolicy: "Test Required" },
+  { name: "Virginia Tech", state: "VA", enrollment: 35000, admitRate: 0.57, url: "vt.edu", testPolicy: "Test Required" },
+  { name: "James Madison University", state: "VA", enrollment: 22000, admitRate: 0.76, url: "jmu.edu", testPolicy: "Test Optional" },
+  { name: "George Mason University", state: "VA", enrollment: 38000, admitRate: 0.89, url: "gmu.edu", testPolicy: "Test Optional" },
+  { name: "University of Maryland College Park", state: "MD", enrollment: 36000, admitRate: 0.45, url: "umd.edu", testPolicy: "Test Required" },
+  { name: "Penn State University", state: "PA", enrollment: 46000, admitRate: 0.55, url: "psu.edu", testPolicy: "Test Required" },
+  { name: "Ohio State University", state: "OH", enrollment: 60000, admitRate: 0.53, url: "osu.edu", testPolicy: "Test Required" },
+  { name: "University of Wisconsin Madison", state: "WI", enrollment: 44000, admitRate: 0.43, url: "wisc.edu", testPolicy: "Test Required" },
+  { name: "University of Illinois Urbana-Champaign", state: "IL", enrollment: 52000, admitRate: 0.44, url: "illinois.edu", testPolicy: "Test Required" },
+  { name: "Indiana University Bloomington", state: "IN", enrollment: 45000, admitRate: 0.80, url: "iu.edu", testPolicy: "Test Optional" },
+  { name: "Purdue University", state: "IN", enrollment: 50000, admitRate: 0.53, url: "purdue.edu", testPolicy: "Test Required" },
+  { name: "University of Minnesota", state: "MN", enrollment: 51000, admitRate: 0.75, url: "umn.edu", testPolicy: "Test Optional" },
+  { name: "University of Iowa", state: "IA", enrollment: 30000, admitRate: 0.84, url: "uiowa.edu", testPolicy: "Test Optional" },
+  { name: "University of Colorado Boulder", state: "CO", enrollment: 38000, admitRate: 0.81, url: "colorado.edu", testPolicy: "Test Optional" },
+  { name: "University of Oregon", state: "OR", enrollment: 22000, admitRate: 0.82, url: "uoregon.edu", testPolicy: "Test Optional" },
+  { name: "University of Washington", state: "WA", enrollment: 47000, admitRate: 0.48, url: "uw.edu", testPolicy: "Test Optional" },
+  { name: "Arizona State University", state: "AZ", enrollment: 65000, admitRate: 0.88, url: "asu.edu", testPolicy: "Test Optional" },
+  { name: "University of Arizona", state: "AZ", enrollment: 46000, admitRate: 0.86, url: "arizona.edu", testPolicy: "Test Optional" },
+  { name: "University of California Berkeley", state: "CA", enrollment: 42000, admitRate: 0.12, url: "berkeley.edu", testPolicy: "Test Blind" },
+  { name: "University of California Los Angeles", state: "CA", enrollment: 45000, admitRate: 0.09, url: "ucla.edu", testPolicy: "Test Blind" },
+  { name: "University of California San Diego", state: "CA", enrollment: 40000, admitRate: 0.24, url: "ucsd.edu", testPolicy: "Test Blind" },
+  { name: "University of California Davis", state: "CA", enrollment: 38000, admitRate: 0.37, url: "ucdavis.edu", testPolicy: "Test Blind" },
+  { name: "University of California Santa Barbara", state: "CA", enrollment: 26000, admitRate: 0.26, url: "ucsb.edu", testPolicy: "Test Blind" },
+  { name: "University of California Irvine", state: "CA", enrollment: 36000, admitRate: 0.21, url: "uci.edu", testPolicy: "Test Blind" },
+  { name: "Pomona College", state: "CA", enrollment: 1600, admitRate: 0.07, url: "pomona.edu", testPolicy: "Test Optional" },
+  { name: "Claremont McKenna College", state: "CA", enrollment: 1400, admitRate: 0.09, url: "cmc.edu", testPolicy: "Test Optional" },
+  { name: "Harvey Mudd College", state: "CA", enrollment: 900, admitRate: 0.13, url: "hmc.edu", testPolicy: "Test Optional" },
+  { name: "Williams College", state: "MA", enrollment: 2000, admitRate: 0.10, url: "williams.edu", testPolicy: "Test Optional" },
+  { name: "Amherst College", state: "MA", enrollment: 1900, admitRate: 0.09, url: "amherst.edu", testPolicy: "Test Optional" },
+  { name: "Swarthmore College", state: "PA", enrollment: 1600, admitRate: 0.07, url: "swarthmore.edu", testPolicy: "Test Optional" },
+  { name: "Bowdoin College", state: "ME", enrollment: 1900, admitRate: 0.09, url: "bowdoin.edu", testPolicy: "Test Optional" },
+  { name: "Middlebury College", state: "VT", enrollment: 2800, admitRate: 0.16, url: "middlebury.edu", testPolicy: "Test Optional" },
+  { name: "Colby College", state: "ME", enrollment: 2000, admitRate: 0.07, url: "colby.edu", testPolicy: "Test Optional" },
+  { name: "Bates College", state: "ME", enrollment: 1800, admitRate: 0.14, url: "bates.edu", testPolicy: "Test Optional" },
+  { name: "Grinnell College", state: "IA", enrollment: 1700, admitRate: 0.13, url: "grinnell.edu", testPolicy: "Test Optional" },
+  { name: "Kenyon College", state: "OH", enrollment: 1700, admitRate: 0.36, url: "kenyon.edu", testPolicy: "Test Optional" },
+  { name: "Colorado College", state: "CO", enrollment: 2200, admitRate: 0.13, url: "coloradocollege.edu", testPolicy: "Test Optional" },
+  { name: "Occidental College", state: "CA", enrollment: 2000, admitRate: 0.37, url: "oxy.edu", testPolicy: "Test Optional" },
+  { name: "Whitman College", state: "WA", enrollment: 1500, admitRate: 0.51, url: "whitman.edu", testPolicy: "Test Optional" },
+  { name: "Lewis & Clark College", state: "OR", enrollment: 1900, admitRate: 0.78, url: "lclark.edu", testPolicy: "Test Optional" },
+  { name: "Davidson College", state: "NC", enrollment: 1900, admitRate: 0.17, url: "davidson.edu", testPolicy: "Test Optional" },
+  { name: "Rhodes College", state: "TN", enrollment: 2000, admitRate: 0.52, url: "rhodes.edu", testPolicy: "Test Optional" },
+  { name: "University of Richmond", state: "VA", enrollment: 3500, admitRate: 0.25, url: "richmond.edu", testPolicy: "Test Optional" },
+  { name: "Washington and Lee University", state: "VA", enrollment: 2300, admitRate: 0.17, url: "wlu.edu", testPolicy: "Test Optional" },
+  { name: "Villanova University", state: "PA", enrollment: 10000, admitRate: 0.23, url: "villanova.edu", testPolicy: "Test Optional" },
+  { name: "Lehigh University", state: "PA", enrollment: 7000, admitRate: 0.32, url: "lehigh.edu", testPolicy: "Test Optional" },
+  { name: "Bucknell University", state: "PA", enrollment: 3800, admitRate: 0.32, url: "bucknell.edu", testPolicy: "Test Optional" },
+  { name: "Lafayette College", state: "PA", enrollment: 2700, admitRate: 0.38, url: "lafayette.edu", testPolicy: "Test Optional" },
+  { name: "College of William & Mary", state: "VA", enrollment: 9000, admitRate: 0.33, url: "wm.edu", testPolicy: "Test Optional" },
+  { name: "Elon University", state: "NC", enrollment: 7000, admitRate: 0.72, url: "elon.edu", testPolicy: "Test Optional" },
+  { name: "American University", state: "DC", enrollment: 14000, admitRate: 0.44, url: "american.edu", testPolicy: "Test Optional" },
+  { name: "George Washington University", state: "DC", enrollment: 26000, admitRate: 0.44, url: "gwu.edu", testPolicy: "Test Optional" },
+  { name: "Howard University", state: "DC", enrollment: 12000, admitRate: 0.53, url: "howard.edu", testPolicy: "Test Optional" },
+  { name: "Northeastern University", state: "MA", enrollment: 22000, admitRate: 0.07, url: "northeastern.edu", testPolicy: "Test Optional" },
+  { name: "Santa Clara University", state: "CA", enrollment: 9000, admitRate: 0.49, url: "scu.edu", testPolicy: "Test Optional" },
+  { name: "Loyola Marymount University", state: "CA", enrollment: 7000, admitRate: 0.45, url: "lmu.edu", testPolicy: "Test Optional" },
+  { name: "University of San Diego", state: "CA", enrollment: 9000, admitRate: 0.48, url: "sandiego.edu", testPolicy: "Test Optional" },
+  { name: "Pepperdine University", state: "CA", enrollment: 9000, admitRate: 0.37, url: "pepperdine.edu", testPolicy: "Test Optional" },
+  { name: "University of Denver", state: "CO", enrollment: 12000, admitRate: 0.63, url: "du.edu", testPolicy: "Test Optional" },
+  { name: "Marquette University", state: "WI", enrollment: 11000, admitRate: 0.82, url: "marquette.edu", testPolicy: "Test Optional" },
+  { name: "Loyola University Chicago", state: "IL", enrollment: 17000, admitRate: 0.67, url: "luc.edu", testPolicy: "Test Optional" },
+  { name: "DePaul University", state: "IL", enrollment: 22000, admitRate: 0.70, url: "depaul.edu", testPolicy: "Test Optional" },
+  { name: "Fordham University", state: "NY", enrollment: 16000, admitRate: 0.46, url: "fordham.edu", testPolicy: "Test Optional" },
+  { name: "Syracuse University", state: "NY", enrollment: 22000, admitRate: 0.53, url: "syracuse.edu", testPolicy: "Test Optional" },
+  { name: "University of Miami", state: "FL", enrollment: 19000, admitRate: 0.19, url: "miami.edu", testPolicy: "Test Optional" },
+  { name: "University of Pittsburgh", state: "PA", enrollment: 28000, admitRate: 0.42, url: "pitt.edu", testPolicy: "Test Required" },
+  { name: "Rutgers University", state: "NJ", enrollment: 50000, admitRate: 0.61, url: "rutgers.edu", testPolicy: "Test Required" },
+  { name: "University of Connecticut", state: "CT", enrollment: 27000, admitRate: 0.56, url: "uconn.edu", testPolicy: "Test Optional" },
+  { name: "University of Massachusetts Amherst", state: "MA", enrollment: 30000, admitRate: 0.58, url: "umass.edu", testPolicy: "Test Optional" },
+  { name: "Michigan State University", state: "MI", enrollment: 49000, admitRate: 0.83, url: "msu.edu", testPolicy: "Test Optional" },
+  { name: "University of South Florida", state: "FL", enrollment: 50000, admitRate: 0.45, url: "usf.edu", testPolicy: "Test Optional" },
+  { name: "Auburn University", state: "AL", enrollment: 31000, admitRate: 0.82, url: "auburn.edu", testPolicy: "Test Required" },
+  { name: "University of Kentucky", state: "KY", enrollment: 30000, admitRate: 0.90, url: "uky.edu", testPolicy: "Test Required" },
+  { name: "University of Mississippi", state: "MS", enrollment: 22000, admitRate: 0.88, url: "olemiss.edu", testPolicy: "Test Optional" },
+  { name: "Louisiana State University", state: "LA", enrollment: 35000, admitRate: 0.76, url: "lsu.edu", testPolicy: "Test Required" },
+  { name: "Oregon State University", state: "OR", enrollment: 32000, admitRate: 0.79, url: "oregonstate.edu", testPolicy: "Test Optional" },
+  { name: "Washington State University", state: "WA", enrollment: 28000, admitRate: 0.83, url: "wsu.edu", testPolicy: "Test Optional" },
+  { name: "Colorado State University", state: "CO", enrollment: 34000, admitRate: 0.84, url: "colostate.edu", testPolicy: "Test Optional" },
+  { name: "Old Dominion University", state: "VA", enrollment: 24000, admitRate: 0.83, url: "odu.edu", testPolicy: "Test Optional" },
+  { name: "Christopher Newport University", state: "VA", enrollment: 5000, admitRate: 0.73, url: "cnu.edu", testPolicy: "Test Optional" },
+  { name: "Radford University", state: "VA", enrollment: 9000, admitRate: 0.90, url: "radford.edu", testPolicy: "Test Optional" },
+  { name: "College of Charleston", state: "SC", enrollment: 10000, admitRate: 0.75, url: "cofc.edu", testPolicy: "Test Optional" },
+  { name: "Furman University", state: "SC", enrollment: 2800, admitRate: 0.62, url: "furman.edu", testPolicy: "Test Optional" },
+  { name: "Wofford College", state: "SC", enrollment: 1800, admitRate: 0.58, url: "wofford.edu", testPolicy: "Test Optional" },
+  { name: "Sewanee University of the South", state: "TN", enrollment: 1700, admitRate: 0.55, url: "sewanee.edu", testPolicy: "Test Optional" },
+  { name: "Belmont University", state: "TN", enrollment: 8000, admitRate: 0.80, url: "belmont.edu", testPolicy: "Test Optional" },
+];
 
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q");
@@ -26,75 +142,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ results: [] });
   }
 
-  console.log("[SearchSchool] Query:", query, "API_KEY exists:", !!API_KEY);
+  const q = query.toLowerCase();
+  const matches = SCHOOLS.filter(s => s.name.toLowerCase().includes(q)).slice(0, 10);
 
-  // Check in-memory cache (60s TTL)
-  const cached = searchCache.get(query.toLowerCase());
-  if (cached && Date.now() - cached.timestamp < 60000) {
-    console.log("[SearchSchool] Cache hit for:", query);
-    return NextResponse.json({ results: cached.results });
-  }
+  const results = matches.map(s => {
+    const region = STATE_TO_REGION[s.state] || "Other";
+    const odds = Math.round(s.admitRate * 100);
+    const type = odds < 30 ? "reach" : odds >= 80 ? "safety" : "match";
+    return {
+      name: s.name,
+      url: `https://${s.url}`,
+      type,
+      region,
+      campusSize: getSize(s.enrollment),
+      enrollment: s.enrollment,
+      testPolicy: s.testPolicy,
+      acceptanceProbability: odds,
+      matchReasoning: `${s.name} is located in ${s.state} (${region}). ${getSize(s.enrollment)} campus with ${s.enrollment.toLocaleString()} students.`,
+    };
+  });
 
-  const mapResults = (data: any) => {
-    return (data.results || []).map((r: any) => {
-      const enrollment = r["latest.student.size"] || 0;
-      const admitRate = r["latest.admissions.admission_rate.overall"];
-      const state = r["school.state"] || "";
-      const region = STATE_TO_REGION[state] || "Other";
-
-      let odds = null;
-      let type = "match";
-      if (admitRate !== null && admitRate !== undefined) {
-        odds = Math.round(admitRate * 100);
-        if (odds < 30) type = "reach";
-        else if (odds >= 80) type = "safety";
-        else type = "match";
-      }
-
-      return {
-        name: r["school.name"] || "",
-        url: r["school.school_url"] ? `https://${r["school.school_url"]}` : "",
-        type,
-        region,
-        campusSize: getEnrollmentSize(enrollment),
-        enrollment,
-        testPolicy: "Check School Website",
-        acceptanceProbability: odds,
-        matchReasoning: `Located in ${state} (${region}). ${enrollment > 0 ? getEnrollmentSize(enrollment) + " campus with " + enrollment.toLocaleString() + " students." : ""}`,
-      };
-    }).filter((r: any) => r.name.length > 0);
-  };
-
-  try {
-    const url = `https://api.data.gov/ed/collegescorecard/v1/schools.json?api_key=${API_KEY}&school.name=${encodeURIComponent(query)}&school.degrees_awarded.predominant=3&school.operating=1&fields=school.name,school.school_url,latest.student.size,latest.admissions.admission_rate.overall,school.state&per_page=10&sort=latest.student.size:desc`;
-
-    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
-
-    console.log("[SearchSchool] Response status:", response.status);
-
-    // Handle rate limiting with retry
-    if (response.status === 429) {
-      console.log("[SearchSchool] Rate limited — retrying in 1s");
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const retryResponse = await fetch(url, { signal: AbortSignal.timeout(5000) });
-      const retryData = await retryResponse.json();
-      if (retryResponse.ok) {
-        const results = mapResults(retryData);
-        searchCache.set(query.toLowerCase(), { results, timestamp: Date.now() });
-        return NextResponse.json({ results });
-      }
-      return NextResponse.json({ results: [], error: "Rate limited" });
-    }
-
-    const data = await response.json();
-    console.log("[SearchSchool] Results:", data.results?.length || 0);
-
-    const results = mapResults(data);
-    searchCache.set(query.toLowerCase(), { results, timestamp: Date.now() });
-
-    return NextResponse.json({ results });
-  } catch (error) {
-    console.error("[SearchSchool] Error:", error);
-    return NextResponse.json({ results: [] });
-  }
+  return NextResponse.json({ results });
 }
