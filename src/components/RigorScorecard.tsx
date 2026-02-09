@@ -92,32 +92,6 @@ export function RigorScorecard({
         </Card>
       )}
 
-      {/* Category Breakdown */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Category Breakdown</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {scores.map((score, index) => {
-            // Cap score at maxScore to prevent overflow
-            const cappedScore = Math.min(score.score, score.maxScore);
-            const percentage = Math.min((cappedScore / score.maxScore) * 100, 100);
-            return (
-              <div key={index} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{score.category}</span>
-                  <span className={`text-sm font-semibold ${getScoreColor(percentage)}`}>
-                    {cappedScore}/{score.maxScore}
-                  </span>
-                </div>
-                <Progress value={percentage} className="h-2" />
-                <p className="text-xs text-muted-foreground">{score.description}</p>
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
-
       {/* Document Summaries */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>

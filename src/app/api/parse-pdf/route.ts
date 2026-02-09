@@ -247,82 +247,35 @@ export async function POST(request: NextRequest) {
         - For Test Optional/Blind schools, weight course rigor MORE heavily
 
         For gapAnalysis:
-        - Compare what the school offers vs what the student is CURRENTLY ENROLLED IN for each major subject area
-        - The "taken" field should show ONLY the specific course the student is currently taking in that subject
-        - The "offered" field should list ALL courses the school offers in that subject, from least to most rigorous
-        - The "missed" field must list any course MORE RIGOROUS than what the student is currently taking that was available to them at their grade level
-        - A student is ONLY "taking all rigorous options" if they are enrolled in THE SINGLE MOST ADVANCED course available to them in that subject for their grade level
-        - For Math: if a student is in Algebra 2 but Honors Algebra 2 or Accelerated Algebra 2 exists, that is a missed opportunity
-        - For Science: if a student is in Chemistry but Honors Chemistry exists, that is a missed opportunity
-        - Be strict: if there is ANY honors, accelerated, or AP version of the course the student is taking, and the student is NOT in that version, it must appear in "missed"
-        - Do NOT say "All rigorous options taken" unless the student is literally in the highest-level version of that course offered at their grade level
+        - For EACH subject area, identify the SINGLE course the student is CURRENTLY taking this term
+        - The "taken" field should contain ONLY that one current course, not courses from previous years
+        - The "offered" field should list ALL courses the school offers in that subject area, from least to most rigorous
+        - The "missed" field is the CRITICAL part. Apply this logic strictly:
+
+          STEP 1: Identify the student's current course in the subject
+          STEP 2: Check if a MORE RIGOROUS version of that same course exists at the school
+          STEP 3: If yes, that more rigorous version IS a missed opportunity
+
+          Examples of missed opportunities:
+          - Student in "Chemistry" when "Honors Chemistry" exists → missed: ["Honors Chemistry"]
+          - Student in "Algebra 2" when "Honors Algebra 2" or "Accelerated Algebra 2" exists → missed: ["Honors Algebra 2"] or ["Accelerated Algebra 2"]
+          - Student in "English 10" when "Honors English 10" exists → missed: ["Honors English 10"]
+          - Student in "Biology" when "Honors Biology" exists → missed: ["Honors Biology"]
+
+          Examples of NO missed opportunity:
+          - Student in "Honors Spanish 3" and no higher Spanish course exists for their grade → missed: [] (they ARE in the most rigorous option)
+          - Student in "Modern World History" and that's the ONLY history course offered for their grade → missed: [] (no alternative exists)
+          - Student in "English 10" and no "Honors English 10" exists at the school → missed: [] (no honors version available)
+
+          NEVER say "All rigorous options taken" if an honors/accelerated/AP version of the student's current course exists and they are NOT enrolled in it.
+          ONLY say the student has taken all rigorous options if they are LITERALLY in the highest-level version of the course available for their grade.
+
+          The missed array must contain the specific course names, not generic descriptions.
+
         - Include at least: Math, Science, English, Social Studies, Foreign Language
-
-        STEP 0 — GRADE-LEVEL IDENTIFICATION (DO THIS FIRST):
-        - Determine the student's current grade level from the transcript (9th, 10th, 11th, or 12th)
-        - Only courses associated with the student's CURRENT or PREVIOUS grade years count as "taken"
-        - Future-year courses (e.g., 11th-grade courses for a 10th grader) are NEVER "taken"
-
-        FRESHMAN (9th GRADE) SPECIAL RULE:
-        - A freshman transcript will contain VERY FEW courses (typically only 1 year of each subject)
-        - Do NOT assume ANY prerequisites were taken. A freshman showing "Honors Biology" does NOT imply they took "Biology" first
-        - The "taken" array for a freshman should be SHORT — typically 5-7 courses total
-        - Any course NOT explicitly listed with a grade on the transcript is NOT taken, period
-        - This rule applies regardless of how "obvious" the prerequisite seems
-
-        STEP 1 — HARD MATCH "TAKEN" POLICY (CRITICAL):
+        - Be thorough and strict. It is better to flag a potential missed opportunity than to miss one.
         - A course is "taken" ONLY if its EXACT course title appears in the TRANSCRIPT PDF with an associated grade or mark
-        - HARD MATCH means literal string matching — the course title on the transcript must match the course title in the school profile
-        - Do NOT infer prerequisites. If the transcript shows "Integrated Math 2" but does NOT list "Integrated Math 1", then "Integrated Math 1" is NOT taken — even though the student logically must have completed it
-        - Do NOT infer completion of earlier courses from later ones. "Algebra 2" on transcript does NOT mean "Algebra 1" was taken
-        - Do NOT auto-fill foundational courses. Every "taken" entry must be backed by explicit text in the TRANSCRIPT PDF
-        - If a course name is ambiguous or only partially matches, do NOT count it as taken
-        - SOURCE ISOLATION: The School Profile tells you what is OFFERED. The Transcript tells you what is TAKEN. These are two completely separate data sources. Never copy a course from "offered" into "taken" unless the TRANSCRIPT independently confirms it with a grade
-
-        STEP 2 — VERTICAL CURRICULUM MAPPING:
-        - In "offered", list ALL courses in the subject's progression from lowest to highest from the SCHOOL PROFILE
-        - Include ALL honors/accelerated/AP variants available at each level
-        - Example for Math: ["Algebra 1", "Honors Algebra 1", "Geometry", "Honors Geometry", "Algebra 2", "Accelerated Algebra 2", "Precalculus", "Honors Precalculus", "Calculus 1", "Advanced Calculus 2", "AP Calculus AB", "AP Calculus BC"]
-
-        STEP 3 — VALIDATION CHECK (MANDATORY BEFORE OUTPUT):
-        - Before finalizing the "taken" array, cross-reference EVERY entry against the raw transcript text
-        - If a course name does not appear in the raw transcript text, REMOVE it from "taken" and ADD it to "missed"
-        - This is a hard gate — no exceptions
-
-        STEP 3b — SANITY CHECK (HALLUCINATION GUARD):
-        - For each subject, verify that no grade level has more than one core course marked as "taken"
-        - Example: a student cannot take BOTH "Geometry" AND "Honors Geometry" in the same year — if both appear, re-check the transcript and keep only the one that actually appears with a grade
-        - If you find duplicate courses at the same level, flag the discrepancy and keep only the version confirmed by the transcript
-        - This prevents the model from inflating the "taken" list with phantom courses
-
-        STEP 4 — MISSED / UPCOMING OPPORTUNITIES (CRITICAL):
-        - ANY course listed in the School Profile's "offered" array that is NOT in the "taken" array MUST go into "missed"
-        - For students below 12th grade, label these as upcoming opportunities (courses they can still take)
-        - This includes:
-          * Same-level rigor upgrades: student took "Geometry" but school offers "Honors Geometry" → flag "Honors Geometry"
-          * Next-level courses: student completed "Algebra 2" and school offers "Precalculus" → flag "Precalculus"
-          * All higher-track courses the student has not yet reached
-
-        Rule A - SAME-LEVEL RIGOR CHECK:
-        - If student took a Standard/Regular course when Honors/Accelerated version existed at SAME level, flag the Honors version
-        - Example: Student took "Algebra 2" but school offers "Accelerated Algebra 2" → flag "Accelerated Algebra 2"
-
-        Rule B - NEXT-LEVEL RIGOR CHECK:
-        - Identify the next course in sequence that the student COULD take based on courses actually taken
-        - If student completed "Accelerated Algebra 2" and school offers "Honors Precalculus" → flag "Honors Precalculus"
-
-        Rule C - NEVER SAY "All rigorous options taken" UNLESS:
-        - Student is taking the ABSOLUTE HIGHEST level course available in that subject's entire track at the school
-        - The missed array must be NON-EMPTY for any student who is not at the absolute top course in each track
-
-        Rule D - DO NOT FLAG as missed:
-        - Courses requiring prerequisites the student hasn't actually taken (verified against transcript)
-        - 11th/12th grade courses for 9th/10th graders (use grade-level from Step 0)
-        - Courses outside the student's current sequence path
-
-        APPLY CONSISTENTLY ACROSS ALL SUBJECTS:
-        - Math, Science, English, Social Studies, Foreign Language must all follow the same logic
-        - Include at least: Math, Science, English, Social Studies, Foreign Language
+        - SOURCE ISOLATION: The School Profile tells you what is OFFERED. The Transcript tells you what is TAKEN. Never copy a course from "offered" into "taken" unless the TRANSCRIPT independently confirms it with a grade
 
         The narrative should be written in a professional tone suitable for a counselor letter,
         highlighting the student's academic choices in context of what the school offers.`,
