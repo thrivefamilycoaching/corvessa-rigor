@@ -533,7 +533,12 @@ function SchoolCard({ school, isFilterMatch }: { school: RecommendedSchool; isFi
               <span>{getTypeLabel(school.type)}</span>
             </span>
             {school.testPolicy ? (
-              <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border border-gray-300">
+              <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border ${
+                school.testPolicy === "Test Optional" ? "border-green-500 text-green-700 bg-green-50" :
+                school.testPolicy === "Test Required" ? "border-red-500 text-red-700 bg-red-50" :
+                school.testPolicy === "Test Blind" ? "border-blue-500 text-blue-700 bg-blue-50" :
+                "border-gray-400 text-gray-600 bg-gray-50"
+              }`}>
                 {school.testPolicy}
               </span>
             ) : (
@@ -542,7 +547,11 @@ function SchoolCard({ school, isFilterMatch }: { school: RecommendedSchool; isFi
               </span>
             )}
             {school.acceptanceProbability !== undefined && school.acceptanceProbability !== null ? (
-              <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border border-gray-300">
+              <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border ${
+                school.acceptanceProbability < 30 ? "border-orange-500 text-orange-700 bg-orange-50" :
+                school.acceptanceProbability >= 80 ? "border-green-500 text-green-700 bg-green-50" :
+                "border-blue-500 text-blue-700 bg-blue-50"
+              }`}>
                 Your Odds: {school.acceptanceProbability}%
               </span>
             ) : (
