@@ -317,6 +317,51 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
 
     const analysis = JSON.parse(content) as AnalysisResult;
 
+    // Post-process gapAnalysis to catch missed opportunities GPT missed
+    if (analysis.gapAnalysis && Array.isArray(analysis.gapAnalysis)) {
+      analysis.gapAnalysis = analysis.gapAnalysis.map((gap: any) => {
+        const taken = (gap.taken || "").toLowerCase();
+        const offered = (gap.offered || []).map((c: string) => c);
+        const offeredLower = offered.map((c: string) => c.toLowerCase());
+
+        // Check if there's an honors/accelerated/AP version of what they're taking
+        const missed: string[] = [];
+
+        for (let i = 0; i < offered.length; i++) {
+          const course = offeredLower[i];
+          const courseName = offered[i];
+
+          // Skip the course they're already taking
+          if (course === taken) continue;
+
+          // Check if this is a more rigorous version of their current course
+          const takenBase = taken.replace(/^(honors |accelerated |ap |advanced |ib )/i, "").trim();
+          const courseBase = course.replace(/^(honors |accelerated |ap |advanced |ib )/i, "").trim();
+
+          // Same base subject but with honors/AP/accelerated prefix = missed opportunity
+          if (courseBase === takenBase || courseBase.includes(takenBase) || takenBase.includes(courseBase)) {
+            const isCurrentMoreRigorous = /^(honors |accelerated |ap |advanced |ib )/i.test(taken);
+            const isThisMoreRigorous = /^(honors |accelerated |ap |advanced |ib )/i.test(course);
+
+            if (isThisMoreRigorous && !isCurrentMoreRigorous) {
+              missed.push(courseName);
+            }
+          }
+        }
+
+        // Override GPT's missed field if we found issues
+        if (missed.length > 0) {
+          gap.missed = missed;
+        }
+
+        return gap;
+      });
+
+      console.log("[GapFix] Post-processed gap analysis:",
+        analysis.gapAnalysis.map((g: any) => `${g.subject}: taken=${g.taken}, missed=${(g.missed || []).length}`).join(", ")
+      );
+    }
+
     // ── Unified metadata correction: campusSize + region + testPolicy ────
     // GPT can hallucinate enrollment, mislabel regions, or assign wrong
     // test policies.  Correct ALL three in a single pass using hard-coded

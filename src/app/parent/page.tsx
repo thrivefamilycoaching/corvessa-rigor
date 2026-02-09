@@ -20,7 +20,7 @@ import type { AnalysisResult } from "@/lib/types";
 import { RigorScorecard } from "@/components/RigorScorecard";
 import { RecommendedSchools } from "@/components/RecommendedSchools";
 import { GapAnalysis } from "@/components/GapAnalysis";
-import { ReportExport } from "@/components/ReportExport";
+
 import Link from "next/link";
 
 interface TestScores {
@@ -348,11 +348,6 @@ export default function CollegeCoPilot() {
         {/* Results Section */}
         {result && (
           <section className="space-y-8">
-            {/* Export Button */}
-            <div className="flex justify-end">
-              <ReportExport result={result} editedNarrative={result.narrative} />
-            </div>
-
             {/* Scorecard */}
             <div>
               <h2 className="mb-4 text-lg font-semibold">Rigor Analysis</h2>

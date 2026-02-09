@@ -21,7 +21,7 @@ import { RigorScorecard } from "@/components/RigorScorecard";
 import { CounselorNarrative } from "@/components/CounselorNarrative";
 import { RecommendedSchools } from "@/components/RecommendedSchools";
 import { GapAnalysis } from "@/components/GapAnalysis";
-import { ReportExport } from "@/components/ReportExport";
+
 
 interface TestScores {
   satReading: string;
@@ -346,11 +346,6 @@ export default function CounselorCoPilot() {
         {/* Results Section */}
         {result && (
           <section className="space-y-8">
-            {/* Export Button */}
-            <div className="flex justify-end">
-              <ReportExport result={result} editedNarrative={editedNarrative} />
-            </div>
-
             {/* Scorecard */}
             <div>
               <h2 className="mb-4 text-lg font-semibold">Rigor Analysis</h2>
