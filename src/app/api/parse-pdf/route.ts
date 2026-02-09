@@ -247,6 +247,16 @@ export async function POST(request: NextRequest) {
         - For Test Optional/Blind schools, weight course rigor MORE heavily
 
         For gapAnalysis:
+        - Compare what the school offers vs what the student is CURRENTLY ENROLLED IN for each major subject area
+        - The "taken" field should show ONLY the specific course the student is currently taking in that subject
+        - The "offered" field should list ALL courses the school offers in that subject, from least to most rigorous
+        - The "missed" field must list any course MORE RIGOROUS than what the student is currently taking that was available to them at their grade level
+        - A student is ONLY "taking all rigorous options" if they are enrolled in THE SINGLE MOST ADVANCED course available to them in that subject for their grade level
+        - For Math: if a student is in Algebra 2 but Honors Algebra 2 or Accelerated Algebra 2 exists, that is a missed opportunity
+        - For Science: if a student is in Chemistry but Honors Chemistry exists, that is a missed opportunity
+        - Be strict: if there is ANY honors, accelerated, or AP version of the course the student is taking, and the student is NOT in that version, it must appear in "missed"
+        - Do NOT say "All rigorous options taken" unless the student is literally in the highest-level version of that course offered at their grade level
+        - Include at least: Math, Science, English, Social Studies, Foreign Language
 
         STEP 0 — GRADE-LEVEL IDENTIFICATION (DO THIS FIRST):
         - Determine the student's current grade level from the transcript (9th, 10th, 11th, or 12th)
