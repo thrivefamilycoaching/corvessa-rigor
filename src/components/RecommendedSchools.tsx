@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -136,17 +136,34 @@ export function RecommendedSchools({
   const [pendingSizes, setPendingSizes] = useState<CampusSizeType[]>([]);
   const [pendingTypes, setPendingTypes] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<RecommendedSchool[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   const displaySchools = useMemo(
     () => selectDisplaySchools(allSchools, selectedRegions, selectedSizes, selectedTypes),
     [allSchools, selectedRegions, selectedSizes, selectedTypes]
   );
 
-  const searchResults = useMemo(() => {
-    if (searchQuery.length < 2) return [];
-    const query = searchQuery.toLowerCase();
-    return allSchools.filter((s) => s.name.toLowerCase().includes(query));
-  }, [allSchools, searchQuery]);
+  useEffect(() => {
+    if (searchQuery.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`/api/search-school?q=${encodeURIComponent(searchQuery)}`);
+        const data = await res.json();
+        setSearchResults(data.results || []);
+      } catch {
+        setSearchResults([]);
+      }
+      setIsSearching(false);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const filterMatchCount = useMemo(() => {
     if (selectedRegions.length === 0 && selectedSizes.length === 0 && selectedTypes.length === 0) return displaySchools.length;
@@ -382,15 +399,16 @@ export function RecommendedSchools({
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
-          {searchResults.length > 0 && (
+          {isSearching && <p className="text-sm text-muted-foreground">Searching...</p>}
+          {!isSearching && searchResults.length > 0 && (
             <div className="space-y-2">
               {searchResults.map((school, index) => (
                 <SchoolCard key={`search-${index}`} school={school} isFilterMatch={true} />
               ))}
             </div>
           )}
-          {searchQuery.length >= 2 && searchResults.length === 0 && (
-            <p className="text-sm text-muted-foreground">No matching schools found in the recommendation pool.</p>
+          {!isSearching && searchQuery.length >= 2 && searchResults.length === 0 && (
+            <p className="text-sm text-muted-foreground">No matching schools found.</p>
           )}
         </div>
 
