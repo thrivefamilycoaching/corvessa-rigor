@@ -340,8 +340,10 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
           const takenBase = taken.replace(/^(honors |accelerated |ap |advanced |ib )/i, "").trim();
           const courseBase = course.replace(/^(honors |accelerated |ap |advanced |ib )/i, "").trim();
 
-          // Same base subject but with honors/AP/accelerated prefix = missed opportunity
-          if (courseBase === takenBase || courseBase.includes(takenBase) || takenBase.includes(courseBase)) {
+          // Must be same base course (not just substring match)
+          const isSameBase = courseBase === takenBase;
+
+          if (isSameBase) {
             const isCurrentMoreRigorous = /^(honors |accelerated |ap |advanced |ib )/i.test(taken);
             const isThisMoreRigorous = /^(honors |accelerated |ap |advanced |ib )/i.test(course);
 
@@ -355,6 +357,14 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
         if (missed.length > 0) {
           gap.missed = missed;
         }
+
+        // Filter out AP/Advanced/IB courses that are typically junior/senior level
+        const advancedPrefixes = ["advanced ", "ap ", "ib "];
+        gap.missed = (gap.missed || []).filter((course: string) => {
+          const lower = course.toLowerCase();
+          // Keep honors versions (available at any level) but filter out AP/Advanced/IB
+          return !advancedPrefixes.some(prefix => lower.startsWith(prefix));
+        });
 
         return gap;
       });

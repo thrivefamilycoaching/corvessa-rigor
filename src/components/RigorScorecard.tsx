@@ -49,25 +49,6 @@ export function RigorScorecard({
 
   return (
     <div className="space-y-6">
-      {/* Overall Score Card */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle>Rigor Scorecard</CardTitle>
-            <Badge variant={badge.variant}>{badge.label}</Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-end justify-center gap-2 mb-4">
-            <span className={`text-6xl font-bold ${getScoreColor(overallPercentage)}`}>
-              {cappedOverallScore}
-            </span>
-            <span className="text-2xl text-muted-foreground mb-2">/ {maxScore}</span>
-          </div>
-          <Progress value={overallPercentage} className="h-3" />
-        </CardContent>
-      </Card>
-
       {/* Recalculated Core GPA Badge */}
       {recalculatedGPA != null && (
         <Card className="border-2 border-primary/30 bg-primary/5">
