@@ -911,32 +911,35 @@ export async function fillGapsFromScorecard(
   const timeout = setTimeout(() => controller.abort(), 5000);
 
   try {
-    // One API call per size category = 5 calls, 50 schools each = 250 max
-    const fetches = sizes.map(async (size) => {
+    // Two API calls per size category (asc + desc) = 10 calls, 25 each = 250 max
+    // Ascending gets selective/reach schools, descending gets accessible/safety schools
+    const fetches = sizes.flatMap((size) => {
       const [minEnroll, maxEnroll] = SIZE_RANGES[size];
       const maxStr = maxEnroll === Infinity ? "" : `${maxEnroll}`;
 
-      const params = new URLSearchParams({
-        "api_key": apiKey,
-        "fields": FILL_FIELDS,
-        "school.degrees_awarded.predominant": "3",
-        "school.carnegie_basic__range": "1..23",
-        "school.operating": "1",
-        "latest.student.size__range": `${minEnroll}..${maxStr}`,
-        "sort": "latest.admissions.admission_rate.overall:desc",
-        "per_page": "50",
+      return (["asc", "desc"] as const).map(async (dir) => {
+        const params = new URLSearchParams({
+          "api_key": apiKey,
+          "fields": FILL_FIELDS,
+          "school.degrees_awarded.predominant": "3",
+          "school.carnegie_basic__range": "1..23",
+          "school.operating": "1",
+          "latest.student.size__range": `${minEnroll}..${maxStr}`,
+          "sort": `latest.admissions.admission_rate.overall:${dir}`,
+          "per_page": "25",
+        });
+
+        const url = `https://api.data.gov/ed/collegescorecard/v1/schools.json?${params.toString()}`;
+
+        try {
+          const res = await fetch(url, { signal: controller.signal });
+          if (!res.ok) return [];
+          const data = (await res.json()) as { results: ScorecardFillResult[] };
+          return data.results ?? [];
+        } catch {
+          return [];
+        }
       });
-
-      const url = `https://api.data.gov/ed/collegescorecard/v1/schools.json?${params.toString()}`;
-
-      try {
-        const res = await fetch(url, { signal: controller.signal });
-        if (!res.ok) return [];
-        const data = (await res.json()) as { results: ScorecardFillResult[] };
-        return data.results ?? [];
-      } catch {
-        return [];
-      }
     });
 
     const results = await Promise.allSettled(fetches);
