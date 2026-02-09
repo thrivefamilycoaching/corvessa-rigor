@@ -34,10 +34,10 @@ function selectDisplaySchools(
   const hasFilters = regions.length > 0 || sizes.length > 0 || types.length > 0;
 
   if (!hasFilters) {
-    const reach = allSchools.filter((s) => s.type === "reach").slice(0, 3);
-    const match = allSchools.filter((s) => s.type === "match").slice(0, 3);
     const safety = allSchools.filter((s) => s.type === "safety").slice(0, 3);
-    return [...reach, ...match, ...safety];
+    const match = allSchools.filter((s) => s.type === "match").slice(0, 3);
+    const reach = allSchools.filter((s) => s.type === "reach").slice(0, 3);
+    return [...safety, ...match, ...reach];
   }
 
   // When filters active: show ALL matching schools first, then fill to 9
@@ -435,14 +435,15 @@ export function RecommendedSchools({
           </div>
         ) : (
           <>
-            {reachSchools.length > 0 && (
+            {/* Safety Schools */}
+            {safetySchools.length > 0 && (
               <div>
-                <h4 className="text-sm font-semibold text-orange-600 mb-3 flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-orange-600" />
-                  Reach Schools ({reachSchools.length})
+                <h4 className="text-sm font-semibold text-green-600 mb-3 flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-green-600" />
+                  Safety Schools ({safetySchools.length})
                 </h4>
                 <div className="space-y-3">
-                  {reachSchools.map((school, index) => (
+                  {safetySchools.map((school, index) => (
                     <SchoolCard
                       key={index}
                       school={school}
@@ -458,6 +459,7 @@ export function RecommendedSchools({
               </div>
             )}
 
+            {/* Match Schools */}
             {matchSchools.length > 0 && (
               <div>
                 <h4 className="text-sm font-semibold text-blue-800 mb-3 flex items-center gap-2">
@@ -481,14 +483,15 @@ export function RecommendedSchools({
               </div>
             )}
 
-            {safetySchools.length > 0 && (
+            {/* Reach Schools */}
+            {reachSchools.length > 0 && (
               <div>
-                <h4 className="text-sm font-semibold text-green-600 mb-3 flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-green-600" />
-                  Safety Schools ({safetySchools.length})
+                <h4 className="text-sm font-semibold text-orange-600 mb-3 flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-orange-600" />
+                  Reach Schools ({reachSchools.length})
                 </h4>
                 <div className="space-y-3">
-                  {safetySchools.map((school, index) => (
+                  {reachSchools.map((school, index) => (
                     <SchoolCard
                       key={index}
                       school={school}

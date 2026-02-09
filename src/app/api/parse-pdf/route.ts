@@ -58,6 +58,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Extract home state from formData
+    const homeState = formData.get("homeState") as string | null;
+
     // Extract test scores from formData
     const testScores: TestScores = {};
     const satReading = formData.get("satReading");
@@ -464,6 +467,13 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
       { name: "University of Texas at Austin", url: "https://www.utexas.edu", type: "match", region: "South", campusSize: "Mega", enrollment: 42000, testPolicy: "Test Optional", matchReasoning: "UT Austin's top-ranked programs and vibrant campus culture attract strong students." },
       { name: "Penn State University", url: "https://www.psu.edu", type: "safety", region: "Mid-Atlantic", campusSize: "Mega", enrollment: 46000, testPolicy: "Test Optional", matchReasoning: "Penn State's extensive alumni network and comprehensive program offerings support many academic paths." },
       { name: "University of Minnesota", url: "https://www.umn.edu", type: "match", region: "Midwest", campusSize: "Mega", enrollment: 36000, testPolicy: "Test Optional", matchReasoning: "Minnesota's research strength and Twin Cities location combine academic rigor with urban opportunities." },
+      // Additional match-tier schools (30–70% admit rate) for pool diversity
+      { name: "University of Delaware", url: "https://www.udel.edu", type: "match", region: "Mid-Atlantic", campusSize: "Large", enrollment: 24000, testPolicy: "Test Optional", matchReasoning: "Delaware's strong academics and mid-Atlantic location provide a balanced university experience." },
+      { name: "Drexel University", url: "https://www.drexel.edu", type: "match", region: "Mid-Atlantic", campusSize: "Large", enrollment: 16000, testPolicy: "Test Optional", matchReasoning: "Drexel's co-op program and urban Philadelphia setting prepare students for career success." },
+      { name: "University of Vermont", url: "https://www.uvm.edu", type: "match", region: "Northeast", campusSize: "Medium", enrollment: 12000, testPolicy: "Test Optional", matchReasoning: "UVM's environmental focus and New England setting attract academically motivated students." },
+      { name: "Baylor University", url: "https://www.baylor.edu", type: "match", region: "South", campusSize: "Large", enrollment: 20000, testPolicy: "Test Optional", matchReasoning: "Baylor's faith-based community and strong pre-professional programs support student development." },
+      { name: "University of San Francisco", url: "https://www.usfca.edu", type: "match", region: "West", campusSize: "Medium", enrollment: 10000, testPolicy: "Test Optional", matchReasoning: "USF's Jesuit values and San Francisco location combine social justice with urban opportunity." },
+      { name: "Miami University Ohio", url: "https://www.miamioh.edu", type: "match", region: "Midwest", campusSize: "Large", enrollment: 20000, testPolicy: "Test Optional", matchReasoning: "Miami Ohio's strong teaching reputation and residential campus create an engaged academic community." },
     ];
 
     const existingNames = new Set(analysis.recommendedSchools.map((s: any) => s.name));
@@ -551,6 +561,53 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
       });
       analysis.recommendedSchools = deduplicateByName(analysis.recommendedSchools);
       console.log(`[InitialPDF] Final: ${analysis.recommendedSchools.length} schools after all correction + dedup`);
+    }
+
+    // ── In-state admission boost for public universities ──────────────────
+    const STATE_TO_PUBLIC_BOOST: Record<string, string[]> = {
+      "VA": ["University of Virginia", "Virginia Tech", "James Madison University", "George Mason University", "Old Dominion University", "Virginia Commonwealth University", "College of William & Mary", "Christopher Newport University", "Radford University"],
+      "MD": ["University of Maryland College Park", "University of Maryland, College Park", "Towson University", "Salisbury University"],
+      "PA": ["Penn State University", "University of Pittsburgh", "Temple University"],
+      "NC": ["University of North Carolina at Chapel Hill", "NC State University", "Appalachian State University"],
+      "CA": ["University of California Berkeley", "University of California Los Angeles", "University of California San Diego", "University of California Davis", "University of California Santa Barbara", "University of California Irvine"],
+      "NY": ["SUNY Binghamton", "SUNY Stony Brook", "University at Buffalo"],
+      "FL": ["University of Florida", "Florida State University", "University of South Florida", "University of Central Florida"],
+      "TX": ["University of Texas at Austin", "Texas A&M University"],
+      "GA": ["University of Georgia", "Georgia Institute of Technology"],
+      "OH": ["Ohio State University", "University of Cincinnati", "Miami University Ohio"],
+      "MI": ["University of Michigan", "Michigan State University"],
+      "IL": ["University of Illinois Urbana-Champaign", "University of Illinois at Urbana-Champaign"],
+      "WI": ["University of Wisconsin Madison", "University of Wisconsin-Madison"],
+      "IN": ["Indiana University Bloomington", "Purdue University"],
+      "SC": ["University of South Carolina", "Clemson University"],
+      "TN": ["University of Tennessee", "University of Tennessee, Knoxville"],
+      "AL": ["University of Alabama"],
+      "CO": ["University of Colorado Boulder", "Colorado State University"],
+      "OR": ["University of Oregon", "Oregon State University"],
+      "WA": ["University of Washington", "Washington State University"],
+      "AZ": ["University of Arizona", "Arizona State University"],
+      "MN": ["University of Minnesota"],
+      "IA": ["University of Iowa", "Iowa State University"],
+      "MO": ["University of Missouri"],
+    };
+
+    if (homeState) {
+      const boostSchools = STATE_TO_PUBLIC_BOOST[homeState] || [];
+      analysis.recommendedSchools = analysis.recommendedSchools.map((s: any) => {
+        const nameMatch = boostSchools.some(bs => s.name.includes(bs) || bs.includes(s.name));
+        if (nameMatch && s.acceptanceProbability !== undefined) {
+          const originalOdds = s.acceptanceProbability;
+          // In-state students typically have 1.5-2x better odds at public universities
+          s.acceptanceProbability = Math.min(95, Math.round(s.acceptanceProbability * 1.7));
+          s.matchReasoning = `[In-State Advantage] ${s.matchReasoning}`;
+          // Reclassify based on new odds
+          if (s.acceptanceProbability < 30) s.type = "reach";
+          else if (s.acceptanceProbability >= 80) s.type = "safety";
+          else s.type = "match";
+          console.log(`[InState] ${s.name}: odds ${originalOdds}% → ${s.acceptanceProbability}% (${homeState} resident)`);
+        }
+        return s;
+      });
     }
 
     return NextResponse.json(analysis);
