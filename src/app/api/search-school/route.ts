@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const API_KEY = process.env.COLLEGE_SCORECARD_API_KEY;
+const API_KEY = process.env.COLLEGE_SCORECARD_API_KEY || process.env.NEXT_PUBLIC_COLLEGE_SCORECARD_API_KEY;
 
 const STATE_TO_REGION: Record<string, string> = {
   "MA": "Northeast", "CT": "Northeast", "NY": "Northeast", "RI": "Northeast", "ME": "Northeast", "VT": "Northeast", "NH": "Northeast",
@@ -24,11 +24,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ results: [] });
   }
 
+  console.log("[SearchSchool] Query:", query, "API_KEY exists:", !!API_KEY);
+
   try {
     const url = `https://api.data.gov/ed/collegescorecard/v1/schools.json?api_key=${API_KEY}&school.name=${encodeURIComponent(query)}&school.degrees_awarded.predominant=3&school.operating=1&fields=school.name,school.school_url,latest.student.size,latest.admissions.admission_rate.overall,school.state&per_page=10&sort=latest.student.size:desc`;
 
     const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
     const data = await response.json();
+
+    console.log("[SearchSchool] Response status:", response.status, "Results:", data.results?.length || 0);
 
     const results = (data.results || []).map((r: any) => {
       const enrollment = r["latest.student.size"] || 0;
