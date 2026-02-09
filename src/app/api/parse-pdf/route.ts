@@ -413,6 +413,16 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
       console.log("[Enrichment] Timeout, keeping unenriched pool");
     }
 
+    // Reclassify any school whose type doesn't match its odds
+    analysis.recommendedSchools = analysis.recommendedSchools.map((s: any) => {
+      if (s.acceptanceProbability !== undefined) {
+        if (s.acceptanceProbability < 30) s.type = "reach";
+        else if (s.acceptanceProbability >= 80) s.type = "safety";
+        else s.type = "match";
+      }
+      return s;
+    });
+
     // BACKUP: Guarantee every size and region category has schools
     const backupSchools: RecommendedSchool[] = [
       // MICRO - Northeast

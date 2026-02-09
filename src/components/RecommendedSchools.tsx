@@ -38,51 +38,46 @@ function selectDisplaySchools(
     return [...reach, ...match, ...safety];
   }
 
+  // When filters active: show ALL matching schools first, then fill to 9
   const filtered = allSchools.filter((school) => {
     const regionMatch = regions.length === 0 || regions.includes(school.region);
     const sizeMatch = sizes.length === 0 || sizes.includes(school.campusSize);
     return regionMatch && sizeMatch;
   });
 
-  const reachFiltered = filtered.filter((s) => s.type === "reach");
-  const matchFiltered = filtered.filter((s) => s.type === "match");
-  const safetyFiltered = filtered.filter((s) => s.type === "safety");
-
   const usedNames = new Set<string>();
+  const result: RecommendedSchool[] = [];
 
-  const pickSchools = (
-    filteredList: RecommendedSchool[],
-    type: "reach" | "match" | "safety",
-    count: number
-  ): RecommendedSchool[] => {
-    const result: RecommendedSchool[] = [];
-    for (const school of filteredList) {
-      if (result.length >= count) break;
+  // First pass: try to get at least 1 of each type from filtered
+  for (const type of ["reach", "match", "safety"] as const) {
+    const ofType = filtered.filter((s) => s.type === type && !usedNames.has(s.name));
+    if (ofType.length > 0) {
+      result.push(ofType[0]);
+      usedNames.add(ofType[0].name);
+    }
+  }
+
+  // Second pass: fill remaining slots from filtered schools
+  for (const school of filtered) {
+    if (result.length >= 9) break;
+    if (!usedNames.has(school.name)) {
+      result.push(school);
+      usedNames.add(school.name);
+    }
+  }
+
+  // Third pass: if still under 9, fill from unfiltered pool
+  if (result.length < 9) {
+    for (const school of allSchools) {
+      if (result.length >= 9) break;
       if (!usedNames.has(school.name)) {
         result.push(school);
         usedNames.add(school.name);
       }
     }
+  }
 
-    if (result.length < count) {
-      const fallbacks = allSchools.filter((s) => s.type === type);
-      for (const school of fallbacks) {
-        if (result.length >= count) break;
-        if (!usedNames.has(school.name)) {
-          result.push(school);
-          usedNames.add(school.name);
-        }
-      }
-    }
-
-    return result;
-  };
-
-  const reach = pickSchools(reachFiltered, "reach", 3);
-  const match = pickSchools(matchFiltered, "match", 3);
-  const safety = pickSchools(safetyFiltered, "safety", 3);
-
-  return [...reach, ...match, ...safety];
+  return result;
 }
 
 function getTypeIcon(type: RecommendedSchool["type"]) {
