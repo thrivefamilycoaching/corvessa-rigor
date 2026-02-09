@@ -320,7 +320,9 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
     // Post-process gapAnalysis to catch missed opportunities GPT missed
     if (analysis.gapAnalysis && Array.isArray(analysis.gapAnalysis)) {
       analysis.gapAnalysis = analysis.gapAnalysis.map((gap: any) => {
-        const taken = (gap.taken || "").toLowerCase();
+        const takenRaw = gap.taken;
+        const takenStr = Array.isArray(takenRaw) ? takenRaw[0] || "" : (takenRaw || "");
+        const taken = (typeof takenStr === "string" ? takenStr : String(takenStr)).toLowerCase();
         const offered = (gap.offered || []).map((c: string) => c);
         const offeredLower = offered.map((c: string) => c.toLowerCase());
 
