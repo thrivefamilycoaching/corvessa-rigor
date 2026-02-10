@@ -11,8 +11,8 @@ const STATE_TO_REGION: Record<string, string> = {
 function getSize(e: number) { return e < 2000 ? "Micro" : e < 5000 ? "Small" : e < 15000 ? "Medium" : e < 30000 ? "Large" : "Mega"; }
 
 const SCHOOLS = [
-  { name: "Harvard University", state: "MA", enrollment: 21000, admitRate: 0.03, url: "harvard.edu", testPolicy: "Test Optional" },
-  { name: "Yale University", state: "CT", enrollment: 12500, admitRate: 0.05, url: "yale.edu", testPolicy: "Test Optional" },
+  { name: "Harvard University", state: "MA", enrollment: 21000, admitRate: 0.03, url: "harvard.edu", testPolicy: "Test Required" },
+  { name: "Yale University", state: "CT", enrollment: 12500, admitRate: 0.05, url: "yale.edu", testPolicy: "Test Required" },
   { name: "Princeton University", state: "NJ", enrollment: 8400, admitRate: 0.04, url: "princeton.edu", testPolicy: "Test Optional" },
   { name: "Stanford University", state: "CA", enrollment: 16000, admitRate: 0.04, url: "stanford.edu", testPolicy: "Test Required" },
   { name: "MIT", state: "MA", enrollment: 11500, admitRate: 0.04, url: "mit.edu", testPolicy: "Test Required" },
@@ -21,13 +21,13 @@ const SCHOOLS = [
   { name: "Duke University", state: "NC", enrollment: 16000, admitRate: 0.07, url: "duke.edu", testPolicy: "Test Optional" },
   { name: "Northwestern University", state: "IL", enrollment: 22000, admitRate: 0.07, url: "northwestern.edu", testPolicy: "Test Required" },
   { name: "Johns Hopkins University", state: "MD", enrollment: 27000, admitRate: 0.08, url: "jhu.edu", testPolicy: "Test Optional" },
-  { name: "Dartmouth College", state: "NH", enrollment: 6700, admitRate: 0.06, url: "dartmouth.edu", testPolicy: "Test Optional" },
-  { name: "Brown University", state: "RI", enrollment: 10000, admitRate: 0.05, url: "brown.edu", testPolicy: "Test Optional" },
+  { name: "Dartmouth College", state: "NH", enrollment: 6700, admitRate: 0.06, url: "dartmouth.edu", testPolicy: "Test Required" },
+  { name: "Brown University", state: "RI", enrollment: 10000, admitRate: 0.05, url: "brown.edu", testPolicy: "Test Required" },
   { name: "Cornell University", state: "NY", enrollment: 25000, admitRate: 0.09, url: "cornell.edu", testPolicy: "Test Optional" },
   { name: "Vanderbilt University", state: "TN", enrollment: 13000, admitRate: 0.06, url: "vanderbilt.edu", testPolicy: "Test Optional" },
   { name: "Rice University", state: "TX", enrollment: 8000, admitRate: 0.09, url: "rice.edu", testPolicy: "Test Optional" },
   { name: "University of Notre Dame", state: "IN", enrollment: 13000, admitRate: 0.13, url: "nd.edu", testPolicy: "Test Optional" },
-  { name: "Georgetown University", state: "DC", enrollment: 19000, admitRate: 0.13, url: "georgetown.edu", testPolicy: "Test Optional" },
+  { name: "Georgetown University", state: "DC", enrollment: 19000, admitRate: 0.13, url: "georgetown.edu", testPolicy: "Test Required" },
   { name: "Emory University", state: "GA", enrollment: 15000, admitRate: 0.13, url: "emory.edu", testPolicy: "Test Optional" },
   { name: "University of Michigan", state: "MI", enrollment: 46000, admitRate: 0.18, url: "umich.edu", testPolicy: "Test Required" },
   { name: "University of Virginia", state: "VA", enrollment: 24000, admitRate: 0.19, url: "virginia.edu", testPolicy: "Test Required" },
