@@ -62,6 +62,8 @@ export default function CollegeCoPilot() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [manualGPA, setManualGPA] = useState("");
+  const [schoolCount, setSchoolCount] = useState(9);
 
   const onDropSchoolProfile = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles[0]) setSchoolProfile(acceptedFiles[0]);
@@ -112,6 +114,11 @@ export default function CollegeCoPilot() {
       if (testScores.actComposite) {
         formData.append("actComposite", testScores.actComposite);
       }
+
+      if (manualGPA) {
+        formData.append("manualGPA", manualGPA);
+      }
+      formData.append("schoolCount", String(schoolCount));
 
       const res = await fetch("/api/parse-pdf", { method: "POST", body: formData });
       if (!res.ok) {
@@ -198,6 +205,40 @@ export default function CollegeCoPilot() {
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
+          </div>
+
+          {/* GPA Override & School Count */}
+          <div className="mb-6 flex flex-wrap gap-6">
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                GPA Override <span className="text-xs text-muted-foreground">(optional — use if tool misreads transcript)</span>
+              </label>
+              <input
+                type="number"
+                step={0.01}
+                min={0}
+                max={4.0}
+                placeholder="e.g. 3.45"
+                value={manualGPA}
+                onChange={(e) => setManualGPA(e.target.value)}
+                className="w-full max-w-[180px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                Number of Schools to Display
+              </label>
+              <select
+                value={schoolCount}
+                onChange={(e) => setSchoolCount(parseInt(e.target.value))}
+                className="w-full max-w-[180px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value={9}>9 (3/3/3)</option>
+                <option value={12}>12 (4/4/4)</option>
+                <option value={15}>15 (5/5/5)</option>
+                <option value={18}>18 (6/6/6)</option>
+              </select>
+            </div>
           </div>
 
           <div className="grid gap-6 md:grid-cols-3">
@@ -433,6 +474,7 @@ export default function CollegeCoPilot() {
                   transcriptSummary={result.transcriptSummary}
                   schoolProfileSummary={result.schoolProfileSummary}
                   overallScore={result.scorecard.overallScore}
+                  schoolCount={schoolCount}
                 />
               </div>
             )}

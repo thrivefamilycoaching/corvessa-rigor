@@ -23,20 +23,22 @@ interface RecommendedSchoolsProps {
   transcriptSummary: string;
   schoolProfileSummary: string;
   overallScore: number;
+  schoolCount?: number;
 }
 
 function selectDisplaySchools(
   allSchools: RecommendedSchool[],
   regions: RegionType[],
   sizes: CampusSizeType[],
-  types: string[]
+  types: string[],
+  perCategory: number = 3
 ): RecommendedSchool[] {
   const hasFilters = regions.length > 0 || sizes.length > 0 || types.length > 0;
 
   if (!hasFilters) {
-    const safety = allSchools.filter((s) => s.type === "safety").slice(0, 3);
-    const match = allSchools.filter((s) => s.type === "match").slice(0, 3);
-    const reach = allSchools.filter((s) => s.type === "reach").slice(0, 3);
+    const safety = allSchools.filter((s) => s.type === "safety").slice(0, perCategory);
+    const match = allSchools.filter((s) => s.type === "match").slice(0, perCategory);
+    const reach = allSchools.filter((s) => s.type === "reach").slice(0, perCategory);
     return [...safety, ...match, ...reach];
   }
 
@@ -94,6 +96,7 @@ export function RecommendedSchools({
   transcriptSummary,
   schoolProfileSummary,
   overallScore,
+  schoolCount = 9,
 }: RecommendedSchoolsProps) {
   const [selectedRegions, setSelectedRegions] = useState<RegionType[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<CampusSizeType[]>([]);
@@ -106,8 +109,8 @@ export function RecommendedSchools({
   const [isSearching, setIsSearching] = useState(false);
 
   const displaySchools = useMemo(
-    () => selectDisplaySchools(allSchools, selectedRegions, selectedSizes, selectedTypes),
-    [allSchools, selectedRegions, selectedSizes, selectedTypes]
+    () => selectDisplaySchools(allSchools, selectedRegions, selectedSizes, selectedTypes, Math.floor(schoolCount / 3)),
+    [allSchools, selectedRegions, selectedSizes, selectedTypes, schoolCount]
   );
 
   useEffect(() => {

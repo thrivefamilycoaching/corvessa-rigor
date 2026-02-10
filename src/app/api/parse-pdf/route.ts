@@ -71,6 +71,10 @@ export async function POST(request: NextRequest) {
     if (satMath) testScores.satMath = parseInt(satMath as string);
     if (actComposite) testScores.actComposite = parseInt(actComposite as string);
 
+    // Extract manual GPA override and school count
+    const manualGPA = parseFloat((formData.get("manualGPA") as string) || "0");
+    const schoolCount = parseInt((formData.get("schoolCount") as string) || "9");
+
     // Extract text from PDFs
     const schoolProfileBuffer = Buffer.from(await schoolProfileFile.arrayBuffer());
     const transcriptBuffer = Buffer.from(await transcriptFile.arrayBuffer());
@@ -319,6 +323,12 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
     }
 
     const analysis = JSON.parse(content) as AnalysisResult;
+
+    // Apply manual GPA override if provided
+    if (manualGPA > 0) {
+      analysis.recalculatedGPA = manualGPA;
+      console.log("[Override] GPA manually set to:", manualGPA);
+    }
 
     // Post-process gapAnalysis to catch missed opportunities GPT missed
     if (analysis.gapAnalysis && Array.isArray(analysis.gapAnalysis)) {
