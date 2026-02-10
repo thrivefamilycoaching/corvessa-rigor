@@ -598,8 +598,8 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
           const orig = s.acceptanceProbability;
           s.acceptanceProbability = Math.min(95, Math.round(s.acceptanceProbability * 1.7));
           s.matchReasoning = "[In-State Advantage] " + s.matchReasoning;
-          if (s.acceptanceProbability < 30) s.type = "reach";
-          else if (s.acceptanceProbability >= 80) s.type = "safety";
+          if (s.acceptanceProbability < 25) s.type = "reach";
+          else if (s.acceptanceProbability >= 75) s.type = "safety";
           else s.type = "match";
           console.log("[InState] " + s.name + ": odds " + orig + "% → " + s.acceptanceProbability + "% (" + homeState + " resident)");
         }
@@ -610,8 +610,8 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
     // Reclassify ALL schools based on actual odds — this overrides any incorrect hardcoded types
     analysis.recommendedSchools = analysis.recommendedSchools.map((s: any) => {
       if (s.acceptanceProbability != null) {
-        if (s.acceptanceProbability < 30) s.type = "reach";
-        else if (s.acceptanceProbability >= 80) s.type = "safety";
+        if (s.acceptanceProbability < 25) s.type = "reach";
+        else if (s.acceptanceProbability >= 75) s.type = "safety";
         else s.type = "match";
       }
       return s;

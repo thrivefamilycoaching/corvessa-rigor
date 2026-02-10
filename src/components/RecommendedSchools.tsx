@@ -485,11 +485,11 @@ function SchoolCard({ school }: { school: RecommendedSchool }) {
             )}
             {school.acceptanceProbability !== undefined && school.acceptanceProbability !== null ? (
               <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border ${
-                school.acceptanceProbability < 30 ? "border-orange-500 text-orange-700 bg-orange-50" :
-                school.acceptanceProbability >= 80 ? "border-green-500 text-green-700 bg-green-50" :
+                school.acceptanceProbability < 25 ? "border-orange-500 text-orange-700 bg-orange-50" :
+                school.acceptanceProbability >= 75 ? "border-green-500 text-green-700 bg-green-50" :
                 "border-blue-500 text-blue-700 bg-blue-50"
               }`}>
-                Your Odds: {school.acceptanceProbability}%
+                Your Odds: {school.acceptanceProbability < 10 ? "<10%" : school.acceptanceProbability > 95 ? "95%+" : school.acceptanceProbability + "%"}
               </span>
             ) : (
               <span className="inline-flex items-center text-xs text-muted-foreground px-2 py-0.5 rounded-full border border-dashed border-gray-300">
