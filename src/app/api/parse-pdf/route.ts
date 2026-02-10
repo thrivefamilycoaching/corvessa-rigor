@@ -533,28 +533,6 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
       console.log("[Enrichment] Timeout, keeping unenriched pool");
     }
 
-    // Reclassify every school so type matches its odds
-    analysis.recommendedSchools = analysis.recommendedSchools.map((s: any) => {
-      if (s.acceptanceProbability !== undefined) {
-        if (s.acceptanceProbability < 30) s.type = "reach";
-        else if (s.acceptanceProbability >= 80) s.type = "safety";
-        else s.type = "match";
-      }
-      return s;
-    });
-    console.log("[Reclassify] Pool:", analysis.recommendedSchools.length, "R:", analysis.recommendedSchools.filter((s: any) => s.type === "reach").length, "M:", analysis.recommendedSchools.filter((s: any) => s.type === "match").length, "S:", analysis.recommendedSchools.filter((s: any) => s.type === "safety").length);
-
-    // Fallback odds for unenriched schools based on their type
-    analysis.recommendedSchools = analysis.recommendedSchools.map((s: any) => {
-      if (s.acceptanceProbability === undefined || s.acceptanceProbability === null) {
-        if (s.type === "reach") s.acceptanceProbability = 15;
-        else if (s.type === "match") s.acceptanceProbability = 50;
-        else if (s.type === "safety") s.acceptanceProbability = 85;
-        console.log("[OddsFallback] " + s.name + " assigned default odds: " + s.acceptanceProbability + "% based on type: " + s.type);
-      }
-      return s;
-    });
-
     // ── Final metadata re-correction + dedup ────────────
     if (analysis.recommendedSchools) {
       analysis.recommendedSchools = analysis.recommendedSchools.map((s) => {
@@ -618,6 +596,26 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
         return s;
       });
     }
+
+    // Reclassify ALL schools based on actual odds — this overrides any incorrect hardcoded types
+    analysis.recommendedSchools = analysis.recommendedSchools.map((s: any) => {
+      if (s.acceptanceProbability != null) {
+        if (s.acceptanceProbability < 30) s.type = "reach";
+        else if (s.acceptanceProbability >= 80) s.type = "safety";
+        else s.type = "match";
+      }
+      return s;
+    });
+
+    // Then assign fallback odds to any remaining school without odds (LAST step)
+    analysis.recommendedSchools = analysis.recommendedSchools.map((s: any) => {
+      if (s.acceptanceProbability == null) {
+        if (s.type === "reach") s.acceptanceProbability = 15;
+        else if (s.type === "match") s.acceptanceProbability = 50;
+        else if (s.type === "safety") s.acceptanceProbability = 85;
+      }
+      return s;
+    });
 
     return NextResponse.json(analysis);
   } catch (error) {
