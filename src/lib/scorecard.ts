@@ -248,7 +248,7 @@ export async function lookupSchool(
       const url = `https://api.data.gov/ed/collegescorecard/v1/schools.json?school.name=${encodeURIComponent(variant)}&fields=${SCORECARD_FIELDS}&api_key=${apiKey}&per_page=5`;
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
+      const timeout = setTimeout(() => controller.abort(), 3000);
 
       const res = await fetch(url, { signal: controller.signal });
       clearTimeout(timeout);
@@ -447,12 +447,16 @@ export async function enrichSchoolsWithScorecardData(
     }`
   );
 
-  // Parallel lookups for all schools
+  // Only enrich first 15 schools (GPT-generated) to stay within time budget
+  const toEnrich = schools.slice(0, 15);
+  const passthrough = schools.slice(15);
+
+  // Parallel lookups for schools to enrich
   const lookupResults = await Promise.allSettled(
-    schools.map((school) => lookupSchool(school.name, apiKey))
+    toEnrich.map((school) => lookupSchool(school.name, apiKey))
   );
 
-  const enriched = schools.map((school, i) => {
+  const enriched = toEnrich.map((school, i) => {
     const result = lookupResults[i];
     const scorecard =
       result.status === "fulfilled" ? result.value : null;
@@ -519,7 +523,7 @@ export async function enrichSchoolsWithScorecardData(
   });
 
   // Correct all metadata AFTER enrichment so region/campusSize/testPolicy are authoritative
-  return correctAllMetadata(enriched);
+  return correctAllMetadata([...enriched, ...passthrough]);
 }
 
 // ── 3-3-3 Distribution Enforcement ──────────────────────────────────────────

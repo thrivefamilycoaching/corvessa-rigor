@@ -8,7 +8,7 @@ import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS, getSchoolRegion } from "@/
 
 // Disable all Vercel caching — always fetch fresh Scorecard data
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 // Resolve worker path via Next.js optimized URL constructor
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -523,7 +523,7 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
 
     const enrichedPool = await Promise.race([
       enrichSchoolsWithScorecardData(analysis.recommendedSchools, studentProfile),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 20_000)),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 10_000)),
     ]);
 
     if (enrichedPool) {
