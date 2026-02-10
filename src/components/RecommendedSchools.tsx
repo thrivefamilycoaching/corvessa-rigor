@@ -40,47 +40,13 @@ function selectDisplaySchools(
     return [...safety, ...match, ...reach];
   }
 
-  // When filters active: show ALL matching schools first, then fill to 9
-  const filtered = allSchools.filter((school) => {
+  // When filters active: show ONLY schools that match the filters
+  return allSchools.filter((school) => {
     const regionMatch = regions.length === 0 || regions.includes(school.region);
     const sizeMatch = sizes.length === 0 || sizes.includes(school.campusSize);
     const typeMatch = types.length === 0 || types.includes(school.type);
     return regionMatch && sizeMatch && typeMatch;
   });
-
-  const usedNames = new Set<string>();
-  const result: RecommendedSchool[] = [];
-
-  // First pass: try to get at least 1 of each type from filtered
-  for (const type of ["reach", "match", "safety"] as const) {
-    const ofType = filtered.filter((s) => s.type === type && !usedNames.has(s.name));
-    if (ofType.length > 0) {
-      result.push(ofType[0]);
-      usedNames.add(ofType[0].name);
-    }
-  }
-
-  // Second pass: fill remaining slots from filtered schools
-  for (const school of filtered) {
-    if (result.length >= 9) break;
-    if (!usedNames.has(school.name)) {
-      result.push(school);
-      usedNames.add(school.name);
-    }
-  }
-
-  // Third pass: if still under 9, fill from unfiltered pool
-  if (result.length < 9) {
-    for (const school of allSchools) {
-      if (result.length >= 9) break;
-      if (!usedNames.has(school.name)) {
-        result.push(school);
-        usedNames.add(school.name);
-      }
-    }
-  }
-
-  return result;
 }
 
 function getTypeIcon(type: RecommendedSchool["type"]) {
@@ -164,16 +130,6 @@ export function RecommendedSchools({
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
-
-  const filterMatchCount = useMemo(() => {
-    if (selectedRegions.length === 0 && selectedSizes.length === 0 && selectedTypes.length === 0) return displaySchools.length;
-    return displaySchools.filter((school) => {
-      const regionMatch = selectedRegions.length === 0 || selectedRegions.includes(school.region);
-      const sizeMatch = selectedSizes.length === 0 || selectedSizes.includes(school.campusSize);
-      const typeMatch = selectedTypes.length === 0 || selectedTypes.includes(school.type);
-      return regionMatch && sizeMatch && typeMatch;
-    }).length;
-  }, [displaySchools, selectedRegions, selectedSizes, selectedTypes]);
 
   const filtersApplied = selectedRegions.length > 0 || selectedSizes.length > 0 || selectedTypes.length > 0;
 
@@ -403,7 +359,7 @@ export function RecommendedSchools({
           {!isSearching && searchResults.length > 0 && (
             <div className="space-y-2">
               {searchResults.map((school, index) => (
-                <SchoolCard key={`search-${index}`} school={school} isFilterMatch={true} />
+                <SchoolCard key={`search-${index}`} school={school} />
               ))}
             </div>
           )}
@@ -413,13 +369,15 @@ export function RecommendedSchools({
         </div>
 
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>{displaySchools.length} schools</span>
-          <span>
-            ({reachSchools.length} reach, {matchSchools.length} match, {safetySchools.length} safety)
-          </span>
-          {filtersApplied && filterMatchCount < displaySchools.length && (
-            <span className="text-xs">
-              · {filterMatchCount} match your filters, {displaySchools.length - filterMatchCount} additional shown to fill 3/3/3
+          {filtersApplied ? (
+            <span>
+              {displaySchools.length} {displaySchools.length === 1 ? "school matches" : "schools match"} your filters
+              ({reachSchools.length} reach, {matchSchools.length} match, {safetySchools.length} safety)
+            </span>
+          ) : (
+            <span>
+              {displaySchools.length} schools
+              ({reachSchools.length} reach, {matchSchools.length} match, {safetySchools.length} safety)
             </span>
           )}
         </div>
@@ -444,16 +402,7 @@ export function RecommendedSchools({
                 </h4>
                 <div className="space-y-3">
                   {safetySchools.map((school, index) => (
-                    <SchoolCard
-                      key={index}
-                      school={school}
-                      isFilterMatch={
-                        !filtersApplied ||
-                        ((selectedRegions.length === 0 || selectedRegions.includes(school.region)) &&
-                         (selectedSizes.length === 0 || selectedSizes.includes(school.campusSize)) &&
-                         (selectedTypes.length === 0 || selectedTypes.includes(school.type)))
-                      }
-                    />
+                    <SchoolCard key={index} school={school} />
                   ))}
                 </div>
               </div>
@@ -468,16 +417,7 @@ export function RecommendedSchools({
                 </h4>
                 <div className="space-y-3">
                   {matchSchools.map((school, index) => (
-                    <SchoolCard
-                      key={index}
-                      school={school}
-                      isFilterMatch={
-                        !filtersApplied ||
-                        ((selectedRegions.length === 0 || selectedRegions.includes(school.region)) &&
-                         (selectedSizes.length === 0 || selectedSizes.includes(school.campusSize)) &&
-                         (selectedTypes.length === 0 || selectedTypes.includes(school.type)))
-                      }
-                    />
+                    <SchoolCard key={index} school={school} />
                   ))}
                 </div>
               </div>
@@ -492,16 +432,7 @@ export function RecommendedSchools({
                 </h4>
                 <div className="space-y-3">
                   {reachSchools.map((school, index) => (
-                    <SchoolCard
-                      key={index}
-                      school={school}
-                      isFilterMatch={
-                        !filtersApplied ||
-                        ((selectedRegions.length === 0 || selectedRegions.includes(school.region)) &&
-                         (selectedSizes.length === 0 || selectedSizes.includes(school.campusSize)) &&
-                         (selectedTypes.length === 0 || selectedTypes.includes(school.type)))
-                      }
-                    />
+                    <SchoolCard key={index} school={school} />
                   ))}
                 </div>
               </div>
@@ -513,9 +444,9 @@ export function RecommendedSchools({
   );
 }
 
-function SchoolCard({ school, isFilterMatch }: { school: RecommendedSchool; isFilterMatch: boolean }) {
+function SchoolCard({ school }: { school: RecommendedSchool }) {
   return (
-    <div className={`rounded-lg border p-4 ${!isFilterMatch ? "opacity-60 border-dashed" : ""}`}>
+    <div className="rounded-lg border p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -561,11 +492,6 @@ function SchoolCard({ school, isFilterMatch }: { school: RecommendedSchool; isFi
               <span className="inline-flex items-center text-xs text-muted-foreground px-2 py-0.5 rounded-full border border-dashed border-gray-300">
                 Odds: N/A
               </span>
-            )}
-            {!isFilterMatch && (
-              <Badge variant="outline" className="text-xs text-muted-foreground">
-                Outside filter
-              </Badge>
             )}
           </div>
           <div className="flex items-center gap-3 mb-2 text-xs text-muted-foreground flex-wrap">
