@@ -114,10 +114,21 @@ export default function CollegeCoPilot() {
       }
 
       const res = await fetch("/api/parse-pdf", { method: "POST", body: formData });
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Analysis failed");
+        const text = await res.text();
+        console.error("API error:", text);
+        // Try to parse as JSON for structured error, fall back to raw text
+        try {
+          const errData = JSON.parse(text);
+          throw new Error(errData.error || "Analysis failed");
+        } catch (parseErr) {
+          if (parseErr instanceof SyntaxError) {
+            throw new Error("Analysis failed — server returned an unexpected response");
+          }
+          throw parseErr;
+        }
       }
+      const data = await res.json();
       const analysisResult = data as AnalysisResult;
       setResult(analysisResult);
     } catch (err) {

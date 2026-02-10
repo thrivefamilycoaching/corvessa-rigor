@@ -58,8 +58,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Extract home state from formData
-    const homeState = formData.get("homeState") as string | null;
+    // Extract home state from formData (may not be sent by parent portal yet)
+    const homeState = (formData.get("homeState") as string) || null;
 
     // Extract test scores from formData
     const testScores: TestScores = {};
