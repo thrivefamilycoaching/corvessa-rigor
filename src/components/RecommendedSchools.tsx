@@ -18,10 +18,6 @@ import {
   Search,
 } from "lucide-react";
 
-interface DisplaySchool extends RecommendedSchool {
-  outsideFilter?: boolean;
-}
-
 interface RecommendedSchoolsProps {
   schools: RecommendedSchool[];
   transcriptSummary: string;
@@ -36,37 +32,30 @@ function selectDisplaySchools(
   sizes: CampusSizeType[],
   types: string[],
   perCategory: number = 3
-): DisplaySchool[] {
-  const hasFilters = regions.length > 0 || sizes.length > 0 || types.length > 0;
-
-  if (!hasFilters) {
-    const safety = allSchools.filter((s) => s.type === "safety").slice(0, perCategory);
-    const match = allSchools.filter((s) => s.type === "match").slice(0, perCategory);
-    const reach = allSchools.filter((s) => s.type === "reach").slice(0, perCategory);
-    return [...safety, ...match, ...reach];
-  }
-
-  // Schools matching all active filters
-  const matched: DisplaySchool[] = allSchools.filter((school) => {
+): RecommendedSchool[] {
+  // Filter pool by active filters
+  const pool = allSchools.filter((school) => {
     const regionMatch = regions.length === 0 || regions.includes(school.region);
     const sizeMatch = sizes.length === 0 || sizes.includes(school.campusSize);
     const typeMatch = types.length === 0 || types.includes(school.type);
     return regionMatch && sizeMatch && typeMatch;
   });
 
-  // Always show at least perCategory*3 schools — backfill from unfiltered pool
-  const minSchools = perCategory * 3;
-  if (matched.length >= minSchools) {
-    return matched;
+  // Pick perCategory per type, fill from other types if any bucket is short
+  const safety = pool.filter((s) => s.type === "safety").slice(0, perCategory);
+  const match = pool.filter((s) => s.type === "match").slice(0, perCategory);
+  const reach = pool.filter((s) => s.type === "reach").slice(0, perCategory);
+
+  const picked = [...safety, ...match, ...reach];
+  const total = perCategory * 3;
+
+  if (picked.length < total) {
+    const pickedNames = new Set(picked.map((s) => s.name));
+    const leftovers = pool.filter((s) => !pickedNames.has(s.name));
+    picked.push(...leftovers.slice(0, total - picked.length));
   }
 
-  const matchedNames = new Set(matched.map((s) => s.name));
-  const remaining = allSchools.filter((s) => !matchedNames.has(s.name));
-  const backfill: DisplaySchool[] = remaining
-    .slice(0, minSchools - matched.length)
-    .map((s) => ({ ...s, outsideFilter: true }));
-
-  return [...matched, ...backfill];
+  return picked;
 }
 
 function getTypeIcon(type: RecommendedSchool["type"]) {
@@ -214,8 +203,6 @@ export function RecommendedSchools({
   const reachSchools = displaySchools.filter((s) => s.type === "reach");
   const matchSchools = displaySchools.filter((s) => s.type === "match");
   const safetySchools = displaySchools.filter((s) => s.type === "safety");
-  const matchedCount = displaySchools.filter((s) => !s.outsideFilter).length;
-  const outsideCount = displaySchools.filter((s) => s.outsideFilter).length;
 
   return (
     <Card>
@@ -392,18 +379,10 @@ export function RecommendedSchools({
         </div>
 
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          {filtersApplied ? (
-            <span>
-              {matchedCount} {matchedCount === 1 ? "school matches" : "schools match"} your filters
-              ({reachSchools.length} reach, {matchSchools.length} match, {safetySchools.length} safety)
-              {outsideCount > 0 && ` + ${outsideCount} additional suggestions`}
-            </span>
-          ) : (
-            <span>
-              {displaySchools.length} schools
-              ({reachSchools.length} reach, {matchSchools.length} match, {safetySchools.length} safety)
-            </span>
-          )}
+          <span>
+            {displaySchools.length} schools
+            ({reachSchools.length} reach, {matchSchools.length} match, {safetySchools.length} safety)
+          </span>
         </div>
       </CardHeader>
 
@@ -468,10 +447,9 @@ export function RecommendedSchools({
   );
 }
 
-function SchoolCard({ school }: { school: DisplaySchool }) {
-  const isOutside = school.outsideFilter;
+function SchoolCard({ school }: { school: RecommendedSchool }) {
   return (
-    <div className={`rounded-lg border p-4 ${isOutside ? "opacity-50 border-dashed" : ""}`}>
+    <div className="rounded-lg border p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -483,11 +461,6 @@ function SchoolCard({ school }: { school: DisplaySchool }) {
             >
               {school.name}
             </a>
-            {isOutside && (
-              <span className="inline-flex items-center text-xs text-muted-foreground px-2 py-0.5 rounded-full border border-dashed border-gray-400 bg-gray-50">
-                Outside your filters
-              </span>
-            )}
             <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full text-white ${
               school.type === "reach" ? "bg-orange-600" :
               school.type === "match" ? "bg-blue-800" :

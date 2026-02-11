@@ -5,6 +5,7 @@ import OpenAI from "openai";
 import type { AnalysisResult, TestScores, RecommendedSchool } from "@/lib/types";
 import { enrichSchoolsWithScorecardData, getEnrollmentSize, deduplicateByName, fillGapsFromScorecard } from "@/lib/scorecard";
 import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS, getSchoolRegion } from "@/lib/constants";
+import { SCHOOLS_DATABASE } from "@/lib/schoolDatabase";
 
 // Disable all Vercel caching — always fetch fresh Scorecard data
 export const dynamic = "force-dynamic";
@@ -32,6 +33,32 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
 
   doc.destroy();
   return textParts.join("\n");
+}
+
+/** Classify a school for a specific student based on admit rate, GPA, and SAT. */
+function classifyForStudent(
+  admitRate: number,
+  studentGPA: number,
+  studentSAT: number | null
+): { personalizedOdds: number; type: string } {
+  let odds = admitRate * 100;
+  if (studentGPA >= 3.8) odds *= 1.3;
+  else if (studentGPA >= 3.5) odds *= 1.15;
+  else if (studentGPA >= 3.0) odds *= 1.0;
+  else if (studentGPA >= 2.5) odds *= 0.75;
+  else odds *= 0.5;
+  if (studentSAT) {
+    if (studentSAT >= 1400) odds *= 1.3;
+    else if (studentSAT >= 1200) odds *= 1.1;
+    else if (studentSAT >= 1000) odds *= 0.9;
+    else odds *= 0.7;
+  }
+  odds = Math.min(95, Math.max(1, Math.round(odds)));
+  let type: string;
+  if (odds < 40) type = "reach";
+  else if (odds >= 75) type = "safety";
+  else type = "match";
+  return { personalizedOdds: odds, type };
 }
 
 /** Trim redundant whitespace and repeated header lines to reduce token count. */
@@ -426,96 +453,6 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
       console.log(`[InitialPDF] ${analysis.recommendedSchools.length} schools after correction + dedup`);
     }
 
-    // BACKUP: Guarantee every size and region category has schools BEFORE enrichment
-    const backupSchools: RecommendedSchool[] = [
-      // MICRO - Northeast
-      { name: "Williams College", url: "https://www.williams.edu", type: "reach", region: "Northeast", campusSize: "Micro", enrollment: 2000, testPolicy: "Test Optional", matchReasoning: "Williams' rigorous liberal arts curriculum and small class sizes align well with this student's strong academic foundation." },
-      { name: "Colby College", url: "https://www.colby.edu", type: "match", region: "Northeast", campusSize: "Micro", enrollment: 2000, testPolicy: "Test Optional", matchReasoning: "Colby's commitment to undergraduate research and global engagement align with this student's academic trajectory." },
-      { name: "Bates College", url: "https://www.bates.edu", type: "safety", region: "Northeast", campusSize: "Micro", enrollment: 1800, testPolicy: "Test Optional", matchReasoning: "Bates' test-optional policy and emphasis on experiential learning make it an accessible option." },
-      { name: "Amherst College", url: "https://www.amherst.edu", type: "reach", region: "Northeast", campusSize: "Micro", enrollment: 1900, testPolicy: "Test Optional", matchReasoning: "Amherst's open curriculum and emphasis on intellectual exploration complement diverse academic interests." },
-      // MICRO - Mid-Atlantic
-      { name: "Haverford College", url: "https://www.haverford.edu", type: "match", region: "Mid-Atlantic", campusSize: "Micro", enrollment: 1400, testPolicy: "Test Optional", matchReasoning: "Haverford's honor code and close-knit academic community foster intellectual engagement." },
-      { name: "Swarthmore College", url: "https://www.swarthmore.edu", type: "reach", region: "Mid-Atlantic", campusSize: "Micro", enrollment: 1600, testPolicy: "Test Optional", matchReasoning: "Swarthmore's honors program and intellectual rigor attract students who thrive on academic challenge." },
-      // MICRO - South
-      { name: "Rhodes College", url: "https://www.rhodes.edu", type: "safety", region: "South", campusSize: "Micro", enrollment: 2000, testPolicy: "Test Optional", matchReasoning: "Rhodes' strong liberal arts tradition and Memphis location offer academics and community engagement." },
-      { name: "Centre College", url: "https://www.centre.edu", type: "safety", region: "South", campusSize: "Micro", enrollment: 1500, testPolicy: "Test Optional", matchReasoning: "Centre's guaranteed study abroad and high graduate school placement reflect its commitment to student success." },
-      { name: "Hendrix College", url: "https://www.hendrix.edu", type: "safety", region: "South", campusSize: "Micro", enrollment: 1100, testPolicy: "Test Optional", matchReasoning: "Hendrix's engaged learning requirement ensures hands-on academic experiences." },
-      // MICRO - Midwest
-      { name: "Grinnell College", url: "https://www.grinnell.edu", type: "match", region: "Midwest", campusSize: "Micro", enrollment: 1700, testPolicy: "Test Optional", matchReasoning: "Grinnell's self-governed curriculum and strong mentorship suit students who take initiative." },
-      { name: "Kenyon College", url: "https://www.kenyon.edu", type: "match", region: "Midwest", campusSize: "Micro", enrollment: 1700, testPolicy: "Test Optional", matchReasoning: "Kenyon's renowned writing program and close faculty relationships foster deep academic engagement." },
-      { name: "Wabash College", url: "https://www.wabash.edu", type: "safety", region: "Midwest", campusSize: "Micro", enrollment: 800, testPolicy: "Test Optional", matchReasoning: "Wabash's strong alumni network and personalized education support student success." },
-      // MICRO - West
-      { name: "Pomona College", url: "https://www.pomona.edu", type: "reach", region: "West", campusSize: "Micro", enrollment: 1800, testPolicy: "Test Optional", matchReasoning: "Pomona's intimate environment and Claremont Consortium access offer both depth and breadth." },
-      { name: "Harvey Mudd College", url: "https://www.hmc.edu", type: "reach", region: "West", campusSize: "Micro", enrollment: 900, testPolicy: "Test Optional", matchReasoning: "Harvey Mudd's STEM focus combined with liberal arts breadth suits analytically minded students." },
-      { name: "Claremont McKenna College", url: "https://www.cmc.edu", type: "reach", region: "West", campusSize: "Micro", enrollment: 1400, testPolicy: "Test Optional", matchReasoning: "CMC's leadership focus and small seminar-style classes foster engaged, analytical thinkers." },
-      { name: "Colorado College", url: "https://www.coloradocollege.edu", type: "match", region: "West", campusSize: "Micro", enrollment: 2000, testPolicy: "Test Optional", matchReasoning: "Colorado College's unique block plan allows deep immersion in one subject at a time." },
-      { name: "Occidental College", url: "https://www.oxy.edu", type: "match", region: "West", campusSize: "Micro", enrollment: 2000, testPolicy: "Test Optional", matchReasoning: "Oxy's LA location and commitment to equity provide a distinctive liberal arts experience." },
-      // SMALL
-      { name: "Davidson College", url: "https://www.davidson.edu", type: "reach", region: "South", campusSize: "Small", enrollment: 2000, testPolicy: "Test Optional", matchReasoning: "Davidson's honor code and rigorous academics attract students who thrive in challenging environments." },
-      { name: "Bowdoin College", url: "https://www.bowdoin.edu", type: "reach", region: "Northeast", campusSize: "Small", enrollment: 2000, testPolicy: "Test Optional", matchReasoning: "Bowdoin's commitment to the common good and strong science programs complement strong academic profiles." },
-      { name: "Bucknell University", url: "https://www.bucknell.edu", type: "match", region: "Mid-Atlantic", campusSize: "Small", enrollment: 3800, testPolicy: "Test Optional", matchReasoning: "Bucknell's blend of liberal arts and professional programs provides flexibility for exploration." },
-      { name: "Whitman College", url: "https://www.whitman.edu", type: "match", region: "West", campusSize: "Small", enrollment: 1500, testPolicy: "Test Optional", matchReasoning: "Whitman's discussion-based classes and research opportunities foster intellectual engagement." },
-      { name: "Elon University", url: "https://www.elon.edu", type: "safety", region: "South", campusSize: "Small", enrollment: 4600, testPolicy: "Test Optional", matchReasoning: "Elon's experiential learning focus and study abroad program suit well-rounded students." },
-      { name: "College of Wooster", url: "https://www.wooster.edu", type: "safety", region: "Midwest", campusSize: "Small", enrollment: 2000, testPolicy: "Test Optional", matchReasoning: "Wooster's Independent Study program gives every student a mentored research experience." },
-      // MEDIUM
-      { name: "Georgetown University", url: "https://www.georgetown.edu", type: "reach", region: "Mid-Atlantic", campusSize: "Medium", enrollment: 7500, testPolicy: "Test Optional", matchReasoning: "Georgetown's global focus and rigorous academics attract students with strong intellectual curiosity." },
-      { name: "Boston College", url: "https://www.bc.edu", type: "reach", region: "Northeast", campusSize: "Medium", enrollment: 10000, testPolicy: "Test Optional", matchReasoning: "Boston College's Jesuit tradition of intellectual inquiry and service aligns with well-prepared students." },
-      { name: "Tulane University", url: "https://www.tulane.edu", type: "match", region: "South", campusSize: "Medium", enrollment: 8500, testPolicy: "Test Optional", matchReasoning: "Tulane's service-learning requirement and vibrant campus culture appeal to engaged students." },
-      { name: "Santa Clara University", url: "https://www.scu.edu", type: "match", region: "West", campusSize: "Medium", enrollment: 6000, testPolicy: "Test Optional", matchReasoning: "Santa Clara's Silicon Valley location and Jesuit values combine career preparation with ethical formation." },
-      { name: "Marquette University", url: "https://www.marquette.edu", type: "safety", region: "Midwest", campusSize: "Medium", enrollment: 8000, testPolicy: "Test Optional", matchReasoning: "Marquette's strong professional programs and supportive community suit motivated students." },
-      { name: "Villanova University", url: "https://www.villanova.edu", type: "match", region: "Mid-Atlantic", campusSize: "Medium", enrollment: 7000, testPolicy: "Test Optional", matchReasoning: "Villanova's Augustinian tradition and strong academics provide a values-centered education." },
-      // LARGE
-      { name: "University of Michigan", url: "https://www.umich.edu", type: "reach", region: "Midwest", campusSize: "Large", enrollment: 32000, testPolicy: "Test Optional", matchReasoning: "Michigan's research excellence and breadth of programs attract top students nationwide." },
-      { name: "University of Virginia", url: "https://www.virginia.edu", type: "reach", region: "Mid-Atlantic", campusSize: "Large", enrollment: 17000, testPolicy: "Test Optional", matchReasoning: "UVA's student self-governance tradition and strong academics align with independent-minded students." },
-      { name: "University of North Carolina", url: "https://www.unc.edu", type: "match", region: "South", campusSize: "Large", enrollment: 20000, testPolicy: "Test Optional", matchReasoning: "UNC's combination of public university resources and strong liberal arts tradition offers excellent value." },
-      { name: "University of Washington", url: "https://www.washington.edu", type: "match", region: "West", campusSize: "Large", enrollment: 36000, testPolicy: "Test Optional", matchReasoning: "UW's research strength and Pacific Northwest setting attract students seeking academic excellence." },
-      { name: "Boston University", url: "https://www.bu.edu", type: "match", region: "Northeast", campusSize: "Large", enrollment: 18000, testPolicy: "Test Optional", matchReasoning: "BU's urban campus and wide range of programs provide diverse academic and experiential opportunities." },
-      { name: "University of Wisconsin", url: "https://www.wisc.edu", type: "safety", region: "Midwest", campusSize: "Large", enrollment: 35000, testPolicy: "Test Optional", matchReasoning: "Wisconsin's Big Ten experience and strong academics across disciplines make it a solid choice." },
-      // MEGA
-      { name: "Ohio State University", url: "https://www.osu.edu", type: "safety", region: "Midwest", campusSize: "Mega", enrollment: 47000, testPolicy: "Test Optional", matchReasoning: "Ohio State's breadth of programs and research opportunities offer extensive options for exploration." },
-      { name: "Arizona State University", url: "https://www.asu.edu", type: "safety", region: "West", campusSize: "Mega", enrollment: 65000, testPolicy: "Test Optional", matchReasoning: "ASU's innovation-focused approach and wide range of programs provide accessible pathways." },
-      { name: "University of Texas at Austin", url: "https://www.utexas.edu", type: "match", region: "South", campusSize: "Mega", enrollment: 42000, testPolicy: "Test Optional", matchReasoning: "UT Austin's top-ranked programs and vibrant campus culture attract strong students." },
-      { name: "Penn State University", url: "https://www.psu.edu", type: "safety", region: "Mid-Atlantic", campusSize: "Mega", enrollment: 46000, testPolicy: "Test Optional", matchReasoning: "Penn State's extensive alumni network and comprehensive program offerings support many academic paths." },
-      { name: "University of Minnesota", url: "https://www.umn.edu", type: "match", region: "Midwest", campusSize: "Mega", enrollment: 36000, testPolicy: "Test Optional", matchReasoning: "Minnesota's research strength and Twin Cities location combine academic rigor with urban opportunities." },
-      // Additional match-tier schools (30–70% admit rate) for pool diversity
-      { name: "University of Delaware", url: "https://www.udel.edu", type: "match", region: "Mid-Atlantic", campusSize: "Large", enrollment: 24000, testPolicy: "Test Optional", matchReasoning: "Delaware's strong academics and mid-Atlantic location provide a balanced university experience." },
-      { name: "Drexel University", url: "https://www.drexel.edu", type: "match", region: "Mid-Atlantic", campusSize: "Large", enrollment: 16000, testPolicy: "Test Optional", matchReasoning: "Drexel's co-op program and urban Philadelphia setting prepare students for career success." },
-      { name: "University of Vermont", url: "https://www.uvm.edu", type: "match", region: "Northeast", campusSize: "Medium", enrollment: 12000, testPolicy: "Test Optional", matchReasoning: "UVM's environmental focus and New England setting attract academically motivated students." },
-      { name: "Baylor University", url: "https://www.baylor.edu", type: "match", region: "South", campusSize: "Large", enrollment: 20000, testPolicy: "Test Optional", matchReasoning: "Baylor's faith-based community and strong pre-professional programs support student development." },
-      { name: "University of San Francisco", url: "https://www.usfca.edu", type: "match", region: "West", campusSize: "Medium", enrollment: 10000, testPolicy: "Test Optional", matchReasoning: "USF's Jesuit values and San Francisco location combine social justice with urban opportunity." },
-      { name: "Miami University Ohio", url: "https://www.miamioh.edu", type: "match", region: "Midwest", campusSize: "Large", enrollment: 20000, testPolicy: "Test Optional", matchReasoning: "Miami Ohio's strong teaching reputation and residential campus create an engaged academic community." },
-    ];
-
-    const existingNames = new Set(analysis.recommendedSchools.map((s: any) => s.name));
-    const sizeCats = ["Micro", "Small", "Medium", "Large", "Mega"];
-    const regionCats = ["Northeast", "Mid-Atlantic", "South", "Midwest", "West"];
-
-    for (const size of sizeCats) {
-      const count = analysis.recommendedSchools.filter((s: any) => s.campusSize === size).length;
-      if (count < 3) {
-        const needed = 3 - count;
-        const candidates = backupSchools.filter(s => s.campusSize === size && !existingNames.has(s.name));
-        for (let i = 0; i < Math.min(needed, candidates.length); i++) {
-          analysis.recommendedSchools.push(candidates[i]);
-          existingNames.add(candidates[i].name);
-        }
-      }
-    }
-
-    for (const region of regionCats) {
-      const count = analysis.recommendedSchools.filter((s: any) => s.region === region).length;
-      if (count < 3) {
-        const needed = 3 - count;
-        const candidates = backupSchools.filter(s => s.region === region && !existingNames.has(s.name));
-        for (let i = 0; i < Math.min(needed, candidates.length); i++) {
-          analysis.recommendedSchools.push(candidates[i]);
-          existingNames.add(candidates[i].name);
-        }
-      }
-    }
-
-    console.log("[Backup] Pool before enrichment:", analysis.recommendedSchools.length, "Micro:", analysis.recommendedSchools.filter((s: any) => s.campusSize === "Micro").length);
-
     try {
       const filledSchools = await fillGapsFromScorecard(analysis.recommendedSchools);
       analysis.recommendedSchools = filledSchools;
@@ -561,6 +498,39 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
       analysis.recommendedSchools = deduplicateByName(analysis.recommendedSchools);
       console.log(`[InitialPDF] Final: ${analysis.recommendedSchools.length} schools after all correction + dedup`);
     }
+
+    // ── Merge SCHOOLS_DATABASE into pool ────────────────────────────────
+    const gptNames = new Set(
+      analysis.recommendedSchools.map((s: any) => s.name.toLowerCase())
+    );
+    const studentGPA = analysis.recalculatedGPA || 3.0;
+    const studentSAT =
+      testScores.satReading && testScores.satMath
+        ? testScores.satReading + testScores.satMath
+        : null;
+
+    for (const rec of SCHOOLS_DATABASE) {
+      if (gptNames.has(rec.name.toLowerCase())) continue;
+      const { personalizedOdds, type } = classifyForStudent(
+        rec.admitRate,
+        studentGPA,
+        studentSAT
+      );
+      analysis.recommendedSchools.push({
+        name: rec.name,
+        url: rec.url,
+        type: type as "reach" | "match" | "safety",
+        region: rec.region as any,
+        campusSize: rec.campusSize as any,
+        enrollment: rec.enrollment,
+        testPolicy: rec.testPolicy as any,
+        acceptanceProbability: personalizedOdds,
+        matchReasoning: `Based on your academic profile, you have a ${personalizedOdds}% estimated chance of admission.`,
+      });
+    }
+    console.log(
+      `[DBMerge] Pool after database merge: ${analysis.recommendedSchools.length} schools`
+    );
 
     // ── In-state admission boost for public universities ──────────────────
     const STATE_TO_PUBLIC_BOOST: Record<string, string[]> = {
