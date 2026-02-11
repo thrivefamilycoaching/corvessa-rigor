@@ -11,11 +11,14 @@ import {
   Check,
   X,
   AlertCircle,
+  ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AnalysisResult } from "@/lib/types";
 import type { Activity } from "@/lib/activities";
+import Link from "next/link";
 import { RigorScorecard } from "@/components/RigorScorecard";
+import { CounselorNarrative } from "@/components/CounselorNarrative";
 import { RecommendedSchools } from "@/components/RecommendedSchools";
 import { GapAnalysis } from "@/components/GapAnalysis";
 import { ActivitiesInput } from "@/components/ActivitiesInput";
@@ -49,7 +52,7 @@ const US_STATES = [
   { value: "WV", label: "West Virginia" }, { value: "WI", label: "Wisconsin" }, { value: "WY", label: "Wyoming" },
 ];
 
-export default function MySchoolListParent() {
+export default function MySchoolListCounselor() {
   const [schoolProfile, setSchoolProfile] = useState<File | null>(null);
   const [transcript, setTranscript] = useState<File | null>(null);
   const [homeState, setHomeState] = useState("");
@@ -60,6 +63,7 @@ export default function MySchoolListParent() {
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [editedNarrative, setEditedNarrative] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [manualGPA, setManualGPA] = useState("");
   const [schoolCount, setSchoolCount] = useState(9);
@@ -99,12 +103,10 @@ export default function MySchoolListParent() {
       formData.append("schoolProfile", schoolProfile);
       formData.append("transcript", transcript);
 
-      // Append home state if provided
       if (homeState) {
         formData.append("homeState", homeState);
       }
 
-      // Append test scores if provided
       if (testScores.satReading) {
         formData.append("satReading", testScores.satReading);
       }
@@ -128,23 +130,13 @@ export default function MySchoolListParent() {
       }
 
       const res = await fetch("/api/parse-pdf", { method: "POST", body: formData });
-      if (!res.ok) {
-        const text = await res.text();
-        console.error("API error:", text);
-        // Try to parse as JSON for structured error, fall back to raw text
-        try {
-          const errData = JSON.parse(text);
-          throw new Error(errData.error || "Analysis failed");
-        } catch (parseErr) {
-          if (parseErr instanceof SyntaxError) {
-            throw new Error("Analysis failed — server returned an unexpected response");
-          }
-          throw parseErr;
-        }
-      }
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Analysis failed");
+      }
       const analysisResult = data as AnalysisResult;
       setResult(analysisResult);
+      setEditedNarrative(analysisResult.narrative);
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
       if (message.includes("PDF") || message.includes("parse") || message.includes("module") || message.includes("Document processing")) {
@@ -178,7 +170,11 @@ export default function MySchoolListParent() {
           <div className="flex items-center gap-2">
             <Compass className="h-6 w-6" />
             <span className="font-bold text-xl">My School List</span>
+            <span className="text-teal-light text-sm ml-1">— Counselor View</span>
           </div>
+          <Link href="/tool" className="inline-flex items-center gap-1 text-sm text-white/80 hover:text-white transition-colors duration-200">
+            Parent Portal <ArrowRight className="h-3 w-3" />
+          </Link>
         </div>
       </div>
 
@@ -186,8 +182,8 @@ export default function MySchoolListParent() {
         {/* Header */}
         <div className="mb-8 text-center">
           <p className="mx-auto max-w-2xl text-muted-foreground">
-            Upload the school profile, your child&apos;s transcript, and test scores
-            to analyze course rigor and to discover personalized college recommendations.
+            Upload a school profile and student transcript to analyze course rigor,
+            discover recommended colleges, and generate a professional counselor narrative.
           </p>
         </div>
 
@@ -493,6 +489,15 @@ export default function MySchoolListParent() {
                 />
               </div>
             )}
+
+            {/* Counselor Narrative */}
+            <div>
+              <h2 className="mb-4 text-lg font-semibold text-charcoal">Generated Narrative</h2>
+              <CounselorNarrative
+                narrative={result.narrative}
+                onNarrativeChange={setEditedNarrative}
+              />
+            </div>
           </section>
         )}
 
@@ -503,8 +508,8 @@ export default function MySchoolListParent() {
               <Compass className="mb-4 h-12 w-12 text-muted-foreground/50" />
               <h3 className="text-lg font-medium text-muted-foreground">No analysis yet</h3>
               <p className="max-w-sm text-sm text-muted-foreground/75">
-                Upload the school profile and your child&apos;s transcript to generate
-                a comprehensive rigor analysis and personalized college recommendations.
+                Upload both a School Profile and Student Transcript to generate
+                a comprehensive rigor analysis, college recommendations, and counselor narrative.
               </p>
             </CardContent>
           </Card>
