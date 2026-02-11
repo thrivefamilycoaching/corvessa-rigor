@@ -12,8 +12,6 @@ import {
   X,
   AlertCircle,
   ClipboardList,
-  Shield,
-  ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AnalysisResult } from "@/lib/types";
@@ -24,7 +22,6 @@ import { GapAnalysis } from "@/components/GapAnalysis";
 import { ActivitiesInput } from "@/components/ActivitiesInput";
 import { ActivitiesProfile } from "@/components/ActivitiesProfile";
 
-import Link from "next/link";
 
 interface TestScores {
   satReading: string;
@@ -182,15 +179,6 @@ export default function MySchoolListParent() {
           <div className="flex items-center gap-2">
             <Compass className="h-6 w-6" />
             <span className="font-bold text-xl">My School List</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="inline-flex items-center gap-1.5 text-xs text-white/70">
-              <Shield className="h-3 w-3" />
-              Private Mode
-            </span>
-            <Link href="/" className="inline-flex items-center gap-1 text-sm text-white/80 hover:text-white transition-colors duration-200">
-              Counselor View <ArrowRight className="h-3 w-3" />
-            </Link>
           </div>
         </div>
       </div>
