@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
       await resend.emails.send({
-        from: "My School List <noreply@getmyschoollist.com>",
+        from: "My School List <onboarding@resend.dev>",
         to: email.toLowerCase().trim(),
         subject: "Your My School List Access Code",
         html: buildEmailHtml(
