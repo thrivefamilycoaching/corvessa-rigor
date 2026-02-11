@@ -382,8 +382,8 @@ export function RecommendedSchools({
             {/* Safety Schools */}
             {safetySchools.length > 0 && (
               <div>
-                <h4 className="text-sm font-semibold text-gold-dark mb-3 flex items-center gap-2 border-l-4 border-gold pl-3">
-                  <Shield className="h-4 w-4 text-gold-dark" />
+                <h4 className="text-sm font-semibold text-safegreen-dark mb-3 flex items-center gap-2 border-l-4 border-safegreen pl-3">
+                  <Shield className="h-4 w-4 text-safegreen-dark" />
                   Safety Schools ({safetySchools.length})
                 </h4>
                 <div className="space-y-3">
@@ -434,7 +434,7 @@ function SchoolCard({ school }: { school: RecommendedSchool }) {
   const borderColor =
     school.type === "reach" ? "border-l-coral" :
     school.type === "match" ? "border-l-teal" :
-    "border-l-gold";
+    "border-l-safegreen";
 
   return (
     <div className={`rounded-xl border border-warmgray-200 bg-white p-4 border-l-4 ${borderColor} transition-shadow hover:shadow-md`}>
@@ -452,7 +452,7 @@ function SchoolCard({ school }: { school: RecommendedSchool }) {
             <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${
               school.type === "reach" ? "bg-coral text-white" :
               school.type === "match" ? "bg-teal text-white" :
-              "bg-gold text-charcoal"
+              "bg-safegreen text-white"
             }`}>
               {getTypeIcon(school.type)}
               <span>{getTypeLabel(school.type)}</span>
@@ -474,7 +474,7 @@ function SchoolCard({ school }: { school: RecommendedSchool }) {
             {school.acceptanceProbability !== undefined && school.acceptanceProbability !== null ? (
               <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border ${
                 school.acceptanceProbability < 40 ? "border-coral bg-coral/10 text-coral" :
-                school.acceptanceProbability >= 75 ? "border-gold bg-gold/10 text-gold-dark" :
+                school.acceptanceProbability >= 75 ? "border-safegreen bg-safegreen/10 text-safegreen-dark" :
                 "border-teal bg-teal/10 text-teal"
               }`}>
                 Your Odds: {school.acceptanceProbability < 10 ? "<10%" : school.acceptanceProbability > 95 ? "95%+" : school.acceptanceProbability + "%"}

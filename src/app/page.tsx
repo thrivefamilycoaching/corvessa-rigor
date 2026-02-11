@@ -11,7 +11,6 @@ import {
   Check,
   X,
   AlertCircle,
-  ClipboardList,
   ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -244,14 +243,14 @@ export default function MySchoolList() {
             </div>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2">
             {/* School Profile Upload */}
             <Card>
               <CardContent className="pt-6">
                 <div
                   {...schoolProfileDropzone.getRootProps()}
                   className={cn(
-                    "relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors cursor-pointer",
+                    "relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 transition-colors cursor-pointer",
                     schoolProfileDropzone.isDragActive
                       ? "border-primary bg-primary/5"
                       : "border-muted-foreground/25 hover:border-primary/50",
@@ -261,17 +260,17 @@ export default function MySchoolList() {
                   <input {...schoolProfileDropzone.getInputProps()} />
                   {schoolProfile ? (
                     <>
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-teal/10">
-                        <Check className="h-6 w-6 text-teal" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal/10">
+                        <Check className="h-5 w-5 text-teal" />
                       </div>
-                      <p className="mt-4 text-sm font-medium">{schoolProfile.name}</p>
+                      <p className="mt-2 text-sm font-medium">{schoolProfile.name}</p>
                       <p className="text-xs text-muted-foreground">
                         {(schoolProfile.size / 1024).toFixed(1)} KB
                       </p>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="mt-2"
+                        className="mt-1"
                         onClick={(e) => {
                           e.stopPropagation();
                           setSchoolProfile(null);
@@ -284,14 +283,13 @@ export default function MySchoolList() {
                     </>
                   ) : (
                     <>
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                        <FileText className="h-6 w-6 text-muted-foreground" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                        <FileText className="h-5 w-5 text-muted-foreground" />
                       </div>
-                      <p className="mt-4 text-sm font-medium">School Profile</p>
+                      <p className="mt-2 text-sm font-medium">School Profile</p>
                       <p className="mt-1 text-center text-xs text-muted-foreground">
-                        Drag & drop or click to upload
+                        Drag & drop or click — PDF only
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">PDF only</p>
                     </>
                   )}
                 </div>
@@ -304,7 +302,7 @@ export default function MySchoolList() {
                 <div
                   {...transcriptDropzone.getRootProps()}
                   className={cn(
-                    "relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors cursor-pointer",
+                    "relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 transition-colors cursor-pointer",
                     transcriptDropzone.isDragActive
                       ? "border-primary bg-primary/5"
                       : "border-muted-foreground/25 hover:border-primary/50",
@@ -314,17 +312,17 @@ export default function MySchoolList() {
                   <input {...transcriptDropzone.getInputProps()} />
                   {transcript ? (
                     <>
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-teal/10">
-                        <Check className="h-6 w-6 text-teal" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal/10">
+                        <Check className="h-5 w-5 text-teal" />
                       </div>
-                      <p className="mt-4 text-sm font-medium">{transcript.name}</p>
+                      <p className="mt-2 text-sm font-medium">{transcript.name}</p>
                       <p className="text-xs text-muted-foreground">
                         {(transcript.size / 1024).toFixed(1)} KB
                       </p>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="mt-2"
+                        className="mt-1"
                         onClick={(e) => {
                           e.stopPropagation();
                           setTranscript(null);
@@ -337,79 +335,68 @@ export default function MySchoolList() {
                     </>
                   ) : (
                     <>
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                        <FileText className="h-6 w-6 text-muted-foreground" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                        <FileText className="h-5 w-5 text-muted-foreground" />
                       </div>
-                      <p className="mt-4 text-sm font-medium">Student Transcript</p>
+                      <p className="mt-2 text-sm font-medium">Student Transcript</p>
                       <p className="mt-1 text-center text-xs text-muted-foreground">
-                        Drag & drop or click to upload
+                        Drag & drop or click — PDF only
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">PDF only</p>
                     </>
                   )}
                 </div>
               </CardContent>
             </Card>
+          </div>
 
-            {/* Test Scores Entry */}
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex flex-col items-center rounded-lg border-2 border-dashed border-muted-foreground/25 p-6">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                    <ClipboardList className="h-6 w-6 text-muted-foreground" />
-                  </div>
-                  <p className="mt-4 text-sm font-medium">Test Scores</p>
-                  <p className="mb-4 mt-1 text-center text-xs text-muted-foreground">
-                    Optional — for context
-                  </p>
-                </div>
-                <div className="mt-4 space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">SAT R/W</label>
-                      <input
-                        type="number"
-                        min={200}
-                        max={800}
-                        placeholder="200-800"
-                        value={testScores.satReading}
-                        onChange={(e) => handleScoreChange("satReading", e.target.value)}
-                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-center text-sm shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">SAT Math</label>
-                      <input
-                        type="number"
-                        min={200}
-                        max={800}
-                        placeholder="200-800"
-                        value={testScores.satMath}
-                        onChange={(e) => handleScoreChange("satMath", e.target.value)}
-                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-center text-sm shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">ACT Composite</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={36}
-                      placeholder="1-36"
-                      value={testScores.actComposite}
-                      onChange={(e) => handleScoreChange("actComposite", e.target.value)}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-center text-sm shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    />
-                  </div>
-                  {getSatTotal() ? (
-                    <p className="text-center text-xs text-muted-foreground">
-                      SAT Total: <span className="font-semibold text-foreground">{getSatTotal()}</span>
-                    </p>
-                  ) : null}
-                </div>
-              </CardContent>
-            </Card>
+          {/* Test Scores */}
+          <div className="mt-6">
+            <label className="mb-1 block text-sm font-medium">
+              Test Scores <span className="text-xs text-muted-foreground">(optional)</span>
+            </label>
+            <div className="flex flex-wrap gap-4 items-end">
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">SAT R/W</label>
+                <input
+                  type="number"
+                  min={200}
+                  max={800}
+                  placeholder="200-800"
+                  value={testScores.satReading}
+                  onChange={(e) => handleScoreChange("satReading", e.target.value)}
+                  className="w-full max-w-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">SAT Math</label>
+                <input
+                  type="number"
+                  min={200}
+                  max={800}
+                  placeholder="200-800"
+                  value={testScores.satMath}
+                  onChange={(e) => handleScoreChange("satMath", e.target.value)}
+                  className="w-full max-w-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">ACT Composite</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={36}
+                  placeholder="1-36"
+                  value={testScores.actComposite}
+                  onChange={(e) => handleScoreChange("actComposite", e.target.value)}
+                  className="w-full max-w-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              {getSatTotal() ? (
+                <p className="text-xs text-muted-foreground pb-2">
+                  SAT Total: <span className="font-semibold text-foreground">{getSatTotal()}</span>
+                </p>
+              ) : null}
+            </div>
           </div>
 
           {/* Extracurricular Activities */}

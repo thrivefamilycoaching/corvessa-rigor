@@ -60,6 +60,9 @@
   --color-warmgray-100: #F0EDE7;
   --color-warmgray-200: #E5E2DC;
   --color-warmgray-300: #D0CBC2;
+  --color-safegreen: #2E9E6B;
+  --color-safegreen-light: #3CB97E;
+  --color-safegreen-dark: #258756;
 }
 
 :root {
