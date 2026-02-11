@@ -2,6 +2,7 @@ export interface Activity {
   name: string;
   role: string;
   years: number;
+  yearsInRole: number;
 }
 
 export interface ActivityCategory {

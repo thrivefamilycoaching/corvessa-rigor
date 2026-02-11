@@ -127,7 +127,7 @@ export default function CounselorCoPilot() {
 
       if (activities.length > 0) {
         const activitiesText = activities
-          .map((a) => `${a.name} (${a.role}, ${a.years} yr${a.years > 1 ? "s" : ""})`)
+          .map((a) => `${a.name} — ${a.years} year${a.years > 1 ? "s" : ""} total — ${a.role} for ${a.yearsInRole} year${a.yearsInRole > 1 ? "s" : ""}`)
           .join("; ");
         formData.append("activitiesText", activitiesText);
       }

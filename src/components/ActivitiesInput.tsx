@@ -52,7 +52,7 @@ export function ActivitiesInput({
   const addActivity = (name: string) => {
     if (activities.length >= MAX_ACTIVITIES) return;
     if (activities.some((a) => a.name === name)) return;
-    onChange([...activities, { name, role: "Member", years: 1 }]);
+    onChange([...activities, { name, role: "Member", years: 1, yearsInRole: 1 }]);
     setQuery("");
     setShowDropdown(false);
   };
@@ -69,7 +69,16 @@ export function ActivitiesInput({
 
   const updateYears = (index: number, years: number) => {
     const updated = [...activities];
-    updated[index] = { ...updated[index], years };
+    const current = updated[index];
+    // Auto-correct yearsInRole if it exceeds new total years
+    const yearsInRole = current.yearsInRole > years ? years : current.yearsInRole;
+    updated[index] = { ...current, years, yearsInRole };
+    onChange(updated);
+  };
+
+  const updateYearsInRole = (index: number, yearsInRole: number) => {
+    const updated = [...activities];
+    updated[index] = { ...updated[index], yearsInRole };
     onChange(updated);
   };
 
@@ -147,43 +156,62 @@ export function ActivitiesInput({
           {activities.map((activity, index) => (
             <div
               key={activity.name}
-              className="flex items-center gap-2 rounded-md border bg-background px-3 py-2"
+              className="rounded-md border bg-background px-3 py-2"
             >
-              <span className="flex-1 text-sm font-medium truncate">
-                {activity.name}
-              </span>
-              <select
-                value={activity.role}
-                onChange={(e) => updateRole(index, e.target.value)}
-                disabled={disabled}
-                className="rounded-md border border-input bg-background px-2 py-1 text-xs shadow-sm"
-              >
-                {ROLE_OPTIONS.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={activity.years}
-                onChange={(e) => updateYears(index, parseInt(e.target.value))}
-                disabled={disabled}
-                className="rounded-md border border-input bg-background px-2 py-1 text-xs shadow-sm"
-              >
-                {YEARS_OPTIONS.map((y) => (
-                  <option key={y} value={y}>
-                    {y} yr{y > 1 ? "s" : ""}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => removeActivity(index)}
-                disabled={disabled}
-                className="text-muted-foreground hover:text-destructive transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-sm font-medium truncate">
+                  {activity.name} — {activity.years} year{activity.years > 1 ? "s" : ""} ({activity.role}, {activity.yearsInRole} yr)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeActivity(index)}
+                  disabled={disabled}
+                  className="ml-2 text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <label className="text-[11px] text-muted-foreground whitespace-nowrap">Total Yrs</label>
+                  <select
+                    value={activity.years}
+                    onChange={(e) => updateYears(index, parseInt(e.target.value))}
+                    disabled={disabled}
+                    className="rounded-md border border-input bg-background px-2 py-1 text-xs shadow-sm"
+                  >
+                    {YEARS_OPTIONS.map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-1">
+                  <label className="text-[11px] text-muted-foreground whitespace-nowrap">Highest Role</label>
+                  <select
+                    value={activity.role}
+                    onChange={(e) => updateRole(index, e.target.value)}
+                    disabled={disabled}
+                    className="rounded-md border border-input bg-background px-2 py-1 text-xs shadow-sm"
+                  >
+                    {ROLE_OPTIONS.map((role) => (
+                      <option key={role} value={role}>{role}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-1">
+                  <label className="text-[11px] text-muted-foreground whitespace-nowrap">Yrs in Role</label>
+                  <select
+                    value={activity.yearsInRole}
+                    onChange={(e) => updateYearsInRole(index, parseInt(e.target.value))}
+                    disabled={disabled}
+                    className="rounded-md border border-input bg-background px-2 py-1 text-xs shadow-sm"
+                  >
+                    {YEARS_OPTIONS.filter((y) => y <= activity.years).map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
           ))}
         </div>
