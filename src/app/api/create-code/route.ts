@@ -118,22 +118,33 @@ export async function POST(req: NextRequest) {
 
       if (!error) {
         // Send email if provided
+        let emailSent = false;
         if (email) {
           try {
+            console.log("[create-code] Attempting to send email to:", email);
+            console.log("[create-code] RESEND_API_KEY present:", !!process.env.RESEND_API_KEY);
             const resend = new Resend(process.env.RESEND_API_KEY);
-            await resend.emails.send({
+            const { data: emailData, error: emailError } = await resend.emails.send({
               from: "My School List <onboarding@resend.dev>",
               to: email,
               subject: "Your My School List Access Code",
               html: buildEmailHtml(code, TIER_LABELS[tierKey], analysesTotal),
             });
+
+            if (emailError) {
+              console.error("[create-code] Resend API error:", JSON.stringify(emailError));
+            } else {
+              console.log("[create-code] Email sent successfully, id:", emailData?.id);
+              emailSent = true;
+            }
           } catch (emailErr) {
-            // Log but don't fail — code was already created
-            console.error("Failed to send email:", emailErr);
+            console.error("[create-code] Resend exception:", emailErr);
           }
+        } else {
+          console.log("[create-code] No email provided, skipping send");
         }
 
-        return NextResponse.json({ code, tier: tierKey, analyses: analysesTotal, emailSent: !!email });
+        return NextResponse.json({ code, tier: tierKey, analyses: analysesTotal, emailSent });
       }
 
       // If unique constraint violation, regenerate

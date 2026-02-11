@@ -95,8 +95,10 @@ export async function POST(req: NextRequest) {
 
     // Send email
     try {
+      console.log("[resend-code] Attempting to send email to:", email);
+      console.log("[resend-code] RESEND_API_KEY present:", !!process.env.RESEND_API_KEY);
       const resend = new Resend(process.env.RESEND_API_KEY);
-      await resend.emails.send({
+      const { data: emailData, error: emailError } = await resend.emails.send({
         from: "My School List <onboarding@resend.dev>",
         to: email.toLowerCase().trim(),
         subject: "Your My School List Access Code",
@@ -106,8 +108,14 @@ export async function POST(req: NextRequest) {
           data.analyses_remaining
         ),
       });
+
+      if (emailError) {
+        console.error("[resend-code] Resend API error:", JSON.stringify(emailError));
+        return NextResponse.json({ error: "Failed to send email: " + emailError.message }, { status: 500 });
+      }
+      console.log("[resend-code] Email sent successfully, id:", emailData?.id);
     } catch (emailErr) {
-      console.error("Failed to send email:", emailErr);
+      console.error("[resend-code] Resend exception:", emailErr);
       return NextResponse.json({ error: "Failed to send email. Please try again." }, { status: 500 });
     }
 
