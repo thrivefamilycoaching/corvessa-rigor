@@ -119,8 +119,8 @@ export default function TermsPage() {
               <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">10. Contact</h2>
               <p>
                 If you have questions about these Terms, please contact us at{" "}
-                <a href="mailto:support@getmyschoollist.com" className="text-teal hover:underline">
-                  support@getmyschoollist.com
+                <a href="mailto:peter@corvessapartners.com" className="text-teal hover:underline">
+                  peter@corvessapartners.com
                 </a>.
               </p>
             </section>

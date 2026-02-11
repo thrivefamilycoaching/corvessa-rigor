@@ -33,7 +33,7 @@ const faqs = [
   },
   {
     q: "What schools are in the database?",
-    a: "Over 500 colleges and universities, from small liberal arts colleges to large state universities, across all regions of the US.",
+    a: "Over 500 colleges and universities, from small liberal arts colleges to large state universities, across all regions of the US. Don\u2019t see a school you\u2019re looking for? Let us know at peter@corvessapartners.com and we\u2019ll add it.",
   },
 ];
 
@@ -356,7 +356,7 @@ export default function LandingPage() {
             <span className="hidden sm:inline">|</span>
             <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
             <span className="hidden sm:inline">|</span>
-            <span>Contact: support@getmyschoollist.com</span>
+            <span>Contact: peter@corvessapartners.com</span>
           </div>
           <p className="mt-6 text-xs text-warmgray-200">
             &copy; 2026 Corvessa Partners LLC. All rights reserved.
