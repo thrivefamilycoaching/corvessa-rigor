@@ -35,11 +35,12 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   return textParts.join("\n");
 }
 
-/** Classify a school for a specific student based on admit rate, GPA, and SAT. */
+/** Classify a school for a specific student based on admit rate, GPA, SAT, and leadership. */
 function classifyForStudent(
   admitRate: number,
   studentGPA: number,
-  studentSAT: number | null
+  studentSAT: number | null,
+  leadershipScore?: number
 ): { personalizedOdds: number; type: string } {
   let odds = admitRate * 100;
   if (studentGPA >= 3.8) odds *= 1.3;
@@ -52,6 +53,9 @@ function classifyForStudent(
     else if (studentSAT >= 1200) odds *= 1.1;
     else if (studentSAT >= 1000) odds *= 0.9;
     else odds *= 0.7;
+  }
+  if (leadershipScore && leadershipScore > 0) {
+    odds *= 1 + leadershipScore * 0.008;
   }
   odds = Math.min(95, Math.max(1, Math.round(odds)));
   let type: string;
@@ -97,6 +101,9 @@ export async function POST(request: NextRequest) {
     if (satReading) testScores.satReading = parseInt(satReading as string);
     if (satMath) testScores.satMath = parseInt(satMath as string);
     if (actComposite) testScores.actComposite = parseInt(actComposite as string);
+
+    // Extract activities text
+    const activitiesText = (formData.get("activitiesText") as string) || "";
 
     // Extract manual GPA override and school count
     const manualGPA = parseFloat((formData.get("manualGPA") as string) || "0");
@@ -164,7 +171,17 @@ export async function POST(request: NextRequest) {
               "missed": ["<rigorous courses that were available AND grade-appropriate but not taken - leave empty if student hasn't reached the grade level for advanced courses>"]
             }
           ],
-          "studentGradeLevel": "<9th|10th|11th|12th - the student's current grade level>"
+          "studentGradeLevel": "<9th|10th|11th|12th - the student's current grade level>"${activitiesText ? `,
+          "activitiesAnalysis": {
+            "categories": [
+              {
+                "name": "<category name e.g. Athletics, Arts, Academic, Community Service, Student Government, Work Experience, Publications & Media>",
+                "activities": ["<activity name with role>"]
+              }
+            ],
+            "leadershipScore": "<number 1-10, based on leadership roles, years of commitment, and breadth of involvement>",
+            "summary": "<2-3 sentence summary of the student's extracurricular profile, highlighting strengths and leadership>"
+          }` : ""}
         }
 
         RECALCULATED ACADEMIC CORE GPA (CRITICAL):
@@ -311,6 +328,16 @@ export async function POST(request: NextRequest) {
         - A course is "taken" ONLY if its EXACT course title appears in the TRANSCRIPT PDF with an associated grade or mark
         - SOURCE ISOLATION: The School Profile tells you what is OFFERED. The Transcript tells you what is TAKEN. Never copy a course from "offered" into "taken" unless the TRANSCRIPT independently confirms it with a grade
 
+        ${activitiesText ? `ACTIVITIES & LEADERSHIP SCORING (when activities are provided):
+        - Assign a leadershipScore from 1-10 based on:
+          * Leadership roles (Captain, President, Editor-in-Chief = high value)
+          * Years of commitment (4+ years in an activity = high dedication)
+          * Breadth across categories (involvement in 3+ categories = well-rounded)
+          * Depth of impact (founding organizations, community service hours)
+        - Score guide: 1-3 = minimal involvement, 4-6 = solid participation, 7-8 = strong leader, 9-10 = exceptional
+        - Group activities into their natural categories in the activitiesAnalysis output
+        - Write a 2-3 sentence summary highlighting the student's extracurricular strengths` : ""}
+
         The narrative should be written in a professional tone suitable for a counselor letter,
         highlighting the student's academic choices in context of what the school offers.`,
         },
@@ -333,6 +360,13 @@ ${testScores.satReading && testScores.satMath ? `SAT: ${testScores.satReading} (
 ${testScores.actComposite ? `ACT Composite: ${testScores.actComposite}` : ""}
 
 Use these test scores to refine the reach/match/safety categorization of recommended schools.` : ""}
+${activitiesText ? `
+---
+
+STUDENT EXTRACURRICULAR ACTIVITIES:
+${activitiesText}
+
+Analyze these activities and include an activitiesAnalysis in your response.` : ""}
 
 Provide your comprehensive rigor analysis in the specified JSON format.`,
         },
@@ -412,6 +446,19 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
       console.log("[GapFix] Post-processed gap analysis:",
         analysis.gapAnalysis.map((g: any) => `${g.subject}: taken=${g.taken}, missed=${(g.missed || []).length}`).join(", ")
       );
+    }
+
+    // ── Leadership score boost for GPT-recommended schools ────────────
+    const leadershipScore = analysis.activitiesAnalysis?.leadershipScore || 0;
+    if (leadershipScore > 0 && analysis.recommendedSchools) {
+      analysis.recommendedSchools = analysis.recommendedSchools.map((s: any) => {
+        if (s.acceptanceProbability != null) {
+          const boosted = Math.min(95, Math.max(1, Math.round(s.acceptanceProbability * (1 + leadershipScore * 0.008))));
+          s.acceptanceProbability = boosted;
+        }
+        return s;
+      });
+      console.log(`[Leadership] Applied leadership boost (score=${leadershipScore}) to GPT schools`);
     }
 
     // ── Unified metadata correction: campusSize + region + testPolicy ────
@@ -514,7 +561,8 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
       const { personalizedOdds, type } = classifyForStudent(
         rec.admitRate,
         studentGPA,
-        studentSAT
+        studentSAT,
+        leadershipScore
       );
       analysis.recommendedSchools.push({
         name: rec.name,

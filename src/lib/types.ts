@@ -28,6 +28,15 @@ export interface GapAnalysisItem {
   missed: string[];
 }
 
+export interface ActivitiesAnalysis {
+  categories: {
+    name: string;
+    activities: string[];
+  }[];
+  leadershipScore: number;
+  summary: string;
+}
+
 export interface AnalysisResult {
   scorecard: {
     overallScore: number;
@@ -40,6 +49,7 @@ export interface AnalysisResult {
   transcriptSummary: string;
   recommendedSchools: RecommendedSchool[];
   gapAnalysis: GapAnalysisItem[];
+  activitiesAnalysis?: ActivitiesAnalysis;
 }
 
 export interface TestScores {

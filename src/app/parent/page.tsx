@@ -17,9 +17,12 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AnalysisResult } from "@/lib/types";
+import type { Activity } from "@/lib/activities";
 import { RigorScorecard } from "@/components/RigorScorecard";
 import { RecommendedSchools } from "@/components/RecommendedSchools";
 import { GapAnalysis } from "@/components/GapAnalysis";
+import { ActivitiesInput } from "@/components/ActivitiesInput";
+import { ActivitiesProfile } from "@/components/ActivitiesProfile";
 
 import Link from "next/link";
 
@@ -64,6 +67,7 @@ export default function CollegeCoPilot() {
   const [error, setError] = useState<string | null>(null);
   const [manualGPA, setManualGPA] = useState("");
   const [schoolCount, setSchoolCount] = useState(9);
+  const [activities, setActivities] = useState<Activity[]>([]);
 
   const onDropSchoolProfile = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles[0]) setSchoolProfile(acceptedFiles[0]);
@@ -119,6 +123,13 @@ export default function CollegeCoPilot() {
         formData.append("manualGPA", manualGPA);
       }
       formData.append("schoolCount", String(schoolCount));
+
+      if (activities.length > 0) {
+        const activitiesText = activities
+          .map((a) => `${a.name} (${a.role}, ${a.years} yr${a.years > 1 ? "s" : ""})`)
+          .join("; ");
+        formData.append("activitiesText", activitiesText);
+      }
 
       const res = await fetch("/api/parse-pdf", { method: "POST", body: formData });
       if (!res.ok) {
@@ -409,6 +420,21 @@ export default function CollegeCoPilot() {
             </Card>
           </div>
 
+          {/* Extracurricular Activities */}
+          <div className="mt-6">
+            <h3 className="mb-1 text-sm font-medium">
+              Extracurricular Activities & Leadership
+            </h3>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Optional — add up to 15 activities to boost your profile analysis
+            </p>
+            <ActivitiesInput
+              activities={activities}
+              onChange={setActivities}
+              disabled={isProcessing}
+            />
+          </div>
+
           <div className="mt-6 flex justify-center">
             <Button
               size="lg"
@@ -462,6 +488,14 @@ export default function CollegeCoPilot() {
               <div>
                 <h2 className="mb-4 text-lg font-semibold">Curriculum Comparison</h2>
                 <GapAnalysis gapAnalysis={result.gapAnalysis} />
+              </div>
+            )}
+
+            {/* Activities Profile */}
+            {result.activitiesAnalysis && (
+              <div>
+                <h2 className="mb-4 text-lg font-semibold">Activities & Leadership</h2>
+                <ActivitiesProfile analysis={result.activitiesAnalysis} />
               </div>
             )}
 
