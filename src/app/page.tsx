@@ -229,12 +229,12 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <Link
-                href="/tool"
+              <a
+                href="mailto:peter@corvessapartners.com?subject=My%20School%20List%20-%20Starter%20Interest"
                 className="mt-8 block w-full border-2 border-teal text-teal hover:bg-teal hover:text-white rounded-xl py-4 font-medium text-lg transition-colors"
               >
                 Get Started &rarr;
-              </Link>
+              </a>
             </div>
 
             {/* Standard — Most Popular */}
@@ -261,12 +261,12 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <Link
-                href="/tool"
+              <a
+                href="mailto:peter@corvessapartners.com?subject=My%20School%20List%20-%20Standard%20Interest"
                 className="mt-8 block w-full bg-teal hover:bg-teal-dark text-white rounded-xl py-4 font-medium text-lg transition-colors"
               >
                 Get Started &rarr;
-              </Link>
+              </a>
             </div>
 
             {/* Premium */}
@@ -290,12 +290,12 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <Link
-                href="/tool"
+              <a
+                href="mailto:peter@corvessapartners.com?subject=My%20School%20List%20-%20Premium%20Interest"
                 className="mt-8 block w-full border-2 border-teal text-teal hover:bg-teal hover:text-white rounded-xl py-4 font-medium text-lg transition-colors"
               >
                 Get Started &rarr;
-              </Link>
+              </a>
             </div>
           </div>
           <p className="mt-8 text-center text-xs text-muted-foreground">
