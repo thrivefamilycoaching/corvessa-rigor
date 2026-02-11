@@ -230,7 +230,9 @@ export default function LandingPage() {
                 ))}
               </ul>
               <a
-                href="mailto:peter@corvessapartners.com?subject=My%20School%20List%20-%20Starter%20Interest"
+                href="https://buy.stripe.com/28E6oJ3Vy07s9Go08Lasg00"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="mt-8 block w-full border-2 border-teal text-teal hover:bg-teal hover:text-white rounded-xl py-4 font-medium text-lg transition-colors"
               >
                 Get Started &rarr;
@@ -262,7 +264,9 @@ export default function LandingPage() {
                 ))}
               </ul>
               <a
-                href="mailto:peter@corvessapartners.com?subject=My%20School%20List%20-%20Standard%20Interest"
+                href="https://buy.stripe.com/00wcN7cs4aM69Gof3Fasg01"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="mt-8 block w-full bg-teal hover:bg-teal-dark text-white rounded-xl py-4 font-medium text-lg transition-colors"
               >
                 Get Started &rarr;
@@ -291,7 +295,9 @@ export default function LandingPage() {
                 ))}
               </ul>
               <a
-                href="mailto:peter@corvessapartners.com?subject=My%20School%20List%20-%20Premium%20Interest"
+                href="https://buy.stripe.com/bJe7sN1Nqg6q3i0bRtasg02"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="mt-8 block w-full border-2 border-teal text-teal hover:bg-teal hover:text-white rounded-xl py-4 font-medium text-lg transition-colors"
               >
                 Get Started &rarr;
