@@ -352,9 +352,9 @@ export default function LandingPage() {
             A Corvessa Partners product
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-warmgray-300">
-            <span>Terms of Service</span>
+            <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
             <span className="hidden sm:inline">|</span>
-            <span>Privacy Policy</span>
+            <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
             <span className="hidden sm:inline">|</span>
             <span>Contact: support@getmyschoollist.com</span>
           </div>
