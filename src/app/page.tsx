@@ -33,7 +33,7 @@ const faqs = [
   },
   {
     q: "What schools are in the database?",
-    a: "Over 300 colleges and universities, from small liberal arts colleges to large state universities, across all regions of the US.",
+    a: "Over 500 colleges and universities, from small liberal arts colleges to large state universities, across all regions of the US.",
   },
 ];
 
@@ -221,7 +221,7 @@ export default function LandingPage() {
                   "Full school recommendations with odds",
                   "Curriculum gap analysis",
                   "Activities & leadership profile",
-                  "Filter, search, and explore 300+ schools",
+                  "Filter, search, and explore 500+ schools",
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-teal flex-shrink-0 mt-0.5" />
@@ -255,7 +255,7 @@ export default function LandingPage() {
                   "Full school recommendations with odds",
                   "Curriculum gap analysis",
                   "Activities & leadership profile",
-                  "Filter, search, and explore 300+ schools",
+                  "Filter, search, and explore 500+ schools",
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-teal flex-shrink-0 mt-0.5" />
@@ -286,7 +286,7 @@ export default function LandingPage() {
                   "Full school recommendations with odds",
                   "Curriculum gap analysis",
                   "Activities & leadership profile",
-                  "Filter, search, and explore 300+ schools",
+                  "Filter, search, and explore 500+ schools",
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-teal flex-shrink-0 mt-0.5" />
