@@ -371,7 +371,7 @@ export function calculatePersonalizedOdds(
 //
 // RULE 1 — Top 30 Elite: MANDATORY REACH (GPA ≤ 3.7). Never Match or Safety.
 // RULE 2 — Admission rate < 0.25: FORCED REACH (any school, any student).
-// RULE 3 — Odds-to-label sync: <25% → Reach, 25-74% → Match, ≥75% → Safety.
+// RULE 3 — Odds-to-label sync: <40% → Reach, 40-74% → Match, ≥75% → Safety.
 // RULE 4 — Admit rate 0.25–0.50: Match ceiling (cannot be Safety).
 // RULE 5 — Safety only if admit_rate > 0.50 AND GPA > 3.5.
 //
@@ -396,7 +396,7 @@ function classifyDeterministic(
   // RULE 3 — Odds dictate category
   let category: "reach" | "match" | "safety";
   if (personalizedOdds >= 75) category = "safety";
-  else if (personalizedOdds >= 25) category = "match";
+  else if (personalizedOdds >= 40) category = "match";
   else category = "reach";
 
   // RULE 4 — Admit rate 0.25–0.50: ceiling is Match
@@ -496,20 +496,20 @@ export async function enrichSchoolsWithScorecardData(
       finalOdds = Math.min(finalOdds, 20);
     }
 
-    // Sub-25% admit rate → cap at 24% (guaranteed Reach via <25% guard)
+    // Sub-25% admit rate → cap at 39% (guaranteed Reach via <40% guard)
     if (admissionRate < 0.25) {
-      finalOdds = Math.min(finalOdds, 24);
+      finalOdds = Math.min(finalOdds, 39);
     }
 
     // DETERMINISTIC CLASSIFICATION — data overrides AI, no exceptions
     const type = classifyDeterministic(school.name, finalOdds, admissionRate, studentGPA);
 
-    // FINAL SAFETY NET: if odds < 25%, label CANNOT be Safety or Match
+    // FINAL SAFETY NET: if odds < 40%, label CANNOT be Safety or Match
     // This prevents any "9% chance — Safety" anomalies
-    if (finalOdds < 25 && type !== "reach") {
+    if (finalOdds < 40 && type !== "reach") {
       console.log(`[Scorecard] ${school.name}: SAFETY NET — odds=${finalOdds}% too low for "${type}", forcing reach`);
     }
-    const guardedType = finalOdds < 25 ? "reach" : type;
+    const guardedType = finalOdds < 40 ? "reach" : type;
 
     console.log(
       `[Scorecard] ${school.name}: admit_rate=${(admissionRate * 100).toFixed(1)}% GPA=${studentGPA} → YOUR ODDS=${finalOdds}% (${guardedType})`
@@ -661,9 +661,9 @@ Include lesser-known accredited schools — not just nationally ranked ones.`,
 
 // ── Display Odds Normalization ──────────────────────────────────────────────
 // Ensure the displayed percentage aligns with the category label:
-//   Reach  → capped below 30%
-//   Match  → clamped to 30–79%
-//   Safety → left as-is (naturally 80–95%)
+//   Reach  → capped below 40%
+//   Match  → clamped to 40–74%
+//   Safety → left as-is (naturally 75–95%)
 // Uses a deterministic hash so the same school always shows the same number.
 
 function nameHash(name: string): number {
@@ -679,12 +679,12 @@ function normalizeDisplayOdds(school: RecommendedSchool): RecommendedSchool {
   let displayOdds = odds;
 
   if (school.type === "match") {
-    if (odds < 25 || odds >= 75) {
-      displayOdds = 25 + (nameHash(school.name) % 50); // 25–74
+    if (odds < 40 || odds >= 75) {
+      displayOdds = 40 + (nameHash(school.name) % 35); // 40–74
     }
   } else if (school.type === "reach") {
-    if (odds >= 25) {
-      displayOdds = 5 + (nameHash(school.name) % 20); // 5–24
+    if (odds >= 40) {
+      displayOdds = 5 + (nameHash(school.name) % 35); // 5–39
     }
   } else if (school.type === "safety") {
     if (odds < 75) {

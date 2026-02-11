@@ -239,8 +239,8 @@ export async function POST(request: NextRequest) {
         - HARD FLOOR: Minimum 1% for Ivy-plus and ultra-selective reaches (sub-10% acceptance rate schools)
         - CATEGORY THRESHOLDS (use acceptanceProbability to assign type):
           * Reach: acceptanceProbability < 40%
-          * Match: acceptanceProbability 40%-70%
-          * Safety: acceptanceProbability > 70%
+          * Match: acceptanceProbability 40%-74%
+          * Safety: acceptanceProbability >= 75%
         - Be precise — output an integer like 62, not a range
 
         TEST SCORE INTEGRATION (when provided):
@@ -598,7 +598,7 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
           const orig = s.acceptanceProbability;
           s.acceptanceProbability = Math.min(95, Math.round(s.acceptanceProbability * 1.7));
           s.matchReasoning = "[In-State Advantage] " + s.matchReasoning;
-          if (s.acceptanceProbability < 25) s.type = "reach";
+          if (s.acceptanceProbability < 40) s.type = "reach";
           else if (s.acceptanceProbability >= 75) s.type = "safety";
           else s.type = "match";
           console.log("[InState] " + s.name + ": odds " + orig + "% → " + s.acceptanceProbability + "% (" + homeState + " resident)");
@@ -610,7 +610,7 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
     // Reclassify ALL schools based on actual odds — this overrides any incorrect hardcoded types
     analysis.recommendedSchools = analysis.recommendedSchools.map((s: any) => {
       if (s.acceptanceProbability != null) {
-        if (s.acceptanceProbability < 25) s.type = "reach";
+        if (s.acceptanceProbability < 40) s.type = "reach";
         else if (s.acceptanceProbability >= 75) s.type = "safety";
         else s.type = "match";
       }
