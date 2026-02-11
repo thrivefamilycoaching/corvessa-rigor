@@ -21,7 +21,7 @@ const faqs = [
   },
   {
     q: "Can I run multiple analyses?",
-    a: "Yes \u2014 the Family Plan includes unlimited analyses for one student. Adjust scores, add activities, and re-run as many times as you want.",
+    a: "Yes \u2014 each plan includes multiple analyses. Adjust scores, add activities, and re-run as many times as your plan allows.",
   },
   {
     q: "Is my data secure?",
@@ -72,7 +72,7 @@ export default function LandingPage() {
             Build Your School List &rarr;
           </Link>
           <p className="mt-4 text-sm text-muted-foreground">
-            Used by families at top independent schools in the DC area
+            Used by families across the DC area
           </p>
         </div>
       </section>
@@ -203,40 +203,104 @@ export default function LandingPage() {
 
       {/* SECTION 5 — PRICING */}
       <section className="bg-warmgray-50 py-20 px-4">
-        <div className="max-w-xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
             Simple Pricing
           </h2>
-          <div className="bg-white rounded-2xl shadow-lg border-2 border-teal p-8 md:p-10 text-center">
-            <p className="text-sm font-semibold text-teal uppercase tracking-wide">
-              Family Plan
-            </p>
-            <p className="mt-4 text-5xl font-bold">$49</p>
-            <p className="mt-1 text-muted-foreground">one-time payment</p>
-            <ul className="mt-8 space-y-3 text-left">
-              {[
-                "Unlimited analyses for one student",
-                "Full school recommendations with odds",
-                "Curriculum gap analysis",
-                "Activities & leadership profile",
-                "Filter, search, and explore 300+ schools",
-              ].map((item) => (
-                <li key={item} className="flex items-start gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-teal flex-shrink-0 mt-0.5" />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-            <Link
-              href="/tool"
-              className="mt-8 block w-full bg-teal hover:bg-teal-dark text-white rounded-xl py-4 font-medium text-lg transition-colors"
-            >
-              Get Started &rarr;
-            </Link>
-            <p className="mt-3 text-xs text-muted-foreground">
-              Secure payment via Stripe. No subscription.
-            </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+            {/* Starter */}
+            <div className="bg-white rounded-2xl shadow-sm border border-warmgray-200 p-8 text-center">
+              <p className="text-sm font-semibold text-teal uppercase tracking-wide">
+                Starter
+              </p>
+              <p className="mt-4 text-5xl font-bold">$19</p>
+              <p className="mt-1 text-muted-foreground">one-time payment</p>
+              <ul className="mt-8 space-y-3 text-left">
+                {[
+                  "3 analyses",
+                  "Full school recommendations with odds",
+                  "Curriculum gap analysis",
+                  "Activities & leadership profile",
+                  "Filter, search, and explore 300+ schools",
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-teal flex-shrink-0 mt-0.5" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/tool"
+                className="mt-8 block w-full border-2 border-teal text-teal hover:bg-teal hover:text-white rounded-xl py-4 font-medium text-lg transition-colors"
+              >
+                Get Started &rarr;
+              </Link>
+            </div>
+
+            {/* Standard — Most Popular */}
+            <div className="relative bg-white rounded-2xl shadow-lg border-2 border-teal p-8 md:p-10 text-center md:scale-105">
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-coral text-white rounded-full px-3 py-1 text-xs font-semibold">
+                Most Popular
+              </span>
+              <p className="text-sm font-semibold text-teal uppercase tracking-wide">
+                Standard
+              </p>
+              <p className="mt-4 text-5xl font-bold">$39</p>
+              <p className="mt-1 text-muted-foreground">one-time payment</p>
+              <ul className="mt-8 space-y-3 text-left">
+                {[
+                  "10 analyses",
+                  "Full school recommendations with odds",
+                  "Curriculum gap analysis",
+                  "Activities & leadership profile",
+                  "Filter, search, and explore 300+ schools",
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-teal flex-shrink-0 mt-0.5" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/tool"
+                className="mt-8 block w-full bg-teal hover:bg-teal-dark text-white rounded-xl py-4 font-medium text-lg transition-colors"
+              >
+                Get Started &rarr;
+              </Link>
+            </div>
+
+            {/* Premium */}
+            <div className="bg-white rounded-2xl shadow-sm border border-warmgray-200 p-8 text-center">
+              <p className="text-sm font-semibold text-teal uppercase tracking-wide">
+                Premium
+              </p>
+              <p className="mt-4 text-5xl font-bold">$79</p>
+              <p className="mt-1 text-muted-foreground">one-time payment</p>
+              <ul className="mt-8 space-y-3 text-left">
+                {[
+                  "25 analyses",
+                  "Full school recommendations with odds",
+                  "Curriculum gap analysis",
+                  "Activities & leadership profile",
+                  "Filter, search, and explore 300+ schools",
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-teal flex-shrink-0 mt-0.5" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/tool"
+                className="mt-8 block w-full border-2 border-teal text-teal hover:bg-teal hover:text-white rounded-xl py-4 font-medium text-lg transition-colors"
+              >
+                Get Started &rarr;
+              </Link>
+            </div>
           </div>
+          <p className="mt-8 text-center text-xs text-muted-foreground">
+            Secure payment via Stripe. No subscription. No recurring charges.
+          </p>
         </div>
       </section>
 
