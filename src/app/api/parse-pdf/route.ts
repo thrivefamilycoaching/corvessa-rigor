@@ -9,7 +9,7 @@ import { SCHOOLS_DATABASE } from "@/lib/schoolDatabase";
 
 // Disable all Vercel caching — always fetch fresh Scorecard data
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 // Resolve worker path via Next.js optimized URL constructor
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
