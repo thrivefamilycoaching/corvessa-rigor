@@ -61,6 +61,13 @@ function AccessCodeGate({ onValidated }: { onValidated: (code: string, demo: boo
   const [validating, setValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Lost code recovery
+  const [showLostCode, setShowLostCode] = useState(false);
+  const [lostEmail, setLostEmail] = useState("");
+  const [lostLoading, setLostLoading] = useState(false);
+  const [lostMessage, setLostMessage] = useState<string | null>(null);
+  const [lostError, setLostError] = useState<string | null>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = codeInput.trim().toUpperCase();
@@ -88,6 +95,35 @@ function AccessCodeGate({ onValidated }: { onValidated: (code: string, demo: boo
       setError("Failed to validate code. Please try again.");
     } finally {
       setValidating(false);
+    }
+  };
+
+  const handleResendCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!lostEmail.trim()) return;
+
+    setLostLoading(true);
+    setLostError(null);
+    setLostMessage(null);
+
+    try {
+      const res = await fetch("/api/resend-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: lostEmail.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setLostMessage("Code sent! Check your email.");
+      } else {
+        setLostError(data.error || "Could not find a code for that email.");
+      }
+    } catch {
+      setLostError("Something went wrong. Please try again.");
+    } finally {
+      setLostLoading(false);
     }
   };
 
@@ -150,12 +186,55 @@ function AccessCodeGate({ onValidated }: { onValidated: (code: string, demo: boo
             </button>
           </form>
 
-          <p className="mt-6 text-xs text-muted-foreground">
-            Don&apos;t have a code?{" "}
-            <Link href="/#pricing" className="text-teal hover:underline">
-              Purchase a plan
-            </Link>
-          </p>
+          <div className="mt-6 flex items-center justify-center gap-3 text-xs text-muted-foreground">
+            <span>
+              Don&apos;t have a code?{" "}
+              <Link href="/#pricing" className="text-teal hover:underline">
+                Purchase a plan
+              </Link>
+            </span>
+            <span>|</span>
+            <button
+              onClick={() => { setShowLostCode(!showLostCode); setLostError(null); setLostMessage(null); }}
+              className="text-teal hover:underline"
+            >
+              Lost your code?
+            </button>
+          </div>
+
+          {showLostCode && (
+            <div className="mt-4 border-t border-warmgray-200 pt-4">
+              <p className="text-sm text-muted-foreground mb-3">
+                Enter the email you used at checkout and we&apos;ll resend your code.
+              </p>
+              <form onSubmit={handleResendCode} className="flex gap-2">
+                <input
+                  type="email"
+                  value={lostEmail}
+                  onChange={(e) => setLostEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  required
+                  className="flex-1 rounded-lg border-2 border-warmgray-200 px-3 py-2 text-sm focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-colors placeholder:text-warmgray-200"
+                />
+                <button
+                  type="submit"
+                  disabled={lostLoading || !lostEmail.trim()}
+                  className="bg-teal hover:bg-teal-dark disabled:bg-warmgray-200 disabled:text-warmgray-300 disabled:cursor-not-allowed text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors inline-flex items-center gap-1"
+                >
+                  {lostLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Resend"}
+                </button>
+              </form>
+              {lostMessage && (
+                <p className="mt-3 text-sm text-teal font-medium">{lostMessage}</p>
+              )}
+              {lostError && (
+                <div className="mt-3 flex items-center gap-2 text-sm text-coral justify-center">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  <span>{lostError}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
