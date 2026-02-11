@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 export const maxDuration = 30;
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 const geistMono = Geist_Mono({
@@ -15,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Counselor Co-Pilot",
-  description: "Analyze student course rigor, generate counselor narratives, and discover recommended colleges",
+  title: "My School List",
+  description: "Analyze student course rigor, generate counselor narratives, and discover personalized college recommendations",
 };
 
 export default function RootLayout({
@@ -27,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${inter.variable} ${geistMono.variable} antialiased font-sans`}
         suppressHydrationWarning
       >
         {children}

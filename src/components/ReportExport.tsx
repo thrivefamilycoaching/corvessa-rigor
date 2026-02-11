@@ -70,7 +70,7 @@ export function ReportExport({ result, editedNarrative }: ReportExportProps) {
       doc.setFontSize(24);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(0, 0, 0);
-      doc.text("Counselor Co-Pilot", margin, yPos);
+      doc.text("My School List", margin, yPos);
       yPos += 10;
 
       doc.setFontSize(12);
@@ -213,7 +213,7 @@ export function ReportExport({ result, editedNarrative }: ReportExportProps) {
         doc.setFontSize(8);
         doc.setTextColor(150, 150, 150);
         doc.text(
-          `Page ${i} of ${pageCount} | Counselor Co-Pilot Report`,
+          `Page ${i} of ${pageCount} | My School List Report`,
           pageWidth / 2,
           285,
           { align: "center" }
@@ -221,7 +221,7 @@ export function ReportExport({ result, editedNarrative }: ReportExportProps) {
       }
 
       // Save the PDF
-      doc.save("counselor-copilot-report.pdf");
+      doc.save("my-school-list-report.pdf");
     } catch (error) {
       console.error("Failed to generate PDF:", error);
     } finally {

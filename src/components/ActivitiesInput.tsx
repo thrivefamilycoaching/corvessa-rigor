@@ -114,14 +114,14 @@ export function ActivitiesInput({
               : "Search activities or type a custom one..."
           }
           disabled={disabled || atMax}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
+          className="w-full rounded-lg border border-warmgray-300 bg-white px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground hover:border-teal/50 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 disabled:opacity-50"
         />
         {showDropdown && query.trim() && (
-          <div className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto rounded-md border bg-background shadow-lg">
+          <div className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-warmgray-200 bg-white shadow-lg">
             {Object.keys(grouped).length > 0 ? (
               Object.entries(grouped).map(([category, items]) => (
                 <div key={category}>
-                  <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
+                  <div className="px-3 py-1.5 text-xs font-semibold text-teal bg-warmgray-50">
                     {category}
                   </div>
                   {items.map((item) => (
@@ -156,7 +156,7 @@ export function ActivitiesInput({
           {activities.map((activity, index) => (
             <div
               key={activity.name}
-              className="rounded-md border bg-background px-3 py-2"
+              className="rounded-lg border border-warmgray-200 bg-white px-3 py-2"
             >
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-sm font-medium truncate">
@@ -178,7 +178,7 @@ export function ActivitiesInput({
                     value={activity.years}
                     onChange={(e) => updateYears(index, parseInt(e.target.value))}
                     disabled={disabled}
-                    className="rounded-md border border-input bg-background px-2 py-1 text-xs shadow-sm"
+                    className="rounded-lg border border-warmgray-300 bg-white px-2 py-1 text-xs shadow-sm focus:border-teal"
                   >
                     {YEARS_OPTIONS.map((y) => (
                       <option key={y} value={y}>{y}</option>
@@ -191,7 +191,7 @@ export function ActivitiesInput({
                     value={activity.role}
                     onChange={(e) => updateRole(index, e.target.value)}
                     disabled={disabled}
-                    className="rounded-md border border-input bg-background px-2 py-1 text-xs shadow-sm"
+                    className="rounded-lg border border-warmgray-300 bg-white px-2 py-1 text-xs shadow-sm focus:border-teal"
                   >
                     {ROLE_OPTIONS.map((role) => (
                       <option key={role} value={role}>{role}</option>
@@ -204,7 +204,7 @@ export function ActivitiesInput({
                     value={activity.yearsInRole}
                     onChange={(e) => updateYearsInRole(index, parseInt(e.target.value))}
                     disabled={disabled}
-                    className="rounded-md border border-input bg-background px-2 py-1 text-xs shadow-sm"
+                    className="rounded-lg border border-warmgray-300 bg-white px-2 py-1 text-xs shadow-sm focus:border-teal"
                   >
                     {YEARS_OPTIONS.filter((y) => y <= activity.years).map((y) => (
                       <option key={y} value={y}>{y}</option>

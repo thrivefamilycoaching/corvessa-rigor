@@ -33,7 +33,6 @@ function selectDisplaySchools(
   types: string[],
   perCategory: number = 3
 ): RecommendedSchool[] {
-  // Filter pool by active filters
   const pool = allSchools.filter((school) => {
     const regionMatch = regions.length === 0 || regions.includes(school.region);
     const sizeMatch = sizes.length === 0 || sizes.includes(school.campusSize);
@@ -41,7 +40,6 @@ function selectDisplaySchools(
     return regionMatch && sizeMatch && typeMatch;
   });
 
-  // Pick perCategory per type, fill from other types if any bucket is short
   const safety = pool.filter((s) => s.type === "safety").slice(0, perCategory);
   const match = pool.filter((s) => s.type === "match").slice(0, perCategory);
   const reach = pool.filter((s) => s.type === "reach").slice(0, perCategory);
@@ -66,19 +64,6 @@ function getTypeIcon(type: RecommendedSchool["type"]) {
       return <Target className="h-4 w-4" />;
     case "safety":
       return <Shield className="h-4 w-4" />;
-  }
-}
-
-function getTypeBadgeVariant(
-  type: RecommendedSchool["type"]
-): "default" | "secondary" | "destructive" {
-  switch (type) {
-    case "reach":
-      return "destructive";
-    case "match":
-      return "default";
-    case "safety":
-      return "secondary";
   }
 }
 
@@ -205,13 +190,13 @@ export function RecommendedSchools({
   const safetySchools = displaySchools.filter((s) => s.type === "safety");
 
   return (
-    <Card>
+    <Card className="rounded-xl border-warmgray-200 shadow-sm">
       <CardHeader className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <GraduationCap className="h-5 w-5" />
-              <CardTitle>Recommended Schools</CardTitle>
+              <GraduationCap className="h-5 w-5 text-teal" />
+              <CardTitle className="text-charcoal">Recommended Schools</CardTitle>
             </div>
             <p className="text-sm text-muted-foreground mt-1">
               National search based on course rigor and academic alignment
@@ -219,9 +204,9 @@ export function RecommendedSchools({
           </div>
         </div>
 
-        <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <SlidersHorizontal className="h-4 w-4" />
+        <div className="rounded-xl border border-warmgray-200 bg-white p-4 space-y-4">
+          <div className="flex items-center gap-2 text-sm font-medium text-charcoal">
+            <SlidersHorizontal className="h-4 w-4 text-teal" />
             Filter Recommendations
           </div>
 
@@ -239,7 +224,7 @@ export function RecommendedSchools({
                     checked={pendingRegions.includes(region)}
                     onCheckedChange={() => toggleRegion(region)}
                   />
-                  <span className="text-sm">{region}</span>
+                  <span className="text-sm text-charcoal">{region}</span>
                 </label>
               ))}
             </div>
@@ -259,7 +244,7 @@ export function RecommendedSchools({
                     checked={pendingSizes.includes(size.value)}
                     onCheckedChange={() => toggleSize(size.value)}
                   />
-                  <span className="text-sm">
+                  <span className="text-sm text-charcoal">
                     {size.label}{" "}
                     <span className="text-muted-foreground">({size.range})</span>
                   </span>
@@ -279,7 +264,7 @@ export function RecommendedSchools({
                     checked={pendingTypes.includes(type)}
                     onCheckedChange={() => toggleType(type)}
                   />
-                  <span className="text-sm capitalize">{type}</span>
+                  <span className="text-sm text-charcoal capitalize">{type}</span>
                 </label>
               ))}
             </div>
@@ -290,11 +275,12 @@ export function RecommendedSchools({
               onClick={applyFilters}
               disabled={!hasFilterChanges}
               size="sm"
+              className="bg-teal hover:bg-teal-dark text-white rounded-lg transition-colors duration-200"
             >
               Apply Filters
             </Button>
             {filtersApplied && (
-              <Button variant="ghost" size="sm" onClick={clearAllFilters}>
+              <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-charcoal">
                 Clear All
               </Button>
             )}
@@ -314,8 +300,7 @@ export function RecommendedSchools({
             {selectedRegions.map((region) => (
               <Badge
                 key={region}
-                variant="secondary"
-                className="pl-2 pr-1 gap-1 cursor-pointer hover:bg-secondary/80"
+                className="bg-teal text-white rounded-full pl-2 pr-1 gap-1 cursor-pointer hover:bg-teal-dark"
                 onClick={() => removeRegionChip(region)}
               >
                 <MapPin className="h-3 w-3" />
@@ -328,8 +313,7 @@ export function RecommendedSchools({
               return (
                 <Badge
                   key={size}
-                  variant="secondary"
-                  className="pl-2 pr-1 gap-1 cursor-pointer hover:bg-secondary/80"
+                  className="bg-teal text-white rounded-full pl-2 pr-1 gap-1 cursor-pointer hover:bg-teal-dark"
                   onClick={() => removeSizeChip(size)}
                 >
                   <Users className="h-3 w-3" />
@@ -341,8 +325,7 @@ export function RecommendedSchools({
             {selectedTypes.map((type) => (
               <Badge
                 key={type}
-                variant="secondary"
-                className="pl-2 pr-1 gap-1 cursor-pointer hover:bg-secondary/80 capitalize"
+                className="bg-teal text-white rounded-full pl-2 pr-1 gap-1 cursor-pointer hover:bg-teal-dark capitalize"
                 onClick={() => removeTypeChip(type)}
               >
                 {type === "reach" ? <TrendingUp className="h-3 w-3" /> : type === "match" ? <Target className="h-3 w-3" /> : <Shield className="h-3 w-3" />}
@@ -354,8 +337,8 @@ export function RecommendedSchools({
         )}
 
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <Search className="h-4 w-4" />
+          <div className="flex items-center gap-2 text-sm font-medium text-charcoal">
+            <Search className="h-4 w-4 text-teal" />
             Search for a Specific School
           </div>
           <input
@@ -363,9 +346,9 @@ export function RecommendedSchools({
             placeholder="Type a school name..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full px-3 py-2 border border-warmgray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal/20 focus:border-teal transition-colors"
           />
-          {isSearching && <p className="text-sm text-muted-foreground">Searching...</p>}
+          {isSearching && <p className="text-sm text-teal">Searching...</p>}
           {!isSearching && searchResults.length > 0 && (
             <div className="space-y-2">
               {searchResults.map((school, index) => (
@@ -399,8 +382,8 @@ export function RecommendedSchools({
             {/* Safety Schools */}
             {safetySchools.length > 0 && (
               <div>
-                <h4 className="text-sm font-semibold text-green-600 mb-3 flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-green-600" />
+                <h4 className="text-sm font-semibold text-gold-dark mb-3 flex items-center gap-2 border-l-4 border-gold pl-3">
+                  <Shield className="h-4 w-4 text-gold-dark" />
                   Safety Schools ({safetySchools.length})
                 </h4>
                 <div className="space-y-3">
@@ -414,8 +397,8 @@ export function RecommendedSchools({
             {/* Match Schools */}
             {matchSchools.length > 0 && (
               <div>
-                <h4 className="text-sm font-semibold text-blue-800 mb-3 flex items-center gap-2">
-                  <Target className="h-4 w-4 text-blue-800" />
+                <h4 className="text-sm font-semibold text-teal mb-3 flex items-center gap-2 border-l-4 border-teal pl-3">
+                  <Target className="h-4 w-4 text-teal" />
                   Match Schools ({matchSchools.length})
                 </h4>
                 <div className="space-y-3">
@@ -429,8 +412,8 @@ export function RecommendedSchools({
             {/* Reach Schools */}
             {reachSchools.length > 0 && (
               <div>
-                <h4 className="text-sm font-semibold text-orange-600 mb-3 flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-orange-600" />
+                <h4 className="text-sm font-semibold text-coral mb-3 flex items-center gap-2 border-l-4 border-coral pl-3">
+                  <TrendingUp className="h-4 w-4 text-coral" />
                   Reach Schools ({reachSchools.length})
                 </h4>
                 <div className="space-y-3">
@@ -448,8 +431,13 @@ export function RecommendedSchools({
 }
 
 function SchoolCard({ school }: { school: RecommendedSchool }) {
+  const borderColor =
+    school.type === "reach" ? "border-l-coral" :
+    school.type === "match" ? "border-l-teal" :
+    "border-l-gold";
+
   return (
-    <div className="rounded-lg border p-4">
+    <div className={`rounded-xl border border-warmgray-200 bg-white p-4 border-l-4 ${borderColor} transition-shadow hover:shadow-md`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -457,47 +445,47 @@ function SchoolCard({ school }: { school: RecommendedSchool }) {
               href={school.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-medium hover:underline hover:text-primary transition-colors"
+              className="font-semibold text-lg text-charcoal hover:text-teal hover:underline transition-colors"
             >
               {school.name}
             </a>
-            <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full text-white ${
-              school.type === "reach" ? "bg-orange-600" :
-              school.type === "match" ? "bg-blue-800" :
-              "bg-green-600"
+            <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${
+              school.type === "reach" ? "bg-coral text-white" :
+              school.type === "match" ? "bg-teal text-white" :
+              "bg-gold text-charcoal"
             }`}>
               {getTypeIcon(school.type)}
               <span>{getTypeLabel(school.type)}</span>
             </span>
             {school.testPolicy ? (
               <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border ${
-                school.testPolicy === "Test Optional" ? "border-green-500 text-green-700 bg-green-50" :
-                school.testPolicy === "Test Required" ? "border-red-500 text-red-700 bg-red-50" :
-                school.testPolicy === "Test Blind" ? "border-blue-500 text-blue-700 bg-blue-50" :
-                "border-gray-400 text-gray-600 bg-gray-50"
+                school.testPolicy === "Test Optional" ? "border-green-300 text-green-800 bg-green-100" :
+                school.testPolicy === "Test Required" ? "border-red-300 text-red-800 bg-red-100" :
+                school.testPolicy === "Test Blind" ? "border-blue-300 text-blue-800 bg-blue-100" :
+                "border-warmgray-300 text-muted-foreground bg-warmgray-50"
               }`}>
                 {school.testPolicy}
               </span>
             ) : (
-              <span className="inline-flex items-center text-xs text-muted-foreground px-2 py-0.5 rounded-full border border-dashed border-gray-300">
+              <span className="inline-flex items-center text-xs text-muted-foreground px-2 py-0.5 rounded-full border border-dashed border-warmgray-300">
                 Test Policy: N/A
               </span>
             )}
             {school.acceptanceProbability !== undefined && school.acceptanceProbability !== null ? (
               <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border ${
-                school.acceptanceProbability < 40 ? "border-orange-500 text-orange-700 bg-orange-50" :
-                school.acceptanceProbability >= 75 ? "border-green-500 text-green-700 bg-green-50" :
-                "border-blue-500 text-blue-700 bg-blue-50"
+                school.acceptanceProbability < 40 ? "border-coral bg-coral/10 text-coral" :
+                school.acceptanceProbability >= 75 ? "border-gold bg-gold/10 text-gold-dark" :
+                "border-teal bg-teal/10 text-teal"
               }`}>
                 Your Odds: {school.acceptanceProbability < 10 ? "<10%" : school.acceptanceProbability > 95 ? "95%+" : school.acceptanceProbability + "%"}
               </span>
             ) : (
-              <span className="inline-flex items-center text-xs text-muted-foreground px-2 py-0.5 rounded-full border border-dashed border-gray-300">
+              <span className="inline-flex items-center text-xs text-muted-foreground px-2 py-0.5 rounded-full border border-dashed border-warmgray-300">
                 Odds: N/A
               </span>
             )}
           </div>
-          <div className="flex items-center gap-3 mb-2 text-xs text-muted-foreground flex-wrap">
+          <div className="flex items-center gap-3 mb-2 text-xs text-gray-500 flex-wrap">
             <span className="flex items-center gap-1">
               <MapPin className="h-3 w-3" />
               {school.region}
@@ -507,12 +495,12 @@ function SchoolCard({ school }: { school: RecommendedSchool }) {
               {getSizeLabel(school.campusSize)}
             </span>
             {school.enrollment && (
-              <span className="text-muted-foreground/75">
+              <span className="text-gray-400">
                 ({formatEnrollment(school.enrollment)})
               </span>
             )}
           </div>
-          <p className="text-sm text-muted-foreground">{school.matchReasoning}</p>
+          <p className="text-sm text-gray-600">{school.matchReasoning}</p>
         </div>
       </div>
     </div>

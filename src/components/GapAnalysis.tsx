@@ -85,23 +85,23 @@ export function GapAnalysis({ gapAnalysis }: GapAnalysisProps) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b">
+              <tr className="bg-teal text-white">
                 <th className="py-3 px-4 text-left font-medium">Subject</th>
                 <th className="py-3 px-4 text-left font-medium">
                   <span className="flex items-center gap-1">
-                    <span className="h-2 w-2 rounded-full bg-muted-foreground" />
+                    <span className="h-2 w-2 rounded-full bg-white/60" />
                     Offered
                   </span>
                 </th>
                 <th className="py-3 px-4 text-left font-medium">
                   <span className="flex items-center gap-1">
-                    <CheckCircle2 className="h-3 w-3 text-green-500" />
+                    <CheckCircle2 className="h-3 w-3 text-white/80" />
                     Taken
                   </span>
                 </th>
                 <th className="py-3 px-4 text-left font-medium">
                   <span className="flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3 text-amber-500" />
+                    <AlertCircle className="h-3 w-3 text-white/80" />
                     Missed Opportunities
                   </span>
                 </th>
@@ -117,7 +117,7 @@ export function GapAnalysis({ gapAnalysis }: GapAnalysisProps) {
                 ];
 
                 return (
-                  <tr key={index} className="border-b last:border-0">
+                  <tr key={index} className="border-b last:border-0 even:bg-warmgray-50">
                     <td className="py-4 px-4 font-medium align-top">
                       <div className="flex items-center gap-2 flex-wrap">
                         {item.subject}
@@ -163,7 +163,7 @@ export function GapAnalysis({ gapAnalysis }: GapAnalysisProps) {
                         <div className="flex flex-wrap gap-1">
                           {item.taken.length > 0 ? (
                             item.taken.map((course, i) => (
-                              <Badge key={i} variant="default" className="text-xs bg-green-600">
+                              <Badge key={i} variant="default" className="text-xs bg-teal text-white">
                                 <CheckCircle2 className="h-3 w-3 mr-1" />
                                 {course}
                               </Badge>
@@ -232,12 +232,12 @@ export function GapAnalysis({ gapAnalysis }: GapAnalysisProps) {
                           <div className="flex flex-wrap gap-1 flex-1">
                             {item.missed.length > 0 ? (
                               item.missed.map((course, i) => (
-                                <Badge key={i} variant="secondary" className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                                <Badge key={i} variant="secondary" className="text-xs bg-coral/10 text-coral font-medium">
                                   {course}
                                 </Badge>
                               ))
                             ) : (
-                              <span className="text-green-600 text-xs flex items-center gap-1">
+                              <span className="text-teal font-medium text-xs flex items-center gap-1">
                                 <CheckCircle2 className="h-3 w-3" />
                                 All rigorous options taken
                               </span>
@@ -272,12 +272,12 @@ export function GapAnalysis({ gapAnalysis }: GapAnalysisProps) {
           <SummaryCard
             label="Courses Taken"
             value={effectiveData.reduce((sum, item) => sum + item.taken.length, 0)}
-            icon={<CheckCircle2 className="h-4 w-4 text-green-500" />}
+            icon={<CheckCircle2 className="h-4 w-4 text-teal" />}
           />
           <SummaryCard
             label="Opportunities Missed"
             value={effectiveData.reduce((sum, item) => sum + item.missed.length, 0)}
-            icon={<AlertCircle className="h-4 w-4 text-amber-500" />}
+            icon={<AlertCircle className="h-4 w-4 text-coral" />}
           />
         </div>
       </CardContent>

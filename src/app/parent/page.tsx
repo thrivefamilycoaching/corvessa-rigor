@@ -53,7 +53,7 @@ const US_STATES = [
   { value: "WV", label: "West Virginia" }, { value: "WI", label: "Wisconsin" }, { value: "WY", label: "Wyoming" },
 ];
 
-export default function CollegeCoPilot() {
+export default function MySchoolListParent() {
   const [schoolProfile, setSchoolProfile] = useState<File | null>(null);
   const [transcript, setTranscript] = useState<File | null>(null);
   const [homeState, setHomeState] = useState("");
@@ -175,32 +175,38 @@ export default function CollegeCoPilot() {
   const canAnalyze = schoolProfile && transcript && !isProcessing;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-warmgray-50">
+      {/* Top bar */}
+      <div className="bg-teal text-white">
+        <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Compass className="h-6 w-6" />
+            <span className="font-bold text-xl">My School List</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="inline-flex items-center gap-1.5 text-xs text-white/70">
+              <Shield className="h-3 w-3" />
+              Private Mode
+            </span>
+            <Link href="/" className="inline-flex items-center gap-1 text-sm text-white/80 hover:text-white transition-colors duration-200">
+              Counselor View <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+        </div>
+      </div>
+
       <div className="mx-auto max-w-6xl px-4 py-8">
         {/* Header */}
         <div className="mb-8 text-center">
-          <div className="mb-2 flex items-center justify-center gap-3">
-            <Compass className="h-10 w-10 text-primary" />
-            <h1 className="text-4xl font-bold tracking-tight">College Co-Pilot</h1>
-          </div>
           <p className="mx-auto max-w-2xl text-muted-foreground">
             Upload the school profile, your child&apos;s transcript, and test scores
             to analyze course rigor and to discover personalized college recommendations.
           </p>
-          <div className="mt-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs text-muted-foreground">
-            <Shield className="h-3 w-3" />
-            Private Mode — Your data is never shared
-          </div>
-          <div className="mt-2">
-            <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors">
-              View Counselor Dashboard <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
         </div>
 
         {/* Upload Section */}
         <section className="mb-8">
-          <h2 className="mb-4 text-lg font-semibold">Upload Documents & Enter Scores</h2>
+          <h2 className="mb-4 text-lg font-semibold text-charcoal">Upload Documents & Enter Scores</h2>
 
           {/* Home State Selector */}
           <div className="mb-6">
@@ -269,8 +275,8 @@ export default function CollegeCoPilot() {
                   <input {...schoolProfileDropzone.getInputProps()} />
                   {schoolProfile ? (
                     <>
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
-                        <Check className="h-6 w-6 text-green-600 dark:text-green-400" />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-teal/10">
+                        <Check className="h-6 w-6 text-teal" />
                       </div>
                       <p className="mt-4 text-sm font-medium">{schoolProfile.name}</p>
                       <p className="text-xs text-muted-foreground">
@@ -322,8 +328,8 @@ export default function CollegeCoPilot() {
                   <input {...transcriptDropzone.getInputProps()} />
                   {transcript ? (
                     <>
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
-                        <Check className="h-6 w-6 text-green-600 dark:text-green-400" />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-teal/10">
+                        <Check className="h-6 w-6 text-teal" />
                       </div>
                       <p className="mt-4 text-sm font-medium">{transcript.name}</p>
                       <p className="text-xs text-muted-foreground">
@@ -440,7 +446,7 @@ export default function CollegeCoPilot() {
               size="lg"
               onClick={handleAnalyze}
               disabled={!canAnalyze}
-              className="min-w-[200px]"
+              className="min-w-[200px] bg-teal hover:bg-teal-dark text-white rounded-lg px-6 py-3 font-semibold shadow-md transition-colors duration-200"
             >
               {isProcessing ? (
                 <>
@@ -459,10 +465,10 @@ export default function CollegeCoPilot() {
 
         {/* Error Display */}
         {error && (
-          <Card className="mb-8 border-destructive">
+          <Card className="mb-8 border-coral bg-coral/10 rounded-lg">
             <CardContent className="flex items-center gap-3 pt-6">
-              <AlertCircle className="h-5 w-5 text-destructive" />
-              <p className="text-destructive">{error}</p>
+              <AlertCircle className="h-5 w-5 text-coral" />
+              <p className="text-coral">{error}</p>
             </CardContent>
           </Card>
         )}
@@ -472,7 +478,7 @@ export default function CollegeCoPilot() {
           <section className="space-y-8">
             {/* Scorecard */}
             <div>
-              <h2 className="mb-4 text-lg font-semibold">Rigor Analysis</h2>
+              <h2 className="mb-4 text-lg font-semibold text-charcoal">Rigor Analysis</h2>
               <RigorScorecard
                 overallScore={result.scorecard.overallScore}
                 maxScore={result.scorecard.maxScore}
@@ -486,7 +492,7 @@ export default function CollegeCoPilot() {
             {/* Gap Analysis */}
             {result.gapAnalysis && result.gapAnalysis.length > 0 && (
               <div>
-                <h2 className="mb-4 text-lg font-semibold">Curriculum Comparison</h2>
+                <h2 className="mb-4 text-lg font-semibold text-charcoal">Curriculum Comparison</h2>
                 <GapAnalysis gapAnalysis={result.gapAnalysis} />
               </div>
             )}
@@ -494,7 +500,7 @@ export default function CollegeCoPilot() {
             {/* Activities Profile */}
             {result.activitiesAnalysis && (
               <div>
-                <h2 className="mb-4 text-lg font-semibold">Activities & Leadership</h2>
+                <h2 className="mb-4 text-lg font-semibold text-charcoal">Activities & Leadership</h2>
                 <ActivitiesProfile analysis={result.activitiesAnalysis} />
               </div>
             )}
@@ -502,7 +508,7 @@ export default function CollegeCoPilot() {
             {/* Recommended Schools */}
             {result.recommendedSchools && result.recommendedSchools.length > 0 && (
               <div>
-                <h2 className="mb-4 text-lg font-semibold">College Recommendations</h2>
+                <h2 className="mb-4 text-lg font-semibold text-charcoal">College Recommendations</h2>
                 <RecommendedSchools
                   schools={result.recommendedSchools}
                   transcriptSummary={result.transcriptSummary}
@@ -533,8 +539,8 @@ export default function CollegeCoPilot() {
         {isProcessing && (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-muted border-t-primary" />
-              <h3 className="text-lg font-medium">Analyzing documents...</h3>
+              <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-warmgray-200 border-t-teal" />
+              <h3 className="text-lg font-medium text-teal">Analyzing documents...</h3>
               <p className="max-w-sm text-sm text-muted-foreground">
                 Parsing PDFs, evaluating course rigor, and generating college recommendations.
                 This may take a moment.
