@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import {
   X,
   AlertCircle,
   ArrowLeft,
+  KeyRound,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AnalysisResult } from "@/lib/types";
@@ -23,6 +25,7 @@ import { ActivitiesInput } from "@/components/ActivitiesInput";
 import { ActivitiesProfile } from "@/components/ActivitiesProfile";
 import Link from "next/link";
 
+const DEMO_CODE = "MSL-DEMO1";
 
 interface TestScores {
   satReading: string;
@@ -51,7 +54,200 @@ const US_STATES = [
   { value: "WV", label: "West Virginia" }, { value: "WI", label: "Wisconsin" }, { value: "WY", label: "Wyoming" },
 ];
 
+// ─── Access Code Gate ────────────────────────────────────────────────────────
+
+function AccessCodeGate({ onValidated }: { onValidated: (code: string, demo: boolean, remaining: number) => void }) {
+  const [codeInput, setCodeInput] = useState("");
+  const [validating, setValidating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = codeInput.trim().toUpperCase();
+    if (!trimmed) return;
+
+    setValidating(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/validate-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: trimmed }),
+      });
+
+      const data = await res.json();
+
+      if (data.valid) {
+        sessionStorage.setItem("msl_access_code", trimmed);
+        onValidated(trimmed, data.demo, data.analyses_remaining);
+      } else {
+        setError(data.error || "Invalid access code");
+      }
+    } catch {
+      setError("Failed to validate code. Please try again.");
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-warmgray-50">
+      <div className="bg-teal text-white">
+        <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Compass className="h-6 w-6" />
+            <span className="font-bold text-xl">My School List</span>
+          </div>
+          <Link href="/" className="inline-flex items-center gap-1 text-sm text-white/80 hover:text-white transition-colors duration-200">
+            <ArrowLeft className="h-3 w-3" />
+            Back to Home
+          </Link>
+        </div>
+      </div>
+
+      <div className="flex flex-col items-center justify-center px-4 py-24">
+        <div className="bg-white rounded-2xl shadow-lg max-w-md w-full p-8 md:p-10 text-center">
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-teal/10 mb-6">
+            <KeyRound className="h-8 w-8 text-teal" />
+          </div>
+
+          <h1 className="text-2xl font-bold text-charcoal">Enter Access Code</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Enter the access code from your purchase to start analyzing.
+          </p>
+
+          <form onSubmit={handleSubmit} className="mt-8">
+            <input
+              type="text"
+              value={codeInput}
+              onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+              placeholder="MSL-XXXXX"
+              maxLength={9}
+              className="w-full text-center text-2xl font-mono font-bold tracking-widest rounded-xl border-2 border-warmgray-200 px-4 py-4 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-colors placeholder:text-warmgray-200"
+            />
+
+            {error && (
+              <div className="mt-4 flex items-center gap-2 text-sm text-coral justify-center">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={validating || !codeInput.trim()}
+              className="mt-6 w-full bg-teal hover:bg-teal-dark disabled:bg-warmgray-200 disabled:text-warmgray-300 disabled:cursor-not-allowed text-white rounded-xl py-4 font-medium text-lg transition-colors inline-flex items-center justify-center gap-2"
+            >
+              {validating ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Validating...
+                </>
+              ) : (
+                "Access Tool \u2192"
+              )}
+            </button>
+          </form>
+
+          <p className="mt-6 text-xs text-muted-foreground">
+            Don&apos;t have a code?{" "}
+            <Link href="/#pricing" className="text-teal hover:underline">
+              Purchase a plan
+            </Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Tool (gated) ──────────────────────────────────────────────────────
+
 export default function MySchoolListTool() {
+  const [accessCode, setAccessCode] = useState<string | null>(null);
+  const [isDemo, setIsDemo] = useState(false);
+  const [analysesRemaining, setAnalysesRemaining] = useState<number>(0);
+  const [gateChecked, setGateChecked] = useState(false);
+
+  // Check sessionStorage on mount
+  useEffect(() => {
+    const stored = sessionStorage.getItem("msl_access_code");
+    if (stored) {
+      // Re-validate the stored code
+      fetch("/api/validate-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: stored }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.valid) {
+            setAccessCode(stored);
+            setIsDemo(data.demo);
+            setAnalysesRemaining(data.analyses_remaining);
+          } else {
+            sessionStorage.removeItem("msl_access_code");
+          }
+        })
+        .catch(() => {
+          sessionStorage.removeItem("msl_access_code");
+        })
+        .finally(() => setGateChecked(true));
+    } else {
+      setGateChecked(true);
+    }
+  }, []);
+
+  if (!gateChecked) {
+    return (
+      <div className="min-h-screen bg-warmgray-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 text-teal animate-spin" />
+      </div>
+    );
+  }
+
+  if (!accessCode) {
+    return (
+      <AccessCodeGate
+        onValidated={(code, demo, remaining) => {
+          setAccessCode(code);
+          setIsDemo(demo);
+          setAnalysesRemaining(remaining);
+        }}
+      />
+    );
+  }
+
+  return (
+    <ToolContent
+      accessCode={accessCode}
+      isDemo={isDemo}
+      analysesRemaining={analysesRemaining}
+      setAnalysesRemaining={setAnalysesRemaining}
+      onLogout={() => {
+        sessionStorage.removeItem("msl_access_code");
+        setAccessCode(null);
+      }}
+    />
+  );
+}
+
+// ─── Tool Content ────────────────────────────────────────────────────────────
+
+function ToolContent({
+  accessCode,
+  isDemo,
+  analysesRemaining,
+  setAnalysesRemaining,
+  onLogout,
+}: {
+  accessCode: string;
+  isDemo: boolean;
+  analysesRemaining: number;
+  setAnalysesRemaining: (n: number) => void;
+  onLogout: () => void;
+}) {
   const [schoolProfile, setSchoolProfile] = useState<File | null>(null);
   const [transcript, setTranscript] = useState<File | null>(null);
   const [homeState, setHomeState] = useState("");
@@ -92,11 +288,35 @@ export default function MySchoolListTool() {
   const handleAnalyze = async () => {
     if (!schoolProfile || !transcript) return;
 
+    // Check analyses remaining (skip for demo)
+    if (!isDemo && analysesRemaining <= 0) {
+      setError("You've used all analyses. Purchase more at getmyschoollist.com");
+      return;
+    }
+
     setIsProcessing(true);
     setError(null);
     setResult(null);
 
     try {
+      // Decrement analysis count first
+      const useRes = await fetch("/api/use-analysis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: accessCode }),
+      });
+
+      const useData = await useRes.json();
+
+      if (!useRes.ok) {
+        throw new Error(useData.error || "Failed to use analysis");
+      }
+
+      if (!isDemo) {
+        setAnalysesRemaining(useData.analyses_remaining);
+      }
+
+      // Now run the actual analysis
       const formData = new FormData();
       formData.append("schoolProfile", schoolProfile);
       formData.append("transcript", transcript);
@@ -178,10 +398,25 @@ export default function MySchoolListTool() {
             <Compass className="h-6 w-6" />
             <span className="font-bold text-xl">My School List</span>
           </div>
-          <Link href="/" className="inline-flex items-center gap-1 text-sm text-white/80 hover:text-white transition-colors duration-200">
-            <ArrowLeft className="h-3 w-3" />
-            Back to Home
-          </Link>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-white/80">
+              {isDemo ? (
+                <span className="bg-white/20 px-2 py-0.5 rounded text-xs font-medium">Demo Mode</span>
+              ) : (
+                <>{analysesRemaining} {analysesRemaining === 1 ? "analysis" : "analyses"} remaining</>
+              )}
+            </span>
+            <button
+              onClick={onLogout}
+              className="text-sm text-white/60 hover:text-white transition-colors"
+            >
+              Sign Out
+            </button>
+            <Link href="/" className="inline-flex items-center gap-1 text-sm text-white/80 hover:text-white transition-colors duration-200">
+              <ArrowLeft className="h-3 w-3" />
+              Home
+            </Link>
+          </div>
         </div>
       </div>
 

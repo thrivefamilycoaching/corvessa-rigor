@@ -1,38 +1,104 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useMemo, useState, Suspense } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
-import { CheckCircle2, Copy, Check } from "lucide-react";
+import { CheckCircle2, Copy, Check, AlertCircle, Loader2 } from "lucide-react";
 
-const tierInfo: Record<string, { label: string; analyses: number }> = {
-  starter: { label: "Starter", analyses: 3 },
-  standard: { label: "Standard", analyses: 10 },
-  premium: { label: "Premium", analyses: 25 },
+const tierLabels: Record<string, string> = {
+  starter: "Starter",
+  standard: "Standard",
+  premium: "Premium",
 };
 
-function generateCode() {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let code = "MSL-";
-  for (let i = 0; i < 5; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
-}
+const tierAnalyses: Record<string, number> = {
+  starter: 3,
+  standard: 10,
+  premium: 25,
+};
 
 function SuccessContent() {
   const searchParams = useSearchParams();
   const tierKey = (searchParams.get("tier") || "standard").toLowerCase();
-  const tier = tierInfo[tierKey] || tierInfo.standard;
+  const tierLabel = tierLabels[tierKey] || "Standard";
+  const analyses = tierAnalyses[tierKey] || 10;
 
-  const accessCode = useMemo(() => generateCode(), []);
+  const [accessCode, setAccessCode] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function createCode() {
+      try {
+        const res = await fetch("/api/create-code", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tier: tierKey }),
+        });
+
+        if (!res.ok) {
+          throw new Error("Failed to create access code");
+        }
+
+        const data = await res.json();
+        if (!cancelled) {
+          setAccessCode(data.code);
+        }
+      } catch {
+        if (!cancelled) {
+          setError("Failed to generate access code. Please contact support@getmyschoollist.com");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    createCode();
+    return () => { cancelled = true; };
+  }, [tierKey]);
+
   const handleCopy = async () => {
+    if (!accessCode) return;
     await navigator.clipboard.writeText(accessCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-warmgray-50 flex flex-col items-center justify-center px-4 py-16 font-sans text-charcoal">
+        <div className="bg-white rounded-2xl shadow-lg max-w-md w-full p-8 md:p-10 text-center">
+          <Loader2 className="h-12 w-12 text-teal animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Generating your access code...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-warmgray-50 flex flex-col items-center justify-center px-4 py-16 font-sans text-charcoal">
+        <div className="bg-white rounded-2xl shadow-lg max-w-md w-full p-8 md:p-10 text-center">
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-coral/10 mb-6">
+            <AlertCircle className="h-10 w-10 text-coral" />
+          </div>
+          <h1 className="text-2xl font-bold">Something went wrong</h1>
+          <p className="mt-4 text-muted-foreground">{error}</p>
+          <Link
+            href="/"
+            className="mt-8 block w-full bg-teal hover:bg-teal-dark text-white rounded-xl py-4 font-medium text-lg transition-colors"
+          >
+            Back to Home
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-warmgray-50 flex flex-col items-center justify-center px-4 py-16 font-sans text-charcoal">
@@ -69,11 +135,11 @@ function SuccessContent() {
         <div className="mt-6 space-y-2 text-sm text-muted-foreground">
           <p>
             Tier purchased:{" "}
-            <span className="font-semibold text-charcoal">{tier.label}</span>
+            <span className="font-semibold text-charcoal">{tierLabel}</span>
           </p>
           <p>
             Analyses included:{" "}
-            <span className="font-semibold text-charcoal">{tier.analyses}</span>
+            <span className="font-semibold text-charcoal">{analyses}</span>
           </p>
         </div>
 
