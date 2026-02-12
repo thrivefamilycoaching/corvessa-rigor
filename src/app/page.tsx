@@ -68,18 +68,19 @@ export default function LandingPage() {
           <p className="mt-6 text-xl md:text-2xl font-semibold max-w-3xl">
             Find the right colleges for your kid &mdash; with real admission odds based on their actual transcript.
           </p>
-          <Link
-            href="/tool"
-            className="mt-8 inline-block bg-teal hover:bg-teal-dark text-white text-lg px-8 py-4 rounded-xl shadow-lg transition-colors font-medium"
+          <a
+            href="#how-it-works"
+            className="mt-8 inline-flex items-center gap-2 text-teal hover:text-teal-dark text-lg font-medium transition-colors"
           >
-            Build Your School List &rarr;
-          </Link>
+            See How It Works
+            <ChevronDown className="h-5 w-5" />
+          </a>
 
         </div>
       </section>
 
       {/* SECTION 2 — HOW IT WORKS */}
-      <section className="bg-white py-20 px-4">
+      <section id="how-it-works" className="bg-white py-20 px-4">
         <div className="max-w-6xl mx-auto">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
             How It Works
@@ -159,6 +160,18 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* PRIMARY CTA */}
+      <section className="bg-white py-16 px-4">
+        <div className="max-w-3xl mx-auto text-center">
+          <Link
+            href="/tool"
+            className="inline-block bg-teal hover:bg-teal-dark text-white text-lg px-8 py-4 rounded-xl shadow-lg transition-colors font-medium"
+          >
+            Build My School List &rarr;
+          </Link>
         </div>
       </section>
 
