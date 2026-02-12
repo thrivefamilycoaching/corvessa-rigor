@@ -22,7 +22,7 @@ export default function PrivacyPage() {
       <div className="mx-auto max-w-3xl px-4 py-12">
         <div className="bg-white rounded-2xl shadow-sm p-8 md:p-12">
           <h1 className="text-3xl font-bold mb-2">Privacy Policy</h1>
-          <p className="text-sm text-muted-foreground mb-8">Last updated: February 11, 2026</p>
+          <p className="text-sm text-muted-foreground mb-8">Last updated: February 12, 2026</p>
 
           <div className="prose prose-sm max-w-none space-y-6 text-charcoal/90 leading-relaxed">
             <section>
@@ -110,7 +110,25 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">5. Document Handling</h2>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">5. AI Processing Disclosure</h2>
+              <p>
+                The Service uses artificial intelligence to generate college recommendations. When you submit
+                documents for analysis:
+              </p>
+              <ul className="list-disc pl-6 mt-2 space-y-1">
+                <li>Your uploaded transcripts and school profiles are transmitted to the AI provider&apos;s API for processing;</li>
+                <li>The AI provider processes this data solely to generate your analysis and does not use API-submitted data to train its models;</li>
+                <li>AI-generated recommendations are probabilistic estimates and may contain errors or reflect outdated information;</li>
+                <li>No human reviews your uploaded documents or the AI-generated output as part of the standard analysis process.</li>
+              </ul>
+              <p className="mt-3">
+                We are transparent about our use of AI because we believe you have the right to know how your
+                information is processed and how your recommendations are generated.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">6. Document Handling</h2>
               <p>
                 Uploaded PDF files (transcripts and school profiles) are transmitted securely via HTTPS, processed
                 in real-time by our serverless functions and the OpenAI API, and are not permanently stored on our
@@ -120,7 +138,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">6. Cookies and Local Storage</h2>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">7. Cookies and Local Storage</h2>
               <p>
                 We use minimal client-side storage. The only data stored in your browser is your access code in
                 session storage, which is automatically cleared when you close your browser tab. We do not use
@@ -129,7 +147,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">7. Data Retention</h2>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">8. Data Retention</h2>
               <ul className="list-disc pl-5 space-y-2 mt-3">
                 <li>
                   <span className="font-medium">Access codes and email addresses</span> are retained indefinitely
@@ -146,7 +164,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">8. Children&apos;s Privacy (COPPA)</h2>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">9. Children&apos;s Privacy (COPPA)</h2>
               <p>
                 The Service is not directed at children under the age of 13. We do not knowingly collect personal
                 information from children under 13. The Service is intended for use by parents, guardians, and
@@ -156,7 +174,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">9. Virginia Consumer Data Protection Act</h2>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">10. Virginia Consumer Data Protection Act</h2>
               <p>
                 If you are a Virginia resident, you have the right under the Virginia Consumer Data Protection Act
                 (VCDPA) to:
@@ -178,7 +196,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">10. Security</h2>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">11. Security</h2>
               <p>
                 We use industry-standard security measures to protect your data, including HTTPS encryption for all
                 data in transit, secure serverless processing, and encrypted database storage via Supabase. However,
@@ -187,7 +205,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">11. Changes to This Policy</h2>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">12. Changes to This Policy</h2>
               <p>
                 We may update this Privacy Policy from time to time. Material changes will be communicated via the
                 email address associated with your access code. Your continued use of the Service after changes
@@ -196,7 +214,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">12. Contact</h2>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">13. Contact</h2>
               <p>
                 If you have questions about this Privacy Policy or wish to exercise your data rights, please
                 contact us at{" "}
