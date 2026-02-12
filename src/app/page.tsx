@@ -71,9 +71,7 @@ export default function LandingPage() {
           >
             Build Your School List &rarr;
           </Link>
-          <p className="mt-4 text-sm text-muted-foreground">
-            Used by families across the DC area
-          </p>
+
         </div>
       </section>
 
