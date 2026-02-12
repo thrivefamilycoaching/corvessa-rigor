@@ -11,6 +11,12 @@ interface ReportExportProps {
   editedNarrative: string;
 }
 
+// Brand colors
+const TEAL = { r: 13, g: 148, b: 136 }; // #0D9488
+const CHARCOAL = { r: 51, g: 51, b: 51 };
+const GRAY = { r: 120, g: 120, b: 120 };
+const ROW_ALT = { r: 248, g: 250, b: 252 };
+
 export function ReportExport({ result, editedNarrative }: ReportExportProps) {
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -20,207 +26,328 @@ export function ReportExport({ result, editedNarrative }: ReportExportProps) {
     try {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
-      const margin = 20;
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 18;
       const contentWidth = pageWidth - margin * 2;
-      let yPos = 20;
+      let yPos = 0;
 
-      // Helper function to add text with word wrap
-      const addWrappedText = (text: string, fontSize: number, isBold = false) => {
+      const checkPageBreak = (needed: number) => {
+        if (yPos + needed > pageHeight - 25) {
+          doc.addPage();
+          addPageHeader();
+          yPos = 28;
+        }
+      };
+
+      const addWrappedText = (
+        text: string,
+        fontSize: number,
+        options: { bold?: boolean; color?: { r: number; g: number; b: number }; indent?: number; maxWidth?: number } = {}
+      ) => {
+        const { bold = false, color = CHARCOAL, indent = 0, maxWidth } = options;
         doc.setFontSize(fontSize);
-        doc.setFont("helvetica", isBold ? "bold" : "normal");
-        const lines = doc.splitTextToSize(text, contentWidth);
+        doc.setFont("helvetica", bold ? "bold" : "normal");
+        doc.setTextColor(color.r, color.g, color.b);
+        const width = maxWidth || contentWidth - indent;
+        const lines = doc.splitTextToSize(text, width);
 
         for (const line of lines) {
-          if (yPos > 270) {
-            doc.addPage();
-            yPos = 20;
-          }
-          doc.text(line, margin, yPos);
-          yPos += fontSize * 0.5;
+          checkPageBreak(fontSize * 0.45);
+          doc.text(line, margin + indent, yPos);
+          yPos += fontSize * 0.45;
         }
+        yPos += 2;
+      };
+
+      const addSectionHeader = (title: string) => {
+        checkPageBreak(16);
+        yPos += 6;
+        doc.setFillColor(TEAL.r, TEAL.g, TEAL.b);
+        doc.rect(margin, yPos - 5, contentWidth, 9, "F");
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(255, 255, 255);
+        doc.text(title, margin + 4, yPos + 1);
+        yPos += 10;
+      };
+
+      const addDivider = () => {
+        yPos += 3;
+        doc.setDrawColor(220, 220, 220);
+        doc.line(margin, yPos, pageWidth - margin, yPos);
         yPos += 5;
       };
 
-      // Helper to add logo placeholder on each page
-      const addLogoPlaceholder = () => {
-        const logoX = pageWidth - margin - 30;
-        const logoY = 10;
-        const logoSize = 25;
-
-        // Draw placeholder box
-        doc.setDrawColor(180, 180, 180);
-        doc.setFillColor(245, 245, 245);
-        doc.roundedRect(logoX, logoY, logoSize, logoSize, 3, 3, "FD");
-
-        // Add "LOGO" text
-        doc.setFontSize(8);
+      const addPageHeader = () => {
+        doc.setFillColor(TEAL.r, TEAL.g, TEAL.b);
+        doc.rect(0, 0, pageWidth, 14, "F");
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(255, 255, 255);
+        doc.text("My School List", margin, 9);
         doc.setFont("helvetica", "normal");
-        doc.setTextColor(150, 150, 150);
-        doc.text("SCHOOL", logoX + logoSize / 2, logoY + 10, { align: "center" });
-        doc.text("LOGO", logoX + logoSize / 2, logoY + 16, { align: "center" });
-
-        // Reset text color
-        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(8);
+        doc.text("College Recommendation Report", pageWidth - margin, 9, { align: "right" });
       };
 
-      // Add logo placeholder to first page
-      addLogoPlaceholder();
+      // ── Page 1: Cover / Header ──────────────────────────────────
+      doc.setFillColor(TEAL.r, TEAL.g, TEAL.b);
+      doc.rect(0, 0, pageWidth, 42, "F");
 
-      // Title
-      doc.setFontSize(24);
+      doc.setFontSize(26);
       doc.setFont("helvetica", "bold");
-      doc.setTextColor(0, 0, 0);
-      doc.text("My School List", margin, yPos);
-      yPos += 10;
+      doc.setTextColor(255, 255, 255);
+      doc.text("My School List", margin, 20);
 
       doc.setFontSize(12);
       doc.setFont("helvetica", "normal");
-      doc.setTextColor(100, 100, 100);
-      doc.text("Course Rigor Analysis Report", margin, yPos);
-      yPos += 5;
-      doc.text(`Generated: ${new Date().toLocaleDateString()}`, margin, yPos);
-      yPos += 15;
+      doc.setTextColor(255, 255, 255);
+      doc.text("College Recommendation Report", margin, 30);
 
-      // Horizontal line
-      doc.setDrawColor(200, 200, 200);
-      doc.line(margin, yPos, pageWidth - margin, yPos);
-      yPos += 15;
+      doc.setFontSize(9);
+      doc.text(`Generated: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`, margin, 38);
 
-      // Overall Score
-      doc.setTextColor(0, 0, 0);
-      addWrappedText("RIGOR SCORECARD", 14, true);
-      yPos += 2;
+      yPos = 52;
 
-      doc.setFontSize(36);
-      doc.setFont("helvetica", "bold");
-      const scoreText = `${result.scorecard.overallScore}/${result.scorecard.maxScore}`;
-      doc.text(scoreText, margin, yPos);
-      yPos += 15;
+      // ── Student Profile Summary ─────────────────────────────────
+      addSectionHeader("STUDENT PROFILE");
 
-      // Recalculated Core GPA
+      // GPA
       if (result.recalculatedGPA) {
-        addWrappedText("RECALCULATED CORE GPA", 12, true);
-        doc.setFontSize(28);
+        doc.setFontSize(10);
         doc.setFont("helvetica", "bold");
-        doc.text(`${result.recalculatedGPA.toFixed(2)} / 4.0 (Weighted)`, margin, yPos);
-        yPos += 12;
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(100, 100, 100);
-        doc.text("Academic Core Only: Math, Science, English, Social Studies, World Languages", margin, yPos);
-        doc.setTextColor(0, 0, 0);
-        yPos += 10;
+        doc.setTextColor(CHARCOAL.r, CHARCOAL.g, CHARCOAL.b);
+        doc.text("Weighted Core GPA:", margin + 2, yPos);
+        doc.setFontSize(14);
+        doc.setTextColor(TEAL.r, TEAL.g, TEAL.b);
+        doc.text(`${result.recalculatedGPA.toFixed(2)} / 4.0`, margin + 48, yPos);
+        yPos += 5;
+        doc.setFontSize(8);
+        doc.setTextColor(GRAY.r, GRAY.g, GRAY.b);
+        doc.text("Academic Core Only: Math, Science, English, Social Studies, World Languages", margin + 2, yPos);
+        yPos += 6;
       }
+
+      // Rigor Score
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(CHARCOAL.r, CHARCOAL.g, CHARCOAL.b);
+      doc.text("Course Rigor Score:", margin + 2, yPos);
+      doc.setFontSize(14);
+      doc.setTextColor(TEAL.r, TEAL.g, TEAL.b);
+      doc.text(`${result.scorecard.overallScore} / ${result.scorecard.maxScore}`, margin + 48, yPos);
+      yPos += 8;
 
       // Score breakdown
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
       for (const score of result.scorecard.scores) {
-        const scoreLine = `${score.category}: ${score.score}/${score.maxScore} - ${score.description}`;
-        addWrappedText(scoreLine, 10);
+        checkPageBreak(8);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(CHARCOAL.r, CHARCOAL.g, CHARCOAL.b);
+        doc.text(`${score.category}:`, margin + 4, yPos);
+        doc.setFont("helvetica", "bold");
+        doc.text(`${score.score}/${score.maxScore}`, margin + 50, yPos);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(GRAY.r, GRAY.g, GRAY.b);
+        doc.text(`— ${score.description}`, margin + 62, yPos);
+        yPos += 5;
       }
-      yPos += 10;
 
-      // Document Summaries
-      addWrappedText("SCHOOL PROFILE SUMMARY", 12, true);
-      addWrappedText(result.schoolProfileSummary, 10);
-      yPos += 5;
+      addDivider();
 
-      addWrappedText("TRANSCRIPT SUMMARY", 12, true);
-      addWrappedText(result.transcriptSummary, 10);
-      yPos += 10;
+      // School Profile Summary
+      addWrappedText("School Profile", 10, { bold: true, color: TEAL });
+      addWrappedText(result.schoolProfileSummary, 9, { indent: 2 });
+      yPos += 2;
 
-      // Counselor Narrative
-      doc.addPage();
-      addLogoPlaceholder();
-      yPos = 20;
-      addWrappedText("COUNSELOR NARRATIVE", 14, true);
-      yPos += 5;
-      addWrappedText(editedNarrative, 11);
-      yPos += 15;
+      // Transcript Summary
+      addWrappedText("Transcript Summary", 10, { bold: true, color: TEAL });
+      addWrappedText(result.transcriptSummary, 9, { indent: 2 });
 
-      // Recommended Schools
+      // ── Activities ──────────────────────────────────────────────
+      if (result.activitiesAnalysis) {
+        addSectionHeader("ACTIVITIES & LEADERSHIP");
+
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(CHARCOAL.r, CHARCOAL.g, CHARCOAL.b);
+        doc.text("Leadership Score:", margin + 2, yPos);
+        doc.setFontSize(14);
+        doc.setTextColor(TEAL.r, TEAL.g, TEAL.b);
+        doc.text(`${result.activitiesAnalysis.leadershipScore} / 10`, margin + 48, yPos);
+        yPos += 8;
+
+        for (const cat of result.activitiesAnalysis.categories) {
+          checkPageBreak(10);
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(CHARCOAL.r, CHARCOAL.g, CHARCOAL.b);
+          doc.text(`${cat.name}:`, margin + 4, yPos);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(GRAY.r, GRAY.g, GRAY.b);
+          const activitiesText = cat.activities.join(", ");
+          const lines = doc.splitTextToSize(activitiesText, contentWidth - 50);
+          doc.text(lines, margin + 45, yPos);
+          yPos += lines.length * 4 + 3;
+        }
+
+        if (result.activitiesAnalysis.summary) {
+          yPos += 2;
+          addWrappedText(result.activitiesAnalysis.summary, 9, { indent: 2, color: GRAY });
+        }
+      }
+
+      // ── Recommended Schools ─────────────────────────────────────
       if (result.recommendedSchools && result.recommendedSchools.length > 0) {
-        if (yPos > 200) {
-          doc.addPage();
-          addLogoPlaceholder();
-          yPos = 20;
-        }
-        addWrappedText("RECOMMENDED SCHOOLS", 14, true);
-        yPos += 5;
+        addSectionHeader("COLLEGE RECOMMENDATIONS");
 
-        const reachForPdf = result.recommendedSchools.filter(s => s.type === "reach").slice(0, 3);
-        const matchForPdf = result.recommendedSchools.filter(s => s.type === "match").slice(0, 3);
-        const safetyForPdf = result.recommendedSchools.filter(s => s.type === "safety").slice(0, 3);
-        const pdfSchools = [...reachForPdf, ...matchForPdf, ...safetyForPdf];
+        const sizeLabels: Record<string, string> = {
+          Micro: "Micro (<2K)",
+          Small: "Small (2-5K)",
+          Medium: "Medium (5-15K)",
+          Large: "Large (15-30K)",
+          Mega: "Mega (30K+)",
+        };
 
-        for (const school of pdfSchools) {
-          if (yPos > 240) {
-            doc.addPage();
-            addLogoPlaceholder();
-            yPos = 20;
-          }
-          const typeLabel = school.type.charAt(0).toUpperCase() + school.type.slice(1);
-          const probText = school.acceptanceProbability ? ` — ${Math.max(1, Math.min(95, school.acceptanceProbability))}% acceptance likelihood` : "";
-          addWrappedText(`${school.name} (${typeLabel})${probText}`, 11, true);
+        const schoolGroups: { label: string; type: string; color: { r: number; g: number; b: number } }[] = [
+          { label: "REACH SCHOOLS", type: "reach", color: { r: 239, g: 68, b: 68 } },
+          { label: "MATCH SCHOOLS", type: "match", color: TEAL },
+          { label: "SAFETY SCHOOLS", type: "safety", color: { r: 34, g: 197, b: 94 } },
+        ];
 
-          // Format campus size
-          const sizeLabels: Record<string, string> = {
-            Micro: "Micro (<2K)",
-            Small: "Small (2-5K)",
-            Medium: "Medium (5-15K)",
-            Large: "Large (15-30K)",
-            Mega: "Mega (30K+)",
-          };
-          const sizeLabel = sizeLabels[school.campusSize] || school.campusSize;
-          const enrollmentStr = school.enrollment
-            ? ` - ${(school.enrollment / 1000).toFixed(1)}K students`
-            : "";
-          addWrappedText(`${school.region} | ${sizeLabel}${enrollmentStr}`, 9);
-          addWrappedText(school.matchReasoning, 10);
-          yPos += 5;
+        for (const group of schoolGroups) {
+          const schools = result.recommendedSchools.filter(s => s.type === group.type);
+          if (schools.length === 0) continue;
+
+          checkPageBreak(14);
+          yPos += 3;
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(group.color.r, group.color.g, group.color.b);
+          doc.text(group.label, margin + 2, yPos);
+          yPos += 6;
+
+          schools.forEach((school, idx) => {
+            checkPageBreak(24);
+
+            // Alternating row background
+            if (idx % 2 === 0) {
+              doc.setFillColor(ROW_ALT.r, ROW_ALT.g, ROW_ALT.b);
+              doc.rect(margin, yPos - 4, contentWidth, 22, "F");
+            }
+
+            // School name + odds
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(CHARCOAL.r, CHARCOAL.g, CHARCOAL.b);
+            doc.text(school.name, margin + 3, yPos);
+
+            if (school.acceptanceProbability) {
+              const prob = Math.max(1, Math.min(95, school.acceptanceProbability));
+              doc.setFontSize(10);
+              doc.setFont("helvetica", "bold");
+              doc.setTextColor(TEAL.r, TEAL.g, TEAL.b);
+              doc.text(`${prob}%`, pageWidth - margin - 3, yPos, { align: "right" });
+            }
+
+            yPos += 5;
+
+            // Details line
+            const sizeLabel = sizeLabels[school.campusSize] || school.campusSize;
+            const enrollmentStr = school.enrollment
+              ? ` \u2022 ${(school.enrollment / 1000).toFixed(1)}K students`
+              : "";
+            doc.setFontSize(8);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(GRAY.r, GRAY.g, GRAY.b);
+            doc.text(`${school.region} \u2022 ${sizeLabel}${enrollmentStr}`, margin + 3, yPos);
+            yPos += 4;
+
+            // Match reasoning
+            doc.setFontSize(8);
+            doc.setTextColor(CHARCOAL.r, CHARCOAL.g, CHARCOAL.b);
+            const reasonLines = doc.splitTextToSize(school.matchReasoning, contentWidth - 8);
+            for (const line of reasonLines.slice(0, 2)) {
+              doc.text(line, margin + 3, yPos);
+              yPos += 3.5;
+            }
+            yPos += 4;
+          });
         }
       }
 
-      // Gap Analysis
+      // ── Curriculum Gap Analysis ─────────────────────────────────
       if (result.gapAnalysis && result.gapAnalysis.length > 0) {
-        doc.addPage();
-        addLogoPlaceholder();
-        yPos = 20;
-        addWrappedText("CURRICULUM GAP ANALYSIS", 14, true);
-        yPos += 5;
+        addSectionHeader("CURRICULUM GAP ANALYSIS");
 
-        for (const gap of result.gapAnalysis) {
-          if (yPos > 230) {
-            doc.addPage();
-            addLogoPlaceholder();
-            yPos = 20;
+        for (let i = 0; i < result.gapAnalysis.length; i++) {
+          const gap = result.gapAnalysis[i];
+          checkPageBreak(20);
+
+          if (i % 2 === 0) {
+            doc.setFillColor(ROW_ALT.r, ROW_ALT.g, ROW_ALT.b);
+            const estimatedHeight = 16 + (gap.missed.length > 0 ? 5 : 0);
+            doc.rect(margin, yPos - 4, contentWidth, estimatedHeight, "F");
           }
-          addWrappedText(gap.subject, 12, true);
-          addWrappedText(`Offered: ${gap.offered.join(", ") || "None listed"}`, 10);
-          addWrappedText(`Taken: ${gap.taken.join(", ") || "None"}`, 10);
-          if (gap.missed.length > 0) {
-            addWrappedText(`Missed Opportunities: ${gap.missed.join(", ")}`, 10);
-          }
+
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(CHARCOAL.r, CHARCOAL.g, CHARCOAL.b);
+          doc.text(gap.subject, margin + 3, yPos);
           yPos += 5;
+
+          doc.setFontSize(8);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(GRAY.r, GRAY.g, GRAY.b);
+          doc.text(`Offered: ${gap.offered.join(", ") || "None listed"}`, margin + 5, yPos);
+          yPos += 4;
+          doc.text(`Taken: ${gap.taken.join(", ") || "None"}`, margin + 5, yPos);
+          yPos += 4;
+          if (gap.missed.length > 0) {
+            doc.setTextColor(239, 68, 68);
+            doc.text(`Missed: ${gap.missed.join(", ")}`, margin + 5, yPos);
+            yPos += 4;
+          }
+          yPos += 4;
         }
       }
 
-      // Footer on all pages
+      // ── Counselor Narrative ─────────────────────────────────────
+      if (editedNarrative) {
+        addSectionHeader("COUNSELOR NARRATIVE");
+        addWrappedText(editedNarrative, 9, { indent: 2 });
+      }
+
+      // ── Footer on all pages ─────────────────────────────────────
       const pageCount = doc.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(150, 150, 150);
+
+        // Add page header (skip first page which has the full branded header)
+        if (i > 1) {
+          addPageHeader();
+        }
+
+        // Footer line
+        doc.setDrawColor(220, 220, 220);
+        doc.line(margin, pageHeight - 14, pageWidth - margin, pageHeight - 14);
+
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(GRAY.r, GRAY.g, GRAY.b);
         doc.text(
-          `Page ${i} of ${pageCount} | My School List Report`,
-          pageWidth / 2,
-          285,
-          { align: "center" }
+          "Generated by My School List | getmyschoollist.com",
+          margin,
+          pageHeight - 9
+        );
+        doc.text(
+          `Page ${i} of ${pageCount}`,
+          pageWidth - margin,
+          pageHeight - 9,
+          { align: "right" }
         );
       }
 
-      // Save the PDF
       doc.save("my-school-list-report.pdf");
     } catch (error) {
       console.error("Failed to generate PDF:", error);
@@ -230,7 +357,11 @@ export function ReportExport({ result, editedNarrative }: ReportExportProps) {
   };
 
   return (
-    <Button onClick={generatePDF} disabled={isGenerating} size="lg">
+    <Button
+      onClick={generatePDF}
+      disabled={isGenerating}
+      className="bg-teal hover:bg-teal-dark text-white"
+    >
       {isGenerating ? (
         <>
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -239,7 +370,7 @@ export function ReportExport({ result, editedNarrative }: ReportExportProps) {
       ) : (
         <>
           <Download className="mr-2 h-4 w-4" />
-          Download Report
+          Download PDF Report
         </>
       )}
     </Button>

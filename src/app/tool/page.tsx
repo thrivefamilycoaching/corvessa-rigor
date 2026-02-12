@@ -24,6 +24,8 @@ import { RecommendedSchools } from "@/components/RecommendedSchools";
 import { GapAnalysis } from "@/components/GapAnalysis";
 import { ActivitiesInput } from "@/components/ActivitiesInput";
 import { ActivitiesProfile } from "@/components/ActivitiesProfile";
+import { ReportExport } from "@/components/ReportExport";
+import { CounselorBrief } from "@/components/CounselorBrief";
 import Link from "next/link";
 
 const DEMO_CODE = "MSL-DEMO1";
@@ -57,7 +59,7 @@ const US_STATES = [
 
 // ─── Access Code Gate ────────────────────────────────────────────────────────
 
-function AccessCodeGate({ onValidated }: { onValidated: (code: string, demo: boolean, remaining: number) => void }) {
+function AccessCodeGate({ onValidated }: { onValidated: (code: string, demo: boolean, remaining: number, tier: string) => void }) {
   const [codeInput, setCodeInput] = useState("");
   const [validating, setValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +90,7 @@ function AccessCodeGate({ onValidated }: { onValidated: (code: string, demo: boo
 
       if (data.valid) {
         sessionStorage.setItem("msl_access_code", trimmed);
-        onValidated(trimmed, data.demo, data.analyses_remaining);
+        onValidated(trimmed, data.demo, data.analyses_remaining, data.tier || "starter");
       } else {
         setError(data.error || "Invalid access code");
       }
@@ -248,6 +250,7 @@ export default function MySchoolListTool() {
   const [accessCode, setAccessCode] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);
   const [analysesRemaining, setAnalysesRemaining] = useState<number>(0);
+  const [tier, setTier] = useState<string>("starter");
   const [gateChecked, setGateChecked] = useState(false);
 
   // Check sessionStorage on mount
@@ -266,6 +269,7 @@ export default function MySchoolListTool() {
             setAccessCode(stored);
             setIsDemo(data.demo);
             setAnalysesRemaining(data.analyses_remaining);
+            setTier(data.tier || "starter");
           } else {
             sessionStorage.removeItem("msl_access_code");
           }
@@ -290,10 +294,11 @@ export default function MySchoolListTool() {
   if (!accessCode) {
     return (
       <AccessCodeGate
-        onValidated={(code, demo, remaining) => {
+        onValidated={(code, demo, remaining, t) => {
           setAccessCode(code);
           setIsDemo(demo);
           setAnalysesRemaining(remaining);
+          setTier(t);
         }}
       />
     );
@@ -305,6 +310,7 @@ export default function MySchoolListTool() {
       isDemo={isDemo}
       analysesRemaining={analysesRemaining}
       setAnalysesRemaining={setAnalysesRemaining}
+      tier={tier}
       onLogout={() => {
         sessionStorage.removeItem("msl_access_code");
         setAccessCode(null);
@@ -320,12 +326,14 @@ function ToolContent({
   isDemo,
   analysesRemaining,
   setAnalysesRemaining,
+  tier,
   onLogout,
 }: {
   accessCode: string;
   isDemo: boolean;
   analysesRemaining: number;
   setAnalysesRemaining: (n: number) => void;
+  tier: string;
   onLogout: () => void;
 }) {
   const [schoolProfile, setSchoolProfile] = useState<File | null>(null);
@@ -776,6 +784,16 @@ function ToolContent({
                 <span className="font-semibold">AI-Generated Results:</span> These college recommendations were generated using artificial intelligence. They are estimates based on the information you provided and publicly available data. Results may contain inaccuracies and should not be the sole basis for college application decisions.
               </p>
             </div>
+
+            {/* Download buttons - tier-gated */}
+            {(tier === "standard" || tier === "premium") && (
+              <div className="flex flex-wrap gap-3">
+                <ReportExport result={result} editedNarrative={result.narrative} />
+                {tier === "premium" && (
+                  <CounselorBrief result={result} />
+                )}
+              </div>
+            )}
 
             {/* Scorecard */}
             <div>

@@ -65,6 +65,9 @@ export default function LandingPage() {
             personalized list of safety, match, and reach schools &mdash; backed
             by real admissions data.
           </p>
+          <p className="mt-6 text-xl md:text-2xl font-semibold max-w-3xl">
+            Find the right colleges for your kid &mdash; with real admission odds based on their actual transcript.
+          </p>
           <Link
             href="/tool"
             className="mt-8 inline-block bg-teal hover:bg-teal-dark text-white text-lg px-8 py-4 rounded-xl shadow-lg transition-colors font-medium"
