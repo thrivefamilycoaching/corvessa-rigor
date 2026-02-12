@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   KeyRound,
   Loader2,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AnalysisResult } from "@/lib/types";
@@ -768,6 +769,14 @@ function ToolContent({
         {/* Results Section */}
         {result && (
           <section className="space-y-8">
+            {/* AI Disclosure Banner */}
+            <div className="flex gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+              <Info className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-blue-900 leading-relaxed">
+                <span className="font-semibold">AI-Generated Results:</span> These college recommendations were generated using artificial intelligence. They are estimates based on the information you provided and publicly available data. Results may contain inaccuracies and should not be the sole basis for college application decisions.
+              </p>
+            </div>
+
             {/* Scorecard */}
             <div>
               <h2 className="mb-4 text-lg font-semibold text-charcoal">Rigor Analysis</h2>
