@@ -162,8 +162,8 @@ function AccessCodeGate({ onValidated }: { onValidated: (code: string, demo: boo
               value={codeInput}
               onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
               placeholder="MSL-XXXXX"
-              maxLength={9}
-              className="w-full text-center text-2xl font-mono font-bold tracking-widest rounded-xl border-2 border-warmgray-200 px-4 py-4 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-colors placeholder:text-warmgray-200"
+              maxLength={20}
+              className="w-full text-center text-xl font-mono font-bold tracking-wider rounded-xl border-2 border-warmgray-200 px-4 py-4 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20 transition-colors placeholder:text-warmgray-200"
             />
 
             {error && (
