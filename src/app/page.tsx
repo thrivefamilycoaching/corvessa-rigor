@@ -159,28 +159,28 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* SECTION 4 — SOCIAL PROOF */}
+      {/* SECTION 4 — TESTIMONIALS */}
       <section className="bg-white py-20 px-4">
         <div className="max-w-6xl mx-auto">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
-            Trusted by Families
+            What Parents Are Saying
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
               {
                 quote:
-                  "This tool gave us a realistic view of where our daughter stands. We stopped guessing and started planning.",
-                author: "Parent, Potomac School",
+                  "I uploaded my daughter\u2019s transcript and within minutes had a personalized list of schools I hadn\u2019t even considered. The admission odds gave us a realistic picture of where she stands \u2014 it completely changed how we\u2019re approaching her college search.",
+                author: "Peter, Potomac School Parent",
               },
               {
                 quote:
-                  "The curriculum gap analysis alone was worth it. We had no idea she was missing AP opportunities.",
-                author: "Parent, McLean area",
+                  "We\u2019re just starting the process of looking at colleges for our sophomore daughter. This tool narrowed it down fast and let us search any school to see her chances. It\u2019s like having a college counselor on demand.",
+                author: "Leah, Langley School Parent",
               },
               {
                 quote:
-                  "So much better than spending $3,000 on a college consultant just to get a list of schools.",
-                author: "Parent, Falls Church",
+                  "Our oldest is only in 7th grade, but we wanted to get ahead of the college conversation early. Running an analysis gave us a sense of what to focus on now so there are no surprises later. Wish this existed when I was applying to schools.",
+                author: "Matt, Falls Church, VA",
               },
             ].map((item) => (
               <div
@@ -216,10 +216,9 @@ export default function LandingPage() {
               <ul className="mt-8 space-y-3 text-left">
                 {[
                   "3 analyses",
-                  "Full school recommendations with odds",
-                  "Curriculum gap analysis",
-                  "Activities & leadership profile",
-                  "Filter, search, and explore 500+ schools",
+                  "Personalized school recommendations with admission odds",
+                  "Live links to school websites",
+                  "Search any school for individual admission chances",
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-teal flex-shrink-0 mt-0.5" />
@@ -250,10 +249,9 @@ export default function LandingPage() {
               <ul className="mt-8 space-y-3 text-left">
                 {[
                   "10 analyses",
-                  "Full school recommendations with odds",
-                  "Curriculum gap analysis",
-                  "Activities & leadership profile",
-                  "Filter, search, and explore 500+ schools",
+                  "Everything in Starter",
+                  "Side-by-side school comparison",
+                  "Downloadable PDF report",
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-teal flex-shrink-0 mt-0.5" />
@@ -281,10 +279,9 @@ export default function LandingPage() {
               <ul className="mt-8 space-y-3 text-left">
                 {[
                   "25 analyses",
-                  "Full school recommendations with odds",
-                  "Curriculum gap analysis",
-                  "Activities & leadership profile",
-                  "Filter, search, and explore 500+ schools",
+                  "Everything in Standard",
+                  "Counselor Brief \u2014 a one-page summary to bring to your school counselor meeting",
+                  "Priority support via email",
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-teal flex-shrink-0 mt-0.5" />
