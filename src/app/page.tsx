@@ -20,8 +20,8 @@ const faqs = [
     a: "Our odds are based on College Scorecard data, adjusted for your student\u2019s GPA, test scores, course rigor, and extracurriculars. They\u2019re estimates, not guarantees \u2014 similar to what a college counselor would provide.",
   },
   {
-    q: "Can I run multiple analyses?",
-    a: "Yes \u2014 each plan includes multiple analyses. Adjust scores, add activities, and re-run as many times as your plan allows.",
+    q: "Can I run multiple school lists?",
+    a: "Yes \u2014 each plan includes multiple school lists. Adjust scores, add activities, and re-run as many times as your plan allows.",
   },
   {
     q: "Is my data secure?",
@@ -231,7 +231,7 @@ export default function LandingPage() {
               <p className="mt-1 text-muted-foreground">one-time payment</p>
               <ul className="mt-8 space-y-3 text-left">
                 {[
-                  "3 analyses",
+                  "3 school lists",
                   "Personalized school recommendations with admission odds",
                   "Live links to school websites",
                   "Search any school for individual admission chances",
@@ -248,7 +248,7 @@ export default function LandingPage() {
                 rel="noopener noreferrer"
                 className="mt-8 block w-full border-2 border-teal text-teal hover:bg-teal hover:text-white rounded-xl py-4 font-medium text-lg transition-colors"
               >
-                Get Started &rarr;
+                Buy from My School List &rarr;
               </a>
             </div>
 
@@ -264,8 +264,10 @@ export default function LandingPage() {
               <p className="mt-1 text-muted-foreground">one-time payment</p>
               <ul className="mt-8 space-y-3 text-left">
                 {[
-                  "10 analyses",
-                  "Everything in Starter",
+                  "10 school lists",
+                  "Personalized school recommendations with admission odds",
+                  "Live links to school websites",
+                  "Search any school for individual admission chances",
                   "Side-by-side school comparison",
                   "Downloadable PDF report",
                 ].map((item) => (
@@ -281,7 +283,7 @@ export default function LandingPage() {
                 rel="noopener noreferrer"
                 className="mt-8 block w-full bg-teal hover:bg-teal-dark text-white rounded-xl py-4 font-medium text-lg transition-colors"
               >
-                Get Started &rarr;
+                Buy from My School List &rarr;
               </a>
             </div>
 
@@ -294,8 +296,12 @@ export default function LandingPage() {
               <p className="mt-1 text-muted-foreground">one-time payment</p>
               <ul className="mt-8 space-y-3 text-left">
                 {[
-                  "25 analyses",
-                  "Everything in Standard",
+                  "25 school lists",
+                  "Personalized school recommendations with admission odds",
+                  "Live links to school websites",
+                  "Search any school for individual admission chances",
+                  "Side-by-side school comparison",
+                  "Downloadable PDF report",
                   "Counselor Brief \u2014 a one-page summary to bring to your school counselor meeting",
                   "Priority support via email",
                 ].map((item) => (
@@ -311,7 +317,7 @@ export default function LandingPage() {
                 rel="noopener noreferrer"
                 className="mt-8 block w-full border-2 border-teal text-teal hover:bg-teal hover:text-white rounded-xl py-4 font-medium text-lg transition-colors"
               >
-                Get Started &rarr;
+                Buy from My School List &rarr;
               </a>
             </div>
           </div>

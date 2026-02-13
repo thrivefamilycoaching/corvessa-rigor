@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { RecommendedSchool, RegionType, CampusSizeType } from "@/lib/types";
-import { REGIONS, CAMPUS_SIZES } from "@/lib/constants";
+import type { RecommendedSchool, RegionType, CampusSizeType, NCAAdivision, ProgramType } from "@/lib/types";
+import { REGIONS, CAMPUS_SIZES, NCAA_DIVISIONS, PROGRAM_FILTERS } from "@/lib/constants";
 import {
   GraduationCap,
   TrendingUp,
@@ -31,13 +31,17 @@ function selectDisplaySchools(
   regions: RegionType[],
   sizes: CampusSizeType[],
   types: string[],
+  ncaaDivisions: NCAAdivision[] = [],
+  programs: ProgramType[] = [],
   perCategory: number = 3
 ): RecommendedSchool[] {
   const pool = allSchools.filter((school) => {
     const regionMatch = regions.length === 0 || regions.includes(school.region);
     const sizeMatch = sizes.length === 0 || sizes.includes(school.campusSize);
     const typeMatch = types.length === 0 || types.includes(school.type);
-    return regionMatch && sizeMatch && typeMatch;
+    const ncaaMatch = ncaaDivisions.length === 0 || (school.ncaaDivision && ncaaDivisions.includes(school.ncaaDivision));
+    const programMatch = programs.length === 0 || (school.programs && programs.some(p => school.programs!.includes(p)));
+    return regionMatch && sizeMatch && typeMatch && ncaaMatch && programMatch;
   });
 
   const safety = pool.filter((s) => s.type === "safety").slice(0, perCategory);
@@ -93,16 +97,20 @@ export function RecommendedSchools({
   const [selectedRegions, setSelectedRegions] = useState<RegionType[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<CampusSizeType[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [selectedNCAA, setSelectedNCAA] = useState<NCAAdivision[]>([]);
+  const [selectedPrograms, setSelectedPrograms] = useState<ProgramType[]>([]);
   const [pendingRegions, setPendingRegions] = useState<RegionType[]>([]);
   const [pendingSizes, setPendingSizes] = useState<CampusSizeType[]>([]);
   const [pendingTypes, setPendingTypes] = useState<string[]>([]);
+  const [pendingNCAA, setPendingNCAA] = useState<NCAAdivision[]>([]);
+  const [pendingPrograms, setPendingPrograms] = useState<ProgramType[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<RecommendedSchool[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
   const displaySchools = useMemo(
-    () => selectDisplaySchools(allSchools, selectedRegions, selectedSizes, selectedTypes, Math.floor(schoolCount / 3)),
-    [allSchools, selectedRegions, selectedSizes, selectedTypes, schoolCount]
+    () => selectDisplaySchools(allSchools, selectedRegions, selectedSizes, selectedTypes, selectedNCAA, selectedPrograms, Math.floor(schoolCount / 3)),
+    [allSchools, selectedRegions, selectedSizes, selectedTypes, selectedNCAA, selectedPrograms, schoolCount]
   );
 
   useEffect(() => {
@@ -126,7 +134,7 @@ export function RecommendedSchools({
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const filtersApplied = selectedRegions.length > 0 || selectedSizes.length > 0 || selectedTypes.length > 0;
+  const filtersApplied = selectedRegions.length > 0 || selectedSizes.length > 0 || selectedTypes.length > 0 || selectedNCAA.length > 0 || selectedPrograms.length > 0;
 
   const toggleRegion = (region: RegionType) => {
     setPendingRegions((prev) =>
@@ -164,13 +172,41 @@ export function RecommendedSchools({
     setPendingTypes(newTypes);
   };
 
+  const toggleNCAA = (division: NCAAdivision) => {
+    setPendingNCAA((prev) =>
+      prev.includes(division) ? prev.filter((d) => d !== division) : [...prev, division]
+    );
+  };
+
+  const removeNCAAChip = (division: NCAAdivision) => {
+    const newNCAA = selectedNCAA.filter((d) => d !== division);
+    setSelectedNCAA(newNCAA);
+    setPendingNCAA(newNCAA);
+  };
+
+  const toggleProgram = (program: ProgramType) => {
+    setPendingPrograms((prev) =>
+      prev.includes(program) ? prev.filter((p) => p !== program) : [...prev, program]
+    );
+  };
+
+  const removeProgramChip = (program: ProgramType) => {
+    const newPrograms = selectedPrograms.filter((p) => p !== program);
+    setSelectedPrograms(newPrograms);
+    setPendingPrograms(newPrograms);
+  };
+
   const clearAllFilters = () => {
     setSelectedRegions([]);
     setSelectedSizes([]);
     setSelectedTypes([]);
+    setSelectedNCAA([]);
+    setSelectedPrograms([]);
     setPendingRegions([]);
     setPendingSizes([]);
     setPendingTypes([]);
+    setPendingNCAA([]);
+    setPendingPrograms([]);
     setSearchQuery("");
   };
 
@@ -178,12 +214,16 @@ export function RecommendedSchools({
     setSelectedRegions([...pendingRegions]);
     setSelectedSizes([...pendingSizes]);
     setSelectedTypes([...pendingTypes]);
+    setSelectedNCAA([...pendingNCAA]);
+    setSelectedPrograms([...pendingPrograms]);
   };
 
   const hasFilterChanges =
     JSON.stringify([...pendingRegions].sort()) !== JSON.stringify([...selectedRegions].sort()) ||
     JSON.stringify([...pendingSizes].sort()) !== JSON.stringify([...selectedSizes].sort()) ||
-    JSON.stringify([...pendingTypes].sort()) !== JSON.stringify([...selectedTypes].sort());
+    JSON.stringify([...pendingTypes].sort()) !== JSON.stringify([...selectedTypes].sort()) ||
+    JSON.stringify([...pendingNCAA].sort()) !== JSON.stringify([...selectedNCAA].sort()) ||
+    JSON.stringify([...pendingPrograms].sort()) !== JSON.stringify([...selectedPrograms].sort());
 
   const reachSchools = displaySchools.filter((s) => s.type === "reach");
   const matchSchools = displaySchools.filter((s) => s.type === "match");
@@ -270,6 +310,45 @@ export function RecommendedSchools({
             </div>
           </div>
 
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-2">
+              NCAA Division
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {NCAA_DIVISIONS.map((div) => (
+                <label key={div.value} className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={pendingNCAA.includes(div.value)}
+                    onCheckedChange={() => toggleNCAA(div.value)}
+                  />
+                  <span className="text-sm text-charcoal">{div.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-2">
+              Programs &amp; Features
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {PROGRAM_FILTERS.map((prog) => (
+                <button
+                  key={prog.value}
+                  type="button"
+                  onClick={() => toggleProgram(prog.value)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                    pendingPrograms.includes(prog.value)
+                      ? "bg-teal text-white border-teal"
+                      : "bg-white text-charcoal border-warmgray-300 hover:border-teal hover:text-teal"
+                  }`}
+                >
+                  {prog.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex items-center gap-3 pt-2">
             <Button
               onClick={applyFilters}
@@ -330,6 +409,26 @@ export function RecommendedSchools({
               >
                 {type === "reach" ? <TrendingUp className="h-3 w-3" /> : type === "match" ? <Target className="h-3 w-3" /> : <Shield className="h-3 w-3" />}
                 {type}
+                <X className="h-3 w-3 ml-1" />
+              </Badge>
+            ))}
+            {selectedNCAA.map((div) => (
+              <Badge
+                key={div}
+                className="bg-teal text-white rounded-full pl-2 pr-1 gap-1 cursor-pointer hover:bg-teal-dark"
+                onClick={() => removeNCAAChip(div)}
+              >
+                {div}
+                <X className="h-3 w-3 ml-1" />
+              </Badge>
+            ))}
+            {selectedPrograms.map((prog) => (
+              <Badge
+                key={prog}
+                className="bg-teal text-white rounded-full pl-2 pr-1 gap-1 cursor-pointer hover:bg-teal-dark"
+                onClick={() => removeProgramChip(prog)}
+              >
+                {prog}
                 <X className="h-3 w-3 ml-1" />
               </Badge>
             ))}
@@ -449,6 +548,16 @@ function SchoolCard({ school }: { school: RecommendedSchool }) {
             >
               {school.name}
             </a>
+            {school.ncaaDivision && (
+              <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border ${
+                school.ncaaDivision === "DI" ? "border-purple-300 text-purple-800 bg-purple-100" :
+                school.ncaaDivision === "DII" ? "border-indigo-300 text-indigo-800 bg-indigo-100" :
+                school.ncaaDivision === "DIII" ? "border-cyan-300 text-cyan-800 bg-cyan-100" :
+                "border-warmgray-300 text-muted-foreground bg-warmgray-50"
+              }`}>
+                {school.ncaaDivision}
+              </span>
+            )}
             <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${
               school.type === "reach" ? "bg-coral text-white" :
               school.type === "match" ? "bg-teal text-white" :
@@ -500,6 +609,15 @@ function SchoolCard({ school }: { school: RecommendedSchool }) {
               </span>
             )}
           </div>
+          {school.programs && school.programs.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {school.programs.map((prog) => (
+                <span key={prog} className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-warmgray-50 text-muted-foreground border border-warmgray-200">
+                  {prog}
+                </span>
+              ))}
+            </div>
+          )}
           <p className="text-sm text-gray-600">{school.matchReasoning}</p>
         </div>
       </div>

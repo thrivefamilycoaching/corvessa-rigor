@@ -1,4 +1,4 @@
-import type { RegionType, CampusSizeType, TestPolicyType } from "./types";
+import type { RegionType, CampusSizeType, TestPolicyType, NCAAdivision, ProgramType } from "./types";
 
 export const REGIONS: RegionType[] = ["Northeast", "Mid-Atlantic", "South", "Midwest", "West"];
 
@@ -14,6 +14,27 @@ export const TEST_POLICIES: { value: TestPolicyType; label: string; description:
   { value: "Test Optional", label: "Test Optional", description: "Scores considered if submitted" },
   { value: "Test Required", label: "Test Required", description: "Scores required for admission" },
   { value: "Test Blind", label: "Test Blind", description: "Scores not considered" },
+];
+
+export const NCAA_DIVISIONS: { value: NCAAdivision; label: string }[] = [
+  { value: "DI", label: "NCAA Division I" },
+  { value: "DII", label: "NCAA Division II" },
+  { value: "DIII", label: "NCAA Division III" },
+  { value: "No Athletics Program", label: "No Athletics Program" },
+];
+
+export const PROGRAM_FILTERS: { value: ProgramType; label: string }[] = [
+  { value: "Greek Life", label: "Greek Life" },
+  { value: "ROTC", label: "ROTC" },
+  { value: "Study Abroad", label: "Study Abroad" },
+  { value: "Honors College", label: "Honors College" },
+  { value: "Co-op/Internship Program", label: "Co-op/Internship" },
+  { value: "Pre-Med", label: "Pre-Med" },
+  { value: "Pre-Law", label: "Pre-Law" },
+  { value: "Engineering", label: "Engineering" },
+  { value: "Nursing", label: "Nursing" },
+  { value: "Business School", label: "Business School" },
+  { value: "Performing Arts", label: "Performing Arts" },
 ];
 
 // Hard-coded list of schools with STRICT Test Required policies

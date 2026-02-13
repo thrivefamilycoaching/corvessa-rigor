@@ -1,6 +1,19 @@
 export type RegionType = "Northeast" | "Mid-Atlantic" | "South" | "Midwest" | "West";
 export type CampusSizeType = "Micro" | "Small" | "Medium" | "Large" | "Mega";
 export type TestPolicyType = "Test Optional" | "Test Required" | "Test Blind";
+export type NCAAdivision = "DI" | "DII" | "DIII" | "No Athletics Program";
+export type ProgramType =
+  | "Greek Life"
+  | "ROTC"
+  | "Study Abroad"
+  | "Honors College"
+  | "Co-op/Internship Program"
+  | "Pre-Med"
+  | "Pre-Law"
+  | "Engineering"
+  | "Nursing"
+  | "Business School"
+  | "Performing Arts";
 
 export interface RigorScore {
   category: string;
@@ -19,6 +32,8 @@ export interface RecommendedSchool {
   matchReasoning: string;
   testPolicy?: TestPolicyType;
   acceptanceProbability?: number;
+  ncaaDivision?: NCAAdivision;
+  programs?: ProgramType[];
 }
 
 export interface GapAnalysisItem {
