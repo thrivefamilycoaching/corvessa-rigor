@@ -9,6 +9,7 @@ import type { AnalysisResult } from "@/lib/types";
 interface ReportExportProps {
   result: AnalysisResult;
   editedNarrative: string;
+  schoolCount?: number;
 }
 
 // Brand colors
@@ -17,7 +18,7 @@ const CHARCOAL = { r: 51, g: 51, b: 51 };
 const GRAY = { r: 120, g: 120, b: 120 };
 const ROW_ALT = { r: 248, g: 250, b: 252 };
 
-export function ReportExport({ result, editedNarrative }: ReportExportProps) {
+export function ReportExport({ result, editedNarrative, schoolCount = 9 }: ReportExportProps) {
   const [isGenerating, setIsGenerating] = useState(false);
 
   const generatePDF = async () => {
@@ -215,8 +216,10 @@ export function ReportExport({ result, editedNarrative }: ReportExportProps) {
           { label: "SAFETY SCHOOLS", type: "safety", color: { r: 34, g: 197, b: 94 } },
         ];
 
+        const perCategory = Math.floor(schoolCount / 3) || 3;
+
         for (const group of schoolGroups) {
-          const schools = result.recommendedSchools.filter(s => s.type === group.type);
+          const schools = result.recommendedSchools.filter(s => s.type === group.type).slice(0, perCategory);
           if (schools.length === 0) continue;
 
           checkPageBreak(14);

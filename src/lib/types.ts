@@ -1,25 +1,29 @@
 export type RegionType = "Northeast" | "Mid-Atlantic" | "South" | "Midwest" | "West";
 export type CampusSizeType = "Micro" | "Small" | "Medium" | "Large" | "Mega";
 export type TestPolicyType = "Test Optional" | "Test Required" | "Test Blind";
-export type NCAAdivision = "DI" | "DII" | "DIII" | "No Athletics Program";
-export type ProgramType =
-  | "Greek Life"
-  | "ROTC"
-  | "Study Abroad"
-  | "Honors College"
-  | "Co-op/Internship Program"
-  | "Pre-Med"
-  | "Pre-Law"
-  | "Engineering"
-  | "Nursing"
-  | "Business School"
-  | "Performing Arts";
 
 export interface RigorScore {
   category: string;
   score: number;
   maxScore: number;
   description: string;
+}
+
+export type NCAAdivision = "DI" | "DII" | "DIII" | "None";
+
+export interface SchoolPrograms {
+  greekLife?: boolean;
+  rotc?: boolean;
+  studyAbroad?: boolean;
+  honorsCollege?: boolean;
+  coopInternship?: boolean;
+  preMed?: boolean;
+  preLaw?: boolean;
+  engineering?: boolean;
+  nursing?: boolean;
+  businessSchool?: boolean;
+  performingArts?: boolean;
+  ncaaDivision: NCAAdivision;
 }
 
 export interface RecommendedSchool {
@@ -32,8 +36,8 @@ export interface RecommendedSchool {
   matchReasoning: string;
   testPolicy?: TestPolicyType;
   acceptanceProbability?: number;
-  ncaaDivision?: NCAAdivision;
-  programs?: ProgramType[];
+  programs?: SchoolPrograms;
+  state?: string;
 }
 
 export interface GapAnalysisItem {

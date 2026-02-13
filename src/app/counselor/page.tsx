@@ -486,6 +486,7 @@ export default function MySchoolListCounselor() {
                   schoolProfileSummary={result.schoolProfileSummary}
                   overallScore={result.scorecard.overallScore}
                   schoolCount={schoolCount}
+                  homeState={homeState}
                 />
               </div>
             )}

@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { RecommendedSchool, RegionType, CampusSizeType, NCAAdivision, ProgramType } from "@/lib/types";
-import { REGIONS, CAMPUS_SIZES, NCAA_DIVISIONS, PROGRAM_FILTERS } from "@/lib/constants";
+import type { RecommendedSchool, RegionType, CampusSizeType, SchoolPrograms } from "@/lib/types";
+import { REGIONS, CAMPUS_SIZES, PROGRAM_FILTERS, type ProgramFilterKey } from "@/lib/constants";
 import {
   GraduationCap,
   TrendingUp,
@@ -24,6 +24,7 @@ interface RecommendedSchoolsProps {
   schoolProfileSummary: string;
   overallScore: number;
   schoolCount?: number;
+  homeState?: string;
 }
 
 function selectDisplaySchools(
@@ -31,17 +32,18 @@ function selectDisplaySchools(
   regions: RegionType[],
   sizes: CampusSizeType[],
   types: string[],
-  ncaaDivisions: NCAAdivision[] = [],
-  programs: ProgramType[] = [],
+  programs: ProgramFilterKey[],
+  inStateOnly: boolean,
+  homeState: string,
   perCategory: number = 3
 ): RecommendedSchool[] {
   const pool = allSchools.filter((school) => {
     const regionMatch = regions.length === 0 || regions.includes(school.region);
     const sizeMatch = sizes.length === 0 || sizes.includes(school.campusSize);
     const typeMatch = types.length === 0 || types.includes(school.type);
-    const ncaaMatch = ncaaDivisions.length === 0 || (school.ncaaDivision && ncaaDivisions.includes(school.ncaaDivision));
-    const programMatch = programs.length === 0 || (school.programs && programs.some(p => school.programs!.includes(p)));
-    return regionMatch && sizeMatch && typeMatch && ncaaMatch && programMatch;
+    const programMatch = programs.length === 0 || programs.every((p) => school.programs?.[p]);
+    const stateMatch = !inStateOnly || !homeState || school.state === homeState;
+    return regionMatch && sizeMatch && typeMatch && programMatch && stateMatch;
   });
 
   const safety = pool.filter((s) => s.type === "safety").slice(0, perCategory);
@@ -93,24 +95,24 @@ export function RecommendedSchools({
   schoolProfileSummary,
   overallScore,
   schoolCount = 9,
+  homeState = "",
 }: RecommendedSchoolsProps) {
   const [selectedRegions, setSelectedRegions] = useState<RegionType[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<CampusSizeType[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
-  const [selectedNCAA, setSelectedNCAA] = useState<NCAAdivision[]>([]);
-  const [selectedPrograms, setSelectedPrograms] = useState<ProgramType[]>([]);
   const [pendingRegions, setPendingRegions] = useState<RegionType[]>([]);
   const [pendingSizes, setPendingSizes] = useState<CampusSizeType[]>([]);
   const [pendingTypes, setPendingTypes] = useState<string[]>([]);
-  const [pendingNCAA, setPendingNCAA] = useState<NCAAdivision[]>([]);
-  const [pendingPrograms, setPendingPrograms] = useState<ProgramType[]>([]);
+  const [selectedPrograms, setSelectedPrograms] = useState<ProgramFilterKey[]>([]);
+  const [pendingPrograms, setPendingPrograms] = useState<ProgramFilterKey[]>([]);
+  const [inStateOnly, setInStateOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<RecommendedSchool[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
   const displaySchools = useMemo(
-    () => selectDisplaySchools(allSchools, selectedRegions, selectedSizes, selectedTypes, selectedNCAA, selectedPrograms, Math.floor(schoolCount / 3)),
-    [allSchools, selectedRegions, selectedSizes, selectedTypes, selectedNCAA, selectedPrograms, schoolCount]
+    () => selectDisplaySchools(allSchools, selectedRegions, selectedSizes, selectedTypes, selectedPrograms, inStateOnly, homeState, Math.floor(schoolCount / 3)),
+    [allSchools, selectedRegions, selectedSizes, selectedTypes, selectedPrograms, inStateOnly, homeState, schoolCount]
   );
 
   useEffect(() => {
@@ -134,7 +136,7 @@ export function RecommendedSchools({
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const filtersApplied = selectedRegions.length > 0 || selectedSizes.length > 0 || selectedTypes.length > 0 || selectedNCAA.length > 0 || selectedPrograms.length > 0;
+  const filtersApplied = selectedRegions.length > 0 || selectedSizes.length > 0 || selectedTypes.length > 0 || selectedPrograms.length > 0 || inStateOnly;
 
   const toggleRegion = (region: RegionType) => {
     setPendingRegions((prev) =>
@@ -172,25 +174,13 @@ export function RecommendedSchools({
     setPendingTypes(newTypes);
   };
 
-  const toggleNCAA = (division: NCAAdivision) => {
-    setPendingNCAA((prev) =>
-      prev.includes(division) ? prev.filter((d) => d !== division) : [...prev, division]
-    );
-  };
-
-  const removeNCAAChip = (division: NCAAdivision) => {
-    const newNCAA = selectedNCAA.filter((d) => d !== division);
-    setSelectedNCAA(newNCAA);
-    setPendingNCAA(newNCAA);
-  };
-
-  const toggleProgram = (program: ProgramType) => {
+  const toggleProgram = (program: ProgramFilterKey) => {
     setPendingPrograms((prev) =>
       prev.includes(program) ? prev.filter((p) => p !== program) : [...prev, program]
     );
   };
 
-  const removeProgramChip = (program: ProgramType) => {
+  const removeProgramChip = (program: ProgramFilterKey) => {
     const newPrograms = selectedPrograms.filter((p) => p !== program);
     setSelectedPrograms(newPrograms);
     setPendingPrograms(newPrograms);
@@ -200,12 +190,11 @@ export function RecommendedSchools({
     setSelectedRegions([]);
     setSelectedSizes([]);
     setSelectedTypes([]);
-    setSelectedNCAA([]);
     setSelectedPrograms([]);
+    setInStateOnly(false);
     setPendingRegions([]);
     setPendingSizes([]);
     setPendingTypes([]);
-    setPendingNCAA([]);
     setPendingPrograms([]);
     setSearchQuery("");
   };
@@ -214,7 +203,6 @@ export function RecommendedSchools({
     setSelectedRegions([...pendingRegions]);
     setSelectedSizes([...pendingSizes]);
     setSelectedTypes([...pendingTypes]);
-    setSelectedNCAA([...pendingNCAA]);
     setSelectedPrograms([...pendingPrograms]);
   };
 
@@ -222,7 +210,6 @@ export function RecommendedSchools({
     JSON.stringify([...pendingRegions].sort()) !== JSON.stringify([...selectedRegions].sort()) ||
     JSON.stringify([...pendingSizes].sort()) !== JSON.stringify([...selectedSizes].sort()) ||
     JSON.stringify([...pendingTypes].sort()) !== JSON.stringify([...selectedTypes].sort()) ||
-    JSON.stringify([...pendingNCAA].sort()) !== JSON.stringify([...selectedNCAA].sort()) ||
     JSON.stringify([...pendingPrograms].sort()) !== JSON.stringify([...selectedPrograms].sort());
 
   const reachSchools = displaySchools.filter((s) => s.type === "reach");
@@ -248,6 +235,37 @@ export function RecommendedSchools({
           <div className="flex items-center gap-2 text-sm font-medium text-charcoal">
             <SlidersHorizontal className="h-4 w-4 text-teal" />
             Filter Recommendations
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg bg-warmgray-50 px-4 py-3 border border-warmgray-200">
+            <div>
+              <p className="text-sm font-medium text-charcoal">In-State Only</p>
+              <p className="text-xs text-muted-foreground">
+                {homeState
+                  ? `Show only schools in your home state (${homeState})`
+                  : "Select a home state on the upload form to enable this filter"}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={inStateOnly}
+              disabled={!homeState}
+              onClick={() => setInStateOnly((prev) => !prev)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                !homeState
+                  ? "bg-warmgray-200 cursor-not-allowed"
+                  : inStateOnly
+                    ? "bg-teal"
+                    : "bg-warmgray-300 cursor-pointer"
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                  inStateOnly ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </button>
           </div>
 
           <div>
@@ -312,39 +330,20 @@ export function RecommendedSchools({
 
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-2">
-              NCAA Division
+              Programs & Opportunities (select multiple)
             </p>
             <div className="flex flex-wrap gap-3">
-              {NCAA_DIVISIONS.map((div) => (
-                <label key={div.value} className="flex items-center gap-2 cursor-pointer">
-                  <Checkbox
-                    checked={pendingNCAA.includes(div.value)}
-                    onCheckedChange={() => toggleNCAA(div.value)}
-                  />
-                  <span className="text-sm text-charcoal">{div.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2">
-              Programs &amp; Features
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {PROGRAM_FILTERS.map((prog) => (
-                <button
-                  key={prog.value}
-                  type="button"
-                  onClick={() => toggleProgram(prog.value)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                    pendingPrograms.includes(prog.value)
-                      ? "bg-teal text-white border-teal"
-                      : "bg-white text-charcoal border-warmgray-300 hover:border-teal hover:text-teal"
-                  }`}
+              {PROGRAM_FILTERS.map((program) => (
+                <label
+                  key={program.key}
+                  className="flex items-center gap-2 cursor-pointer"
                 >
-                  {prog.label}
-                </button>
+                  <Checkbox
+                    checked={pendingPrograms.includes(program.key)}
+                    onCheckedChange={() => toggleProgram(program.key)}
+                  />
+                  <span className="text-sm text-charcoal">{program.label}</span>
+                </label>
               ))}
             </div>
           </div>
@@ -376,6 +375,16 @@ export function RecommendedSchools({
             <span className="text-xs text-muted-foreground self-center mr-1">
               Active:
             </span>
+            {inStateOnly && homeState && (
+              <Badge
+                className="bg-teal text-white rounded-full pl-2 pr-1 gap-1 cursor-pointer hover:bg-teal-dark"
+                onClick={() => setInStateOnly(false)}
+              >
+                <MapPin className="h-3 w-3" />
+                In-State ({homeState})
+                <X className="h-3 w-3 ml-1" />
+              </Badge>
+            )}
             {selectedRegions.map((region) => (
               <Badge
                 key={region}
@@ -412,26 +421,19 @@ export function RecommendedSchools({
                 <X className="h-3 w-3 ml-1" />
               </Badge>
             ))}
-            {selectedNCAA.map((div) => (
-              <Badge
-                key={div}
-                className="bg-teal text-white rounded-full pl-2 pr-1 gap-1 cursor-pointer hover:bg-teal-dark"
-                onClick={() => removeNCAAChip(div)}
-              >
-                {div}
-                <X className="h-3 w-3 ml-1" />
-              </Badge>
-            ))}
-            {selectedPrograms.map((prog) => (
-              <Badge
-                key={prog}
-                className="bg-teal text-white rounded-full pl-2 pr-1 gap-1 cursor-pointer hover:bg-teal-dark"
-                onClick={() => removeProgramChip(prog)}
-              >
-                {prog}
-                <X className="h-3 w-3 ml-1" />
-              </Badge>
-            ))}
+            {selectedPrograms.map((program) => {
+              const info = PROGRAM_FILTERS.find((p) => p.key === program);
+              return (
+                <Badge
+                  key={program}
+                  className="bg-teal text-white rounded-full pl-2 pr-1 gap-1 cursor-pointer hover:bg-teal-dark"
+                  onClick={() => removeProgramChip(program)}
+                >
+                  {info?.label}
+                  <X className="h-3 w-3 ml-1" />
+                </Badge>
+              );
+            })}
           </div>
         )}
 
@@ -548,16 +550,6 @@ function SchoolCard({ school }: { school: RecommendedSchool }) {
             >
               {school.name}
             </a>
-            {school.ncaaDivision && (
-              <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border ${
-                school.ncaaDivision === "DI" ? "border-purple-300 text-purple-800 bg-purple-100" :
-                school.ncaaDivision === "DII" ? "border-indigo-300 text-indigo-800 bg-indigo-100" :
-                school.ncaaDivision === "DIII" ? "border-cyan-300 text-cyan-800 bg-cyan-100" :
-                "border-warmgray-300 text-muted-foreground bg-warmgray-50"
-              }`}>
-                {school.ncaaDivision}
-              </span>
-            )}
             <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${
               school.type === "reach" ? "bg-coral text-white" :
               school.type === "match" ? "bg-teal text-white" :
@@ -609,13 +601,25 @@ function SchoolCard({ school }: { school: RecommendedSchool }) {
               </span>
             )}
           </div>
-          {school.programs && school.programs.length > 0 && (
+          {school.programs && (
             <div className="flex flex-wrap gap-1.5 mb-2">
-              {school.programs.map((prog) => (
-                <span key={prog} className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-warmgray-50 text-muted-foreground border border-warmgray-200">
-                  {prog}
+              {PROGRAM_FILTERS.filter((p) => school.programs?.[p.key]).map((p) => (
+                <span
+                  key={p.key}
+                  className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full bg-warmgray-100 text-charcoal border border-warmgray-200"
+                >
+                  {p.label}
                 </span>
               ))}
+              {school.programs.ncaaDivision && school.programs.ncaaDivision !== "None" ? (
+                <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                  NCAA {school.programs.ncaaDivision}
+                </span>
+              ) : (
+                <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full bg-warmgray-100 text-muted-foreground border border-warmgray-200">
+                  No NCAA
+                </span>
+              )}
             </div>
           )}
           <p className="text-sm text-gray-600">{school.matchReasoning}</p>

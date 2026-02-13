@@ -141,7 +141,7 @@ export default function TermsPage() {
           </div>
 
           <div className="mt-12 pt-6 border-t border-warmgray-200 text-center text-xs text-muted-foreground">
-            &copy; 2026 Corvessa Partners LLC. All rights reserved.
+            &copy; 2026 <a href="https://corvessapartners.com" target="_blank" rel="noopener noreferrer" className="hover:text-charcoal transition-colors">Corvessa Partners</a> LLC. All rights reserved.
           </div>
         </div>
       </div>

@@ -8,6 +8,9 @@ import {
   Sparkles,
   CheckCircle2,
   ChevronDown,
+  DollarSign,
+  ShieldCheck,
+  FileText,
 } from "lucide-react";
 
 const faqs = [
@@ -58,15 +61,10 @@ export default function LandingPage() {
         {/* Hero Content */}
         <div className="flex-1 flex flex-col items-center justify-center text-center px-4 pb-16">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold max-w-4xl leading-tight">
-            Your Child&apos;s Personalized College List in Minutes
+            Your Personalized College List in Minutes
           </h1>
-          <p className="mt-6 text-lg md:text-xl text-muted-foreground max-w-2xl">
-            Upload a transcript, add test scores and activities, and get a
-            personalized list of safety, match, and reach schools &mdash; backed
-            by real admissions data.
-          </p>
           <p className="mt-6 text-xl md:text-2xl font-semibold max-w-3xl">
-            Find the right colleges for your kid &mdash; with real admission odds based on their actual transcript.
+            Find the right colleges &mdash; with real admission odds based on an actual transcript.
           </p>
           <a
             href="#how-it-works"
@@ -118,6 +116,26 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* DEMO VIDEO */}
+      <section className="bg-warmgray-50 py-20 px-4">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-10">
+            See It in Action
+          </h2>
+          <div className="w-full max-w-[800px] mx-auto">
+            <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+              <iframe
+                className="absolute inset-0 w-full h-full rounded-xl shadow-lg"
+                src="https://www.youtube.com/embed/pPaS8aWw_EU"
+                title="My School List Demo"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* SECTION 3 — WHAT YOU GET */}
       <section className="bg-warmgray-50 py-20 px-4">
         <div className="max-w-6xl mx-auto">
@@ -147,8 +165,8 @@ export default function LandingPage() {
                 desc: "Public university odds automatically adjust based on your home state residency.",
               },
               {
-                title: "Filters & Search",
-                desc: "Filter results by region, campus size, and school type. Search any school by name.",
+                title: "Filter and Search 500+ Schools",
+                desc: "Narrow results by what matters most \u2014 region, campus size, admission likelihood, Greek life, ROTC, study abroad, performing arts, and more. Toggle In-State Only to focus on affordable options close to home. Or search any school by name to see your individual admission chances.",
               },
             ].map((item) => (
               <div key={item.title} className="flex gap-4">
@@ -215,15 +233,86 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* SECTION 5 — PRICING */}
+      {/* SECTION 5 — WHY MY SCHOOL LIST */}
+      <section className="bg-white py-20 px-4">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4">
+            Why My School List?
+          </h2>
+          <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
+            Most college search tools expect you to already know where to look. We do the work for you.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[
+              {
+                icon: <Sparkles className="h-6 w-6 text-teal" />,
+                title: "We Build Your List For You.",
+                desc: "Most tools ask you to already know which colleges to consider. We start from your transcript and generate a personalized list from scratch.",
+              },
+              {
+                icon: <Upload className="h-6 w-6 text-teal" />,
+                title: "Upload. Done.",
+                desc: "No manual data entry. Upload a transcript and school profile, and get results in minutes \u2014 not hours.",
+              },
+              {
+                icon: <DollarSign className="h-6 w-6 text-teal" />,
+                title: "One Price. No Expiration.",
+                desc: "Pay once, keep your results forever. No annual subscriptions, no renewal fees.",
+              },
+              {
+                icon: <ShieldCheck className="h-6 w-6 text-teal" />,
+                title: "Your Data Stays Yours.",
+                desc: "We don\u2019t store your documents or sell your information. Once your analysis is complete, your files are gone.",
+              },
+            ].map((card) => (
+              <div
+                key={card.title}
+                className="flex gap-4 p-6 rounded-xl border border-warmgray-200 bg-warmgray-50"
+              >
+                <div className="flex-shrink-0 flex items-center justify-center h-11 w-11 rounded-full bg-teal/10">
+                  {card.icon}
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg">{card.title}</h3>
+                  <p className="text-muted-foreground mt-1">{card.desc}</p>
+                </div>
+              </div>
+            ))}
+            <div className="md:col-span-2 flex gap-4 p-6 rounded-xl border border-warmgray-200 bg-warmgray-50 max-w-xl mx-auto w-full">
+              <div className="flex-shrink-0 flex items-center justify-center h-11 w-11 rounded-full bg-teal/10">
+                <FileText className="h-6 w-6 text-teal" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg">Counselor-Ready Reports.</h3>
+                <p className="text-muted-foreground mt-1">
+                  Premium users get a one-page Counselor Brief &mdash; designed to hand directly to your school counselor.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* PRIVACY BANNER */}
+      <section className="bg-slate-800 py-10 px-4">
+        <div className="max-w-3xl mx-auto flex items-center gap-4 text-white">
+          <ShieldCheck className="h-8 w-8 text-teal flex-shrink-0" />
+          <p className="text-sm md:text-base leading-relaxed">
+            <span className="font-semibold">Your data stays yours.</span>{" "}
+            We don&rsquo;t store your documents, sell your information, or train AI on your uploads. Once your analysis is complete, your files are gone.
+          </p>
+        </div>
+      </section>
+
+      {/* SECTION 6 — PRICING */}
       <section id="pricing" className="bg-warmgray-50 py-20 px-4">
         <div className="max-w-5xl mx-auto">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
             Simple Pricing
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
             {/* Starter */}
-            <div className="bg-white rounded-2xl shadow-sm border border-warmgray-200 p-8 text-center">
+            <div className="bg-white rounded-2xl shadow-sm border border-warmgray-200 p-8 text-center flex flex-col">
               <p className="text-sm font-semibold text-teal uppercase tracking-wide">
                 Starter
               </p>
@@ -253,7 +342,7 @@ export default function LandingPage() {
             </div>
 
             {/* Standard — Most Popular */}
-            <div className="relative bg-white rounded-2xl shadow-lg border-2 border-teal p-8 md:p-10 text-center md:scale-105">
+            <div className="relative bg-white rounded-2xl shadow-lg border-2 border-teal p-8 text-center flex flex-col">
               <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-coral text-white rounded-full px-3 py-1 text-xs font-semibold">
                 Most Popular
               </span>
@@ -288,7 +377,7 @@ export default function LandingPage() {
             </div>
 
             {/* Premium */}
-            <div className="bg-white rounded-2xl shadow-sm border border-warmgray-200 p-8 text-center">
+            <div className="bg-white rounded-2xl shadow-sm border border-warmgray-200 p-8 text-center flex flex-col">
               <p className="text-sm font-semibold text-teal uppercase tracking-wide">
                 Premium
               </p>
@@ -327,7 +416,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* SECTION 6 — FAQ */}
+      {/* SECTION 7 — FAQ */}
       <section className="bg-white py-20 px-4">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
@@ -361,22 +450,22 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* SECTION 7 — FOOTER */}
+      {/* SECTION 8 — FOOTER */}
       <footer className="bg-charcoal text-white py-12 px-4">
         <div className="max-w-6xl mx-auto text-center">
           <p className="text-xl font-bold">My School List</p>
           <p className="mt-2 text-warmgray-300 text-sm">
-            A Corvessa Partners product
+            A <a href="https://corvessapartners.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors underline">Corvessa Partners</a> product
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-warmgray-300">
             <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
             <span className="hidden sm:inline">|</span>
             <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
             <span className="hidden sm:inline">|</span>
-            <span>Contact: peter@corvessapartners.com</span>
+            <a href="mailto:peter@corvessapartners.com" className="hover:text-white transition-colors">Contact: peter@corvessapartners.com</a>
           </div>
           <p className="mt-6 text-xs text-warmgray-200">
-            &copy; 2026 Corvessa Partners LLC. All rights reserved.
+            &copy; 2026 <a href="https://corvessapartners.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Corvessa Partners</a> LLC. All rights reserved.
           </p>
         </div>
       </footer>

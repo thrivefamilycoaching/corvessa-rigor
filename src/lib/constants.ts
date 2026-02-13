@@ -1,4 +1,4 @@
-import type { RegionType, CampusSizeType, TestPolicyType, NCAAdivision, ProgramType } from "./types";
+import type { RegionType, CampusSizeType, TestPolicyType, SchoolPrograms } from "./types";
 
 export const REGIONS: RegionType[] = ["Northeast", "Mid-Atlantic", "South", "Midwest", "West"];
 
@@ -16,25 +16,20 @@ export const TEST_POLICIES: { value: TestPolicyType; label: string; description:
   { value: "Test Blind", label: "Test Blind", description: "Scores not considered" },
 ];
 
-export const NCAA_DIVISIONS: { value: NCAAdivision; label: string }[] = [
-  { value: "DI", label: "NCAA Division I" },
-  { value: "DII", label: "NCAA Division II" },
-  { value: "DIII", label: "NCAA Division III" },
-  { value: "No Athletics Program", label: "No Athletics Program" },
-];
+export type ProgramFilterKey = keyof Omit<SchoolPrograms, "ncaaDivision">;
 
-export const PROGRAM_FILTERS: { value: ProgramType; label: string }[] = [
-  { value: "Greek Life", label: "Greek Life" },
-  { value: "ROTC", label: "ROTC" },
-  { value: "Study Abroad", label: "Study Abroad" },
-  { value: "Honors College", label: "Honors College" },
-  { value: "Co-op/Internship Program", label: "Co-op/Internship" },
-  { value: "Pre-Med", label: "Pre-Med" },
-  { value: "Pre-Law", label: "Pre-Law" },
-  { value: "Engineering", label: "Engineering" },
-  { value: "Nursing", label: "Nursing" },
-  { value: "Business School", label: "Business School" },
-  { value: "Performing Arts", label: "Performing Arts" },
+export const PROGRAM_FILTERS: { key: ProgramFilterKey; label: string }[] = [
+  { key: "greekLife", label: "Greek Life" },
+  { key: "rotc", label: "ROTC" },
+  { key: "studyAbroad", label: "Study Abroad" },
+  { key: "honorsCollege", label: "Honors College" },
+  { key: "coopInternship", label: "Co-op/Internship" },
+  { key: "preMed", label: "Pre-Med" },
+  { key: "preLaw", label: "Pre-Law" },
+  { key: "engineering", label: "Engineering" },
+  { key: "nursing", label: "Nursing" },
+  { key: "businessSchool", label: "Business School" },
+  { key: "performingArts", label: "Performing Arts" },
 ];
 
 // Hard-coded list of schools with STRICT Test Required policies

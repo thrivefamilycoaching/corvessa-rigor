@@ -160,7 +160,21 @@ export async function POST(request: NextRequest) {
               "enrollment": <approximate undergraduate enrollment number>,
               "testPolicy": "<Test Optional|Test Required|Test Blind>",
               "acceptanceProbability": <number 1-95, exact percentage likelihood of acceptance>,
-              "matchReasoning": "<2-3 sentence explanation connecting the school's specific academic strengths to the student's transcript>"
+              "matchReasoning": "<2-3 sentence explanation connecting the school's specific academic strengths to the student's transcript>",
+              "programs": {
+                "greekLife": <true if school has fraternities/sororities, false otherwise>,
+                "rotc": <true if school offers Army, Navy, or Air Force ROTC, false otherwise>,
+                "studyAbroad": <true if school offers organized study abroad programs, false otherwise>,
+                "honorsCollege": <true if school has a dedicated honors college or honors program, false otherwise>,
+                "coopInternship": <true if school has a formal co-op or internship program, false otherwise>,
+                "preMed": <true if school offers a pre-med track or advising program, false otherwise>,
+                "preLaw": <true if school offers a pre-law track or advising program, false otherwise>,
+                "engineering": <true if school has an engineering school or ABET-accredited engineering programs, false otherwise>,
+                "nursing": <true if school has a nursing school or BSN program, false otherwise>,
+                "businessSchool": <true if school has an undergraduate business school or major, false otherwise>,
+                "performingArts": <true if school has a performing arts program (theater, music, dance), false otherwise>,
+                "ncaaDivision": "<DI|DII|DIII|None — the school's primary NCAA athletic division>"
+              }
             }
           ],
           "gapAnalysis": [
@@ -265,10 +279,32 @@ export async function POST(request: NextRequest) {
         - VERIFY: For each school, confirm that the enrollment number falls within the stated campusSize range.
         - Include a mix of campus sizes for diversity.
 
-        MATCH REASONING REQUIREMENTS:
-        - Base reasoning on how the school's SPECIFIC academic strengths align with the student's transcript
-        - Reference the school's notable programs, departments, or academic culture
-        - Connect to evidence from the student's course selections (e.g., "Your strong STEM course load aligns with Georgia Tech's renowned engineering program")
+        ABSOLUTE REQUIREMENT — PROGRAM DATA ACCURACY (CRITICAL):
+        - Include the "programs" object for EVERY recommended school with accurate boolean flags and NCAA division.
+        - greekLife: true if the school has active Greek fraternities/sororities (social or professional Greek organizations on campus).
+        - rotc: true if the school hosts Army, Navy, or Air Force ROTC programs on campus.
+        - studyAbroad: true if the school offers organized study abroad or semester exchange programs (most 4-year colleges do).
+        - honorsCollege: true if the school has a dedicated Honors College or University Honors Program (not just honors sections of courses).
+        - coopInternship: true if the school has a formal cooperative education or structured internship program (e.g., Northeastern, Drexel, Georgia Tech, Cincinnati).
+        - preMed: true if the school offers a pre-medical advisory track or committee letter program.
+        - preLaw: true if the school offers pre-law advising or a formal pre-law track.
+        - engineering: true if the school has an engineering school, college of engineering, or ABET-accredited engineering degree programs.
+        - nursing: true if the school offers a BSN or undergraduate nursing degree program.
+        - businessSchool: true if the school has an undergraduate business school, business major, or commerce school.
+        - performingArts: true if the school has BFA/BM programs or a dedicated performing arts department (theater, music, dance).
+        - ncaaDivision: "DI", "DII", "DIII", or "None" — the school's primary NCAA athletic division. Most large state universities are DI. Many liberal arts colleges are DIII. Schools without NCAA athletics should be "None".
+        - Be ACCURATE — do not guess. If unsure about a program, default to false (or "None" for NCAA).
+        - EVERY school MUST include the complete "programs" object with ALL 12 fields (11 booleans + ncaaDivision). Do NOT omit the programs object for any school, even small or less-known colleges. If you are uncertain, set boolean flags to false.
+
+        MATCH REASONING REQUIREMENTS (CRITICAL — NO GENERIC DESCRIPTIONS):
+        - EVERY school MUST have a unique, personalized matchReasoning that references the SPECIFIC student's profile.
+        - Reference the student's actual courses, GPA, strengths, interests, or extracurriculars in the explanation.
+        - Explain WHY this school is a good fit for THIS student specifically, not just a generic school description.
+        - BAD example: "Based on your academic profile, you have a 45% chance of admission." (TOO GENERIC — NEVER DO THIS)
+        - BAD example: "A strong liberal arts college with good programs." (TOO GENERIC — NEVER DO THIS)
+        - GOOD example: "Your AP Chemistry and AP Biology coursework aligns well with Emory's top-ranked pre-med program, and your 3.8 GPA puts you in their competitive range."
+        - GOOD example: "With strong humanities courses and debate experience, Davidson's emphasis on writing-intensive seminars and civic engagement would be an excellent fit."
+        - Connect to evidence from the student's course selections, extracurricular activities, or academic strengths
         - For independent/prep school students, mention schools known to value rigorous secondary preparation
 
         ACCEPTANCE PROBABILITY ENGINE (CRITICAL):
@@ -556,6 +592,29 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
         ? testScores.satReading + testScores.satMath
         : null;
 
+    const rigorScore = analysis.scorecard?.overallScore || 0;
+    const gpaStr = studentGPA.toFixed(1);
+
+    function buildMatchReasoning(name: string, type: string, odds: number, size: string, region: string, admitRate: number): string {
+      const sizeDesc: Record<string, string> = {
+        Micro: "intimate campus with small class sizes",
+        Small: "close-knit academic community",
+        Medium: "mid-sized campus balancing personal attention with diverse offerings",
+        Large: "large university with extensive academic programs and research opportunities",
+        Mega: "major research university with wide-ranging programs and campus life",
+      };
+      const env = sizeDesc[size] || "diverse academic environment";
+      const selectivity = admitRate < 0.15 ? "highly selective" : admitRate < 0.35 ? "selective" : admitRate < 0.60 ? "moderately selective" : "accessible";
+
+      if (type === "safety") {
+        return `With your ${gpaStr} GPA${rigorScore >= 60 ? " and strong course rigor" : ""}, you are well-positioned for ${name}'s ${selectivity} admissions. This ${env} in the ${region} offers a strong academic fit with a ${odds}% estimated chance of admission.`;
+      } else if (type === "reach") {
+        return `${name} is a ${selectivity} institution${rigorScore >= 70 ? " that values the kind of rigorous coursework reflected in your transcript" : ""}. This ${env} in the ${region} would be competitive for your profile, with a ${odds}% estimated chance of admission.`;
+      } else {
+        return `Your ${gpaStr} GPA${rigorScore >= 60 ? " and solid course rigor" : ""} align well with ${name}'s academic profile. This ${env} in the ${region} offers a ${odds}% estimated chance of admission.`;
+      }
+    }
+
     for (const rec of SCHOOLS_DATABASE) {
       if (gptNames.has(rec.name.toLowerCase())) continue;
       const { personalizedOdds, type } = classifyForStudent(
@@ -573,12 +632,34 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
         enrollment: rec.enrollment,
         testPolicy: rec.testPolicy as any,
         acceptanceProbability: personalizedOdds,
-        matchReasoning: `Based on your academic profile, you have a ${personalizedOdds}% estimated chance of admission.`,
+        matchReasoning: buildMatchReasoning(rec.name, type, personalizedOdds, rec.campusSize, rec.region, rec.admitRate),
+        state: rec.state,
+        programs: rec.ncaaDivision && rec.ncaaDivision !== "None" ? { ncaaDivision: rec.ncaaDivision as any } : undefined,
       });
     }
     console.log(
       `[DBMerge] Pool after database merge: ${analysis.recommendedSchools.length} schools`
     );
+
+    // ── Backfill state + NCAA division for all schools from database ────────
+    const dbByName = new Map(SCHOOLS_DATABASE.map((r) => [r.name.toLowerCase(), r]));
+    analysis.recommendedSchools = analysis.recommendedSchools.map((s: any) => {
+      const dbRecord = dbByName.get(s.name.toLowerCase());
+      if (dbRecord) {
+        if (!s.state) s = { ...s, state: dbRecord.state };
+        // Override AI NCAA division with database source of truth (skip "None" defaults)
+        if (dbRecord.ncaaDivision && dbRecord.ncaaDivision !== "None") {
+          s = {
+            ...s,
+            programs: {
+              ...(s.programs || {}),
+              ncaaDivision: dbRecord.ncaaDivision,
+            },
+          };
+        }
+      }
+      return s;
+    });
 
     // ── In-state admission boost for public universities ──────────────────
     const STATE_TO_PUBLIC_BOOST: Record<string, string[]> = {
@@ -644,6 +725,17 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
       }
       return s;
     });
+
+    // Ensure every school has a programs object with all boolean flags defaulted
+    const DEFAULT_PROGRAMS = {
+      greekLife: false, rotc: false, studyAbroad: false, honorsCollege: false,
+      coopInternship: false, preMed: false, preLaw: false, engineering: false,
+      nursing: false, businessSchool: false, performingArts: false, ncaaDivision: "None",
+    };
+    analysis.recommendedSchools = analysis.recommendedSchools.map((s: any) => ({
+      ...s,
+      programs: { ...DEFAULT_PROGRAMS, ...(s.programs || {}) },
+    }));
 
     return NextResponse.json(analysis);
   } catch (error) {

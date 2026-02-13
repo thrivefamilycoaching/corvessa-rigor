@@ -253,7 +253,7 @@ export default function HebronDemo() {
             marginBottom: 0,
           }}
         >
-          Powered by Corvessa Partners
+          Powered by <a href="https://corvessapartners.com" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline" }}>Corvessa Partners</a>
         </p>
       </div>
     </div>

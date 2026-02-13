@@ -26,6 +26,7 @@ import { ActivitiesInput } from "@/components/ActivitiesInput";
 import { ActivitiesProfile } from "@/components/ActivitiesProfile";
 import { ReportExport } from "@/components/ReportExport";
 import { CounselorBrief } from "@/components/CounselorBrief";
+import { SchoolComparison } from "@/components/SchoolComparison";
 import Link from "next/link";
 
 const DEMO_CODE = "MSL-DEMO1";
@@ -788,10 +789,11 @@ function ToolContent({
             {/* Download buttons - tier-gated */}
             {(tier === "standard" || tier === "premium") && (
               <div className="flex flex-wrap gap-3">
-                <ReportExport result={result} editedNarrative={result.narrative} />
+                <ReportExport result={result} editedNarrative={result.narrative} schoolCount={schoolCount} />
                 {tier === "premium" && (
                   <CounselorBrief result={result} />
                 )}
+                <SchoolComparison schools={result.recommendedSchools} />
               </div>
             )}
 
@@ -834,6 +836,7 @@ function ToolContent({
                   schoolProfileSummary={result.schoolProfileSummary}
                   overallScore={result.scorecard.overallScore}
                   schoolCount={schoolCount}
+                  homeState={homeState}
                 />
               </div>
             )}
