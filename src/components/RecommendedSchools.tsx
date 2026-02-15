@@ -16,7 +16,28 @@ import {
   X,
   SlidersHorizontal,
   Search,
+  ChevronDown,
 } from "lucide-react";
+
+const US_STATES = [
+  { value: "AL", label: "Alabama" }, { value: "AK", label: "Alaska" }, { value: "AZ", label: "Arizona" },
+  { value: "AR", label: "Arkansas" }, { value: "CA", label: "California" }, { value: "CO", label: "Colorado" },
+  { value: "CT", label: "Connecticut" }, { value: "DE", label: "Delaware" }, { value: "DC", label: "District of Columbia" },
+  { value: "FL", label: "Florida" }, { value: "GA", label: "Georgia" }, { value: "HI", label: "Hawaii" },
+  { value: "ID", label: "Idaho" }, { value: "IL", label: "Illinois" }, { value: "IN", label: "Indiana" },
+  { value: "IA", label: "Iowa" }, { value: "KS", label: "Kansas" }, { value: "KY", label: "Kentucky" },
+  { value: "LA", label: "Louisiana" }, { value: "ME", label: "Maine" }, { value: "MD", label: "Maryland" },
+  { value: "MA", label: "Massachusetts" }, { value: "MI", label: "Michigan" }, { value: "MN", label: "Minnesota" },
+  { value: "MS", label: "Mississippi" }, { value: "MO", label: "Missouri" }, { value: "MT", label: "Montana" },
+  { value: "NE", label: "Nebraska" }, { value: "NV", label: "Nevada" }, { value: "NH", label: "New Hampshire" },
+  { value: "NJ", label: "New Jersey" }, { value: "NM", label: "New Mexico" }, { value: "NY", label: "New York" },
+  { value: "NC", label: "North Carolina" }, { value: "ND", label: "North Dakota" }, { value: "OH", label: "Ohio" },
+  { value: "OK", label: "Oklahoma" }, { value: "OR", label: "Oregon" }, { value: "PA", label: "Pennsylvania" },
+  { value: "RI", label: "Rhode Island" }, { value: "SC", label: "South Carolina" }, { value: "SD", label: "South Dakota" },
+  { value: "TN", label: "Tennessee" }, { value: "TX", label: "Texas" }, { value: "UT", label: "Utah" },
+  { value: "VT", label: "Vermont" }, { value: "VA", label: "Virginia" }, { value: "WA", label: "Washington" },
+  { value: "WV", label: "West Virginia" }, { value: "WI", label: "Wisconsin" }, { value: "WY", label: "Wyoming" },
+];
 
 interface RecommendedSchoolsProps {
   schools: RecommendedSchool[];
@@ -106,13 +127,15 @@ export function RecommendedSchools({
   const [selectedPrograms, setSelectedPrograms] = useState<ProgramFilterKey[]>([]);
   const [pendingPrograms, setPendingPrograms] = useState<ProgramFilterKey[]>([]);
   const [inStateOnly, setInStateOnly] = useState(false);
+  const [localState, setLocalState] = useState("");
+  const effectiveState = homeState || localState;
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<RecommendedSchool[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
   const displaySchools = useMemo(
-    () => selectDisplaySchools(allSchools, selectedRegions, selectedSizes, selectedTypes, selectedPrograms, inStateOnly, homeState, Math.floor(schoolCount / 3)),
-    [allSchools, selectedRegions, selectedSizes, selectedTypes, selectedPrograms, inStateOnly, homeState, schoolCount]
+    () => selectDisplaySchools(allSchools, selectedRegions, selectedSizes, selectedTypes, selectedPrograms, inStateOnly, effectiveState, Math.floor(schoolCount / 3)),
+    [allSchools, selectedRegions, selectedSizes, selectedTypes, selectedPrograms, inStateOnly, effectiveState, schoolCount]
   );
 
   useEffect(() => {
@@ -192,6 +215,7 @@ export function RecommendedSchools({
     setSelectedTypes([]);
     setSelectedPrograms([]);
     setInStateOnly(false);
+    setLocalState("");
     setPendingRegions([]);
     setPendingSizes([]);
     setPendingTypes([]);
@@ -237,35 +261,60 @@ export function RecommendedSchools({
             Filter Recommendations
           </div>
 
-          <div className="flex items-center justify-between rounded-lg bg-warmgray-50 px-4 py-3 border border-warmgray-200">
-            <div>
-              <p className="text-sm font-medium text-charcoal">In-State Only</p>
-              <p className="text-xs text-muted-foreground">
-                {homeState
-                  ? `Show only schools in your home state (${homeState})`
-                  : "Select a home state on the upload form to enable this filter"}
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={inStateOnly}
-              disabled={!homeState}
-              onClick={() => setInStateOnly((prev) => !prev)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                !homeState
-                  ? "bg-warmgray-200 cursor-not-allowed"
-                  : inStateOnly
-                    ? "bg-teal"
-                    : "bg-warmgray-300 cursor-pointer"
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                  inStateOnly ? "translate-x-6" : "translate-x-1"
+          <div className="rounded-lg bg-warmgray-50 px-4 py-3 border border-warmgray-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-charcoal">In-State Only</p>
+                <p className="text-xs text-muted-foreground">
+                  {effectiveState
+                    ? `Show only schools in your home state (${effectiveState})`
+                    : "Select your home state to filter"}
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={inStateOnly}
+                onClick={() => {
+                  if (!effectiveState) {
+                    // No state selected yet — don't toggle, the dropdown below will handle it
+                    return;
+                  }
+                  setInStateOnly((prev) => !prev);
+                }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  !effectiveState
+                    ? "bg-warmgray-200 cursor-pointer"
+                    : inStateOnly
+                      ? "bg-teal"
+                      : "bg-warmgray-300 cursor-pointer"
                 }`}
-              />
-            </button>
+              >
+                <span
+                  className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                    inStateOnly ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+            {!effectiveState && (
+              <div className="flex items-center gap-2">
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                <select
+                  value={localState}
+                  onChange={(e) => {
+                    setLocalState(e.target.value);
+                    if (e.target.value) setInStateOnly(true);
+                  }}
+                  className="w-full max-w-xs rounded-md border border-warmgray-300 bg-white px-2 py-1.5 text-sm text-charcoal shadow-sm focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20"
+                >
+                  <option value="">Choose your home state...</option>
+                  {US_STATES.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div>
@@ -375,13 +424,13 @@ export function RecommendedSchools({
             <span className="text-xs text-muted-foreground self-center mr-1">
               Active:
             </span>
-            {inStateOnly && homeState && (
+            {inStateOnly && effectiveState && (
               <Badge
                 className="bg-teal text-white rounded-full pl-2 pr-1 gap-1 cursor-pointer hover:bg-teal-dark"
                 onClick={() => setInStateOnly(false)}
               >
                 <MapPin className="h-3 w-3" />
-                In-State ({homeState})
+                In-State ({effectiveState})
                 <X className="h-3 w-3 ml-1" />
               </Badge>
             )}
