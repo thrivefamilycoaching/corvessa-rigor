@@ -7,6 +7,7 @@ import { enrichSchoolsWithScorecardData, getEnrollmentSize, deduplicateByName, f
 import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS, getSchoolRegion } from "@/lib/constants";
 import { SCHOOLS_DATABASE } from "@/lib/schoolDatabase";
 import { getServiceClient } from "@/lib/supabase";
+import { hmacHash } from "@/lib/encryption";
 
 // Disable all Vercel caching — always fetch fresh Scorecard data
 export const dynamic = "force-dynamic";
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
     const { data: codeData, error: codeError } = await supabase
       .from("access_codes")
       .select("analyses_remaining")
-      .eq("code", accessCode.toUpperCase())
+      .eq("code", hmacHash(accessCode.toUpperCase()))
       .single();
 
     if (codeError || !codeData) {

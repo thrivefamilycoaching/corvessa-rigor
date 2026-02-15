@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+import { hmacHash } from "@/lib/encryption";
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase
       .from("access_codes")
       .select("code, tier, analyses_total, analyses_remaining")
-      .eq("code", code.toUpperCase())
+      .eq("code", hmacHash(code.toUpperCase()))
       .single();
 
     if (error || !data) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { getServiceClient } from "@/lib/supabase";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+import { hmacHash, decrypt } from "@/lib/encryption";
 
 const TIER_LABELS: Record<string, string> = {
   starter: "Starter",
@@ -92,8 +93,8 @@ export async function POST(req: NextRequest) {
     // Look up code by email
     const { data, error: fetchError } = await supabase
       .from("access_codes")
-      .select("code, tier, analyses_remaining")
-      .eq("customer_email", email.toLowerCase().trim())
+      .select("encrypted_code, tier, analyses_remaining")
+      .eq("customer_email", hmacHash(email.toLowerCase().trim()))
       .order("created_at", { ascending: false })
       .limit(1)
       .single();
@@ -103,17 +104,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    // Decrypt the code for the email
+    const plaintextCode = decrypt(data.encrypted_code);
+
     // Send email
     try {
       console.log("[resend-code] Attempting to send email to:", email);
       console.log("[resend-code] RESEND_API_KEY present:", !!process.env.RESEND_API_KEY);
       const resend = new Resend(process.env.RESEND_API_KEY);
       const { data: emailData, error: emailError } = await resend.emails.send({
-        from: "My School List <onboarding@resend.dev>",
+        from: "My School List <noreply@getmyschoollist.com>",
         to: email.toLowerCase().trim(),
         subject: "Your My School List Access Code",
         html: buildEmailHtml(
-          data.code,
+          plaintextCode,
           TIER_LABELS[data.tier] || data.tier,
           data.analyses_remaining
         ),

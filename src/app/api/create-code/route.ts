@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { getServiceClient } from "@/lib/supabase";
+import { hmacHash, encrypt } from "@/lib/encryption";
 
 const TIER_ANALYSES: Record<string, number> = {
   starter: 3,
@@ -121,11 +122,13 @@ export async function POST(req: NextRequest) {
     // Retry if code collision (unlikely but safe)
     while (attempts < 5) {
       const { error } = await supabase.from("access_codes").insert({
-        code,
+        code: hmacHash(code),
         tier: tierKey,
         analyses_total: analysesTotal,
         analyses_remaining: analysesTotal,
-        customer_email: email || null,
+        customer_email: email ? hmacHash(email.toLowerCase().trim()) : null,
+        encrypted_code: encrypt(code),
+        encrypted_email: email ? encrypt(email.toLowerCase().trim()) : null,
       });
 
       if (!error) {
@@ -137,7 +140,7 @@ export async function POST(req: NextRequest) {
             console.log("[create-code] RESEND_API_KEY present:", !!process.env.RESEND_API_KEY);
             const resend = new Resend(process.env.RESEND_API_KEY);
             const { data: emailData, error: emailError } = await resend.emails.send({
-              from: "My School List <onboarding@resend.dev>",
+              from: "My School List <noreply@getmyschoollist.com>",
               to: email,
               subject: "Your My School List Access Code",
               html: buildEmailHtml(code, TIER_LABELS[tierKey], analysesTotal),

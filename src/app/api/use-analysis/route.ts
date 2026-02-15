@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase";
+import { hmacHash } from "@/lib/encryption";
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
     const { data, error: fetchError } = await supabase
       .from("access_codes")
       .select("analyses_remaining")
-      .eq("code", code.toUpperCase())
+      .eq("code", hmacHash(code.toUpperCase()))
       .single();
 
     if (fetchError || !data) {
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
         analyses_remaining: data.analyses_remaining - 1,
         last_used_at: new Date().toISOString(),
       })
-      .eq("code", code.toUpperCase());
+      .eq("code", hmacHash(code.toUpperCase()));
 
     if (updateError) {
       console.error("Decrement error:", updateError);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { Resend } from "resend";
 import { getServiceClient } from "@/lib/supabase";
+import { hmacHash, encrypt } from "@/lib/encryption";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-01-28.clover",
@@ -159,12 +160,14 @@ export async function POST(req: NextRequest) {
 
     while (attempts < 5) {
       const { error } = await supabase.from("access_codes").insert({
-        code,
+        code: hmacHash(code),
         tier: tierKey,
         analyses_total: analysesTotal,
         analyses_remaining: analysesTotal,
-        customer_email: email ? email.toLowerCase().trim() : null,
+        customer_email: email ? hmacHash(email.toLowerCase().trim()) : null,
         stripe_session_id: stripeSessionId,
+        encrypted_code: encrypt(code),
+        encrypted_email: email ? encrypt(email.toLowerCase().trim()) : null,
       });
 
       if (!error) {
@@ -173,7 +176,7 @@ export async function POST(req: NextRequest) {
           try {
             const resend = new Resend(process.env.RESEND_API_KEY);
             await resend.emails.send({
-              from: "My School List <onboarding@resend.dev>",
+              from: "My School List <noreply@getmyschoollist.com>",
               to: email,
               subject: "Your My School List Access Code",
               html: buildEmailHtml(code, TIER_LABELS[tierKey], analysesTotal),
