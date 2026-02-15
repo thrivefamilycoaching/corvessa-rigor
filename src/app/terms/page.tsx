@@ -51,8 +51,8 @@ export default function TermsPage() {
               <p>
                 No refunds are available after an access code has been used for an analysis. Refund requests for
                 unused access codes must be submitted within 7 days of purchase to{" "}
-                <a href="mailto:peter@corvessapartners.com" className="text-teal hover:underline">
-                  peter@corvessapartners.com
+                <a href="mailto:info@corvessapartners.com" className="text-teal hover:underline">
+                  info@corvessapartners.com
                 </a>. Refunds will be processed to the original payment method within 5&ndash;10 business days.
               </p>
             </section>
@@ -153,8 +153,8 @@ export default function TermsPage() {
               <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">13. Contact</h2>
               <p>
                 If you have questions about these Terms, please contact us at{" "}
-                <a href="mailto:peter@corvessapartners.com" className="text-teal hover:underline">
-                  peter@corvessapartners.com
+                <a href="mailto:info@corvessapartners.com" className="text-teal hover:underline">
+                  info@corvessapartners.com
                 </a>.
               </p>
             </section>

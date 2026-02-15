@@ -188,8 +188,8 @@ export default function PrivacyPage() {
               </ul>
               <p className="mt-3">
                 To exercise these rights, contact us at{" "}
-                <a href="mailto:peter@corvessapartners.com" className="text-teal hover:underline">
-                  peter@corvessapartners.com
+                <a href="mailto:info@corvessapartners.com" className="text-teal hover:underline">
+                  info@corvessapartners.com
                 </a>.
                 We will respond within 45 days.
               </p>
@@ -218,8 +218,8 @@ export default function PrivacyPage() {
               <p>
                 If you have questions about this Privacy Policy or wish to exercise your data rights, please
                 contact us at{" "}
-                <a href="mailto:peter@corvessapartners.com" className="text-teal hover:underline">
-                  peter@corvessapartners.com
+                <a href="mailto:info@corvessapartners.com" className="text-teal hover:underline">
+                  info@corvessapartners.com
                 </a>.
               </p>
               <p className="mt-3">

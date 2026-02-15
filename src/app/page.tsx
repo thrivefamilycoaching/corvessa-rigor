@@ -34,7 +34,7 @@ const faqs = [
   },
   {
     q: "What schools are in the database?",
-    a: "Over 500 colleges and universities, from small liberal arts colleges to large state universities, across all regions of the US. Don\u2019t see a school you\u2019re looking for? Let us know at peter@corvessapartners.com and we\u2019ll add it.",
+    a: "Over 500 colleges and universities, from small liberal arts colleges to large state universities, across all regions of the US. Don\u2019t see a school you\u2019re looking for? Let us know at info@corvessapartners.com and we\u2019ll add it.",
   },
 ];
 
