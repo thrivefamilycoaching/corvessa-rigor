@@ -260,7 +260,7 @@ export function ReportExport({ result, editedNarrative, schoolCount = 9 }: Repor
             const enrollmentStr = school.enrollment
               ? ` \u2022 ${(school.enrollment / 1000).toFixed(1)}K students`
               : "";
-            const ncaaStr = school.ncaaDivision ? ` \u2022 ${school.ncaaDivision}` : "";
+            const ncaaStr = school.programs?.ncaaDivision ? ` \u2022 ${school.programs.ncaaDivision}` : "";
             doc.setFontSize(8);
             doc.setFont("helvetica", "normal");
             doc.setTextColor(GRAY.r, GRAY.g, GRAY.b);
@@ -268,14 +268,25 @@ export function ReportExport({ result, editedNarrative, schoolCount = 9 }: Repor
             yPos += 4;
 
             // Programs line
-            if (school.programs && school.programs.length > 0) {
-              doc.setFontSize(7);
-              doc.setTextColor(GRAY.r, GRAY.g, GRAY.b);
-              const programsText = school.programs.join(" \u2022 ");
-              const progLines = doc.splitTextToSize(programsText, contentWidth - 8);
-              for (const line of progLines.slice(0, 1)) {
-                doc.text(line, margin + 3, yPos);
-                yPos += 3;
+            if (school.programs) {
+              const programLabels: Record<string, string> = {
+                greekLife: "Greek Life", rotc: "ROTC", studyAbroad: "Study Abroad",
+                honorsCollege: "Honors College", coopInternship: "Co-op/Internship",
+                preMed: "Pre-Med", preLaw: "Pre-Law", engineering: "Engineering",
+                nursing: "Nursing", businessSchool: "Business School", performingArts: "Performing Arts",
+              };
+              const activePrograms = Object.entries(programLabels)
+                .filter(([key]) => (school.programs as unknown as Record<string, unknown>)[key] === true)
+                .map(([, label]) => label);
+              if (activePrograms.length > 0) {
+                doc.setFontSize(7);
+                doc.setTextColor(GRAY.r, GRAY.g, GRAY.b);
+                const programsText = activePrograms.join(" \u2022 ");
+                const progLines = doc.splitTextToSize(programsText, contentWidth - 8);
+                for (const line of progLines.slice(0, 1)) {
+                  doc.text(line, margin + 3, yPos);
+                  yPos += 3;
+                }
               }
             }
 
