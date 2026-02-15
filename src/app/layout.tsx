@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { CookieBanner } from "@/components/CookieBanner";
 
 export const maxDuration = 30;
 
@@ -32,6 +33,7 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         {children}
+        <CookieBanner />
       </body>
     </html>
   );

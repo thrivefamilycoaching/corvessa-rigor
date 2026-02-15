@@ -22,7 +22,7 @@ export default function TermsPage() {
       <div className="mx-auto max-w-3xl px-4 py-12">
         <div className="bg-white rounded-2xl shadow-sm p-8 md:p-12">
           <h1 className="text-3xl font-bold mb-2">Terms of Service</h1>
-          <p className="text-sm text-muted-foreground mb-8">Last updated: February 12, 2026</p>
+          <p className="text-sm text-muted-foreground mb-8">Last updated: February 15, 2026</p>
 
           <div className="prose prose-sm max-w-none space-y-6 text-charcoal/90 leading-relaxed">
             <section>
@@ -47,7 +47,18 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">3. AI-Powered Service Disclosure</h2>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">3. Refund Policy</h2>
+              <p>
+                No refunds are available after an access code has been used for an analysis. Refund requests for
+                unused access codes must be submitted within 7 days of purchase to{" "}
+                <a href="mailto:peter@corvessapartners.com" className="text-teal hover:underline">
+                  peter@corvessapartners.com
+                </a>. Refunds will be processed to the original payment method within 5&ndash;10 business days.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">4. AI-Powered Service Disclosure</h2>
               <p>
                 The Service uses artificial intelligence, including large language models, to analyze uploaded
                 documents and generate college recommendations. By using the Service, you acknowledge that:
@@ -61,7 +72,7 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">4. Not Professional Advice</h2>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">5. Not Professional Advice</h2>
               <p>
                 The Service is for informational purposes only and is intended to supplement &mdash; not
                 replace &mdash; professional college counseling. Corvessa Partners LLC is not a licensed college
@@ -73,7 +84,7 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">5. User Requirements</h2>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">6. User Requirements</h2>
               <p>
                 You must be at least 18 years of age or have the consent of a parent or legal guardian to use this
                 Service. By using the Service, you represent that you have the legal authority to enter into these
@@ -82,7 +93,7 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">6. Document Handling</h2>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">7. Document Handling</h2>
               <p>
                 Documents you upload (transcripts, school profiles) are processed in real-time for the sole purpose
                 of providing the analysis you requested. Uploaded documents are not permanently stored on our
@@ -92,7 +103,7 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">7. Acceptable Use</h2>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">8. Acceptable Use</h2>
               <p>
                 You agree not to misuse the Service, including but not limited to: attempting to reverse-engineer
                 the analysis algorithms, sharing access codes with third parties, uploading fraudulent or
@@ -101,7 +112,7 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">8. Limitation of Liability</h2>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">9. Limitation of Liability</h2>
               <p>
                 To the maximum extent permitted by law, Corvessa Partners LLC shall not be liable for any indirect,
                 incidental, special, consequential, or punitive damages, including but not limited to loss of
@@ -112,7 +123,7 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">9. Modifications</h2>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">10. Modifications</h2>
               <p>
                 We reserve the right to modify these Terms, our pricing, features, and the Service at any time.
                 Material changes will be communicated via the email address associated with your access code. Your
@@ -121,7 +132,7 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">10. Governing Law</h2>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">11. Governing Law</h2>
               <p>
                 These Terms shall be governed by and construed in accordance with the laws of the Commonwealth
                 of Virginia, without regard to its conflict of law provisions. Any disputes arising under these
@@ -130,7 +141,16 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">11. Contact</h2>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">12. Cookies</h2>
+              <p>
+                We use essential cookies to operate the site and analytics cookies to understand how visitors use
+                our service. We do not use cookies for advertising or tracking across other websites. You can
+                disable cookies in your browser settings, but some features of the site may not function properly.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-semibold text-charcoal mt-8 mb-3">13. Contact</h2>
               <p>
                 If you have questions about these Terms, please contact us at{" "}
                 <a href="mailto:peter@corvessapartners.com" className="text-teal hover:underline">
