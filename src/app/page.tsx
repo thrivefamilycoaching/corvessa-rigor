@@ -400,7 +400,7 @@ export default function LandingPage() {
             <span className="hidden sm:inline">|</span>
             <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
             <span className="hidden sm:inline">|</span>
-            <span>Contact: peter@corvessapartners.com</span>
+            <a href="mailto:info@corvessapartners.com" className="hover:text-white transition-colors">Contact: info@corvessapartners.com</a>
           </div>
           <p className="mt-6 text-xs text-warmgray-200">
             &copy; 2026 Corvessa Partners LLC. All rights reserved.
