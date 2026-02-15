@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import Stripe from "stripe";
 import { Resend } from "resend";
 import { getServiceClient } from "@/lib/supabase";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2026-01-28.clover",
+});
 
 const TIER_ANALYSES: Record<string, number> = {
   starter: 3,
@@ -12,6 +17,12 @@ const TIER_LABELS: Record<string, string> = {
   starter: "Starter",
   standard: "Standard",
   premium: "Premium",
+};
+
+const AMOUNT_TO_TIER: Record<number, string> = {
+  1900: "starter",
+  3900: "standard",
+  7900: "premium",
 };
 
 function generateCode(): string {
@@ -33,19 +44,16 @@ function buildEmailHtml(code: string, tierLabel: string, analyses: number): stri
     <tr>
       <td align="center">
         <table width="480" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:16px;overflow:hidden;">
-          <!-- Header -->
           <tr>
             <td style="background-color:#0B7A75;padding:24px;text-align:center;">
               <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">My School List</h1>
             </td>
           </tr>
-          <!-- Body -->
           <tr>
             <td style="padding:40px 32px;">
               <h2 style="margin:0 0 8px;color:#2D3142;font-size:24px;font-weight:700;text-align:center;">Thank you for your purchase!</h2>
               <p style="margin:0 0 24px;color:#6b7280;font-size:15px;text-align:center;">Here is your access code to start using the tool.</p>
 
-              <!-- Code Box -->
               <div style="background-color:#F8F6F2;border-radius:12px;padding:24px;text-align:center;margin:0 0 24px;">
                 <p style="margin:0 0 8px;color:#6b7280;font-size:13px;">Your access code</p>
                 <p style="margin:0;color:#2D3142;font-size:32px;font-weight:700;font-family:'Courier New',monospace;letter-spacing:4px;">${code}</p>
@@ -62,7 +70,6 @@ function buildEmailHtml(code: string, tierLabel: string, analyses: number): stri
                 </tr>
               </table>
 
-              <!-- CTA Button -->
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center">
@@ -78,7 +85,6 @@ function buildEmailHtml(code: string, tierLabel: string, analyses: number): stri
               </p>
             </td>
           </tr>
-          <!-- Footer -->
           <tr>
             <td style="padding:20px 32px;border-top:1px solid #e5e7eb;text-align:center;">
               <p style="margin:0;color:#9ca3af;font-size:12px;">&copy; 2026 Corvessa Partners LLC. All rights reserved.</p>
@@ -94,86 +100,107 @@ function buildEmailHtml(code: string, tierLabel: string, analyses: number): stri
 
 export async function POST(req: NextRequest) {
   try {
-    // Internal-only: must be called with the shared secret
-    const authHeader = req.headers.get("x-internal-secret");
-    if (authHeader !== process.env.INTERNAL_API_SECRET) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    const rawBody = await req.text();
+    const sig = req.headers.get("stripe-signature");
+
+    if (!sig) {
+      return NextResponse.json({ error: "Missing signature" }, { status: 400 });
     }
 
-    const { tier, email } = await req.json();
-
-    // Validate email format
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return NextResponse.json({ error: "Invalid email format" }, { status: 400 });
+    let event: Stripe.Event;
+    try {
+      event = stripe.webhooks.constructEvent(
+        rawBody,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET!
+      );
+    } catch (err) {
+      console.error("[stripe-webhook] Signature verification failed:", err);
+      return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
 
-    const tierKey = (tier || "standard").toLowerCase();
+    if (event.type !== "checkout.session.completed") {
+      return NextResponse.json({ received: true });
+    }
+
+    const session = event.data.object as Stripe.Checkout.Session;
+
+    // Determine tier
+    let tierKey = (session.metadata?.tier || "").toLowerCase();
+    if (!TIER_ANALYSES[tierKey] && session.amount_total) {
+      tierKey = AMOUNT_TO_TIER[session.amount_total] || "";
+    }
+    if (!TIER_ANALYSES[tierKey]) {
+      console.error("[stripe-webhook] Could not determine tier for session:", session.id);
+      return NextResponse.json({ error: "Unknown tier" }, { status: 400 });
+    }
+
     const analysesTotal = TIER_ANALYSES[tierKey];
-
-    if (!analysesTotal) {
-      return NextResponse.json({ error: "Invalid tier" }, { status: 400 });
-    }
+    const email = session.customer_details?.email || null;
+    const stripeSessionId = session.id;
 
     const supabase = getServiceClient();
+
+    // Idempotency check
+    const { data: existing } = await supabase
+      .from("access_codes")
+      .select("code")
+      .eq("stripe_session_id", stripeSessionId)
+      .single();
+
+    if (existing) {
+      console.log("[stripe-webhook] Already processed session:", stripeSessionId);
+      return NextResponse.json({ received: true, code: existing.code });
+    }
+
+    // Generate unique code
     let code = generateCode();
     let attempts = 0;
 
-    // Retry if code collision (unlikely but safe)
     while (attempts < 5) {
       const { error } = await supabase.from("access_codes").insert({
         code,
         tier: tierKey,
         analyses_total: analysesTotal,
         analyses_remaining: analysesTotal,
-        customer_email: email || null,
+        customer_email: email ? email.toLowerCase().trim() : null,
+        stripe_session_id: stripeSessionId,
       });
 
       if (!error) {
-        // Send email if provided
-        let emailSent = false;
+        // Send email if available
         if (email) {
           try {
-            console.log("[create-code] Attempting to send email to:", email);
-            console.log("[create-code] RESEND_API_KEY present:", !!process.env.RESEND_API_KEY);
             const resend = new Resend(process.env.RESEND_API_KEY);
-            const { data: emailData, error: emailError } = await resend.emails.send({
+            await resend.emails.send({
               from: "My School List <onboarding@resend.dev>",
               to: email,
               subject: "Your My School List Access Code",
               html: buildEmailHtml(code, TIER_LABELS[tierKey], analysesTotal),
             });
-
-            if (emailError) {
-              console.error("[create-code] Resend API error:", JSON.stringify(emailError));
-            } else {
-              console.log("[create-code] Email sent successfully, id:", emailData?.id);
-              emailSent = true;
-            }
+            console.log("[stripe-webhook] Email sent to:", email);
           } catch (emailErr) {
-            console.error("[create-code] Resend exception:", emailErr);
+            console.error("[stripe-webhook] Email send failed (code still created):", emailErr);
           }
-        } else {
-          console.log("[create-code] No email provided, skipping send");
         }
 
-        return NextResponse.json({ code, tier: tierKey, analyses: analysesTotal, emailSent });
+        console.log("[stripe-webhook] Code created:", code, "tier:", tierKey, "session:", stripeSessionId);
+        return NextResponse.json({ received: true });
       }
 
-      // If unique constraint violation, regenerate
       if (error.code === "23505") {
         code = generateCode();
         attempts++;
         continue;
       }
 
-      // Other error
-      console.error("Supabase insert error:", error);
-      return NextResponse.json({ error: "Failed to create access code" }, { status: 500 });
+      console.error("[stripe-webhook] Supabase insert error:", error);
+      return NextResponse.json({ error: "Failed to create code" }, { status: 500 });
     }
 
     return NextResponse.json({ error: "Failed to generate unique code" }, { status: 500 });
   } catch (err) {
-    console.error("Create code error:", err);
+    console.error("[stripe-webhook] Unexpected error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

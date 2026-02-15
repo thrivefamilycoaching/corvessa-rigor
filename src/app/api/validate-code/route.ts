@@ -1,24 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase";
-
-const DEMO_CODE = "MSL-DEMO1";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 10 attempts per IP per 15 minutes
+    const ip = getClientIp(req.headers);
+    const { allowed, retryAfterSeconds } = checkRateLimit("validate-code", ip, 10, 15 * 60 * 1000);
+    if (!allowed) {
+      return NextResponse.json(
+        { valid: false, error: "Too many attempts. Try again later." },
+        { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
+      );
+    }
+
     const { code } = await req.json();
 
     if (!code) {
       return NextResponse.json({ valid: false, error: "No code provided" }, { status: 400 });
-    }
-
-    // Demo bypass
-    if (code.toUpperCase() === DEMO_CODE) {
-      return NextResponse.json({
-        valid: true,
-        demo: true,
-        tier: "demo",
-        analyses_remaining: -1,
-      });
     }
 
     const supabase = getServiceClient();
@@ -41,7 +40,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       valid: true,
-      demo: false,
       tier: data.tier,
       analyses_remaining: data.analyses_remaining,
     });

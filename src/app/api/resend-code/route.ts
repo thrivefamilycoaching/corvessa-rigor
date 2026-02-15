@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { getServiceClient } from "@/lib/supabase";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 
 const TIER_LABELS: Record<string, string> = {
   starter: "Starter",
@@ -70,10 +71,20 @@ function buildEmailHtml(code: string, tierLabel: string, remaining: number): str
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 3 requests per IP per hour
+    const ip = getClientIp(req.headers);
+    const { allowed, retryAfterSeconds } = checkRateLimit("resend-code", ip, 3, 60 * 60 * 1000);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Try again later." },
+        { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
+      );
+    }
+
     const { email } = await req.json();
 
-    if (!email) {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 });
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: "Valid email is required" }, { status: 400 });
     }
 
     const supabase = getServiceClient();
@@ -88,9 +99,8 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (fetchError || !data) {
-      return NextResponse.json({
-        error: "No access code found for this email. Check the email address or contact support@getmyschoollist.com",
-      });
+      // Generic response to prevent email enumeration
+      return NextResponse.json({ success: true });
     }
 
     // Send email

@@ -29,8 +29,6 @@ import { CounselorBrief } from "@/components/CounselorBrief";
 import { SchoolComparison } from "@/components/SchoolComparison";
 import Link from "next/link";
 
-const DEMO_CODE = "MSL-DEMO1";
-
 interface TestScores {
   satReading: string;
   satMath: string;
@@ -60,7 +58,7 @@ const US_STATES = [
 
 // ─── Access Code Gate ────────────────────────────────────────────────────────
 
-function AccessCodeGate({ onValidated }: { onValidated: (code: string, demo: boolean, remaining: number, tier: string) => void }) {
+function AccessCodeGate({ onValidated }: { onValidated: (code: string, remaining: number, tier: string) => void }) {
   const [codeInput, setCodeInput] = useState("");
   const [validating, setValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +89,7 @@ function AccessCodeGate({ onValidated }: { onValidated: (code: string, demo: boo
 
       if (data.valid) {
         sessionStorage.setItem("msl_access_code", trimmed);
-        onValidated(trimmed, data.demo, data.analyses_remaining, data.tier || "starter");
+        onValidated(trimmed, data.analyses_remaining, data.tier || "starter");
       } else {
         setError(data.error || "Invalid access code");
       }
@@ -120,9 +118,7 @@ function AccessCodeGate({ onValidated }: { onValidated: (code: string, demo: boo
       const data = await res.json();
 
       if (data.success) {
-        setLostMessage("Code sent! Check your email.");
-      } else {
-        setLostError(data.error || "Could not find a code for that email.");
+        setLostMessage("If an account exists for that email, we'll send the code.");
       }
     } catch {
       setLostError("Something went wrong. Please try again.");
@@ -249,7 +245,6 @@ function AccessCodeGate({ onValidated }: { onValidated: (code: string, demo: boo
 
 export default function MySchoolListTool() {
   const [accessCode, setAccessCode] = useState<string | null>(null);
-  const [isDemo, setIsDemo] = useState(false);
   const [analysesRemaining, setAnalysesRemaining] = useState<number>(0);
   const [tier, setTier] = useState<string>("starter");
   const [gateChecked, setGateChecked] = useState(false);
@@ -268,7 +263,6 @@ export default function MySchoolListTool() {
         .then((data) => {
           if (data.valid) {
             setAccessCode(stored);
-            setIsDemo(data.demo);
             setAnalysesRemaining(data.analyses_remaining);
             setTier(data.tier || "starter");
           } else {
@@ -295,9 +289,8 @@ export default function MySchoolListTool() {
   if (!accessCode) {
     return (
       <AccessCodeGate
-        onValidated={(code, demo, remaining, t) => {
+        onValidated={(code, remaining, t) => {
           setAccessCode(code);
-          setIsDemo(demo);
           setAnalysesRemaining(remaining);
           setTier(t);
         }}
@@ -308,7 +301,6 @@ export default function MySchoolListTool() {
   return (
     <ToolContent
       accessCode={accessCode}
-      isDemo={isDemo}
       analysesRemaining={analysesRemaining}
       setAnalysesRemaining={setAnalysesRemaining}
       tier={tier}
@@ -324,14 +316,12 @@ export default function MySchoolListTool() {
 
 function ToolContent({
   accessCode,
-  isDemo,
   analysesRemaining,
   setAnalysesRemaining,
   tier,
   onLogout,
 }: {
   accessCode: string;
-  isDemo: boolean;
   analysesRemaining: number;
   setAnalysesRemaining: (n: number) => void;
   tier: string;
@@ -377,8 +367,8 @@ function ToolContent({
   const handleAnalyze = async () => {
     if (!schoolProfile || !transcript) return;
 
-    // Check analyses remaining (skip for demo)
-    if (!isDemo && analysesRemaining <= 0) {
+    // Check analyses remaining
+    if (analysesRemaining <= 0) {
       setError("You've used all analyses. Purchase more at getmyschoollist.com");
       return;
     }
@@ -401,9 +391,7 @@ function ToolContent({
         throw new Error(useData.error || "Failed to use analysis");
       }
 
-      if (!isDemo) {
-        setAnalysesRemaining(useData.analyses_remaining);
-      }
+      setAnalysesRemaining(useData.analyses_remaining);
 
       // Now run the actual analysis
       const formData = new FormData();
@@ -428,6 +416,7 @@ function ToolContent({
         formData.append("manualGPA", manualGPA);
       }
       formData.append("schoolCount", String(schoolCount));
+      formData.append("accessCode", accessCode);
 
       if (activities.length > 0) {
         const activitiesText = activities
@@ -489,11 +478,7 @@ function ToolContent({
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-white/80">
-              {isDemo ? (
-                <span className="bg-white/20 px-2 py-0.5 rounded text-xs font-medium">Demo Mode</span>
-              ) : (
-                <>{analysesRemaining} {analysesRemaining === 1 ? "analysis" : "analyses"} remaining</>
-              )}
+              {analysesRemaining} {analysesRemaining === 1 ? "analysis" : "analyses"} remaining
             </span>
             <button
               onClick={onLogout}

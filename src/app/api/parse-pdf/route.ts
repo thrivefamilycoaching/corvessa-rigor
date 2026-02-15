@@ -6,6 +6,7 @@ import type { AnalysisResult, TestScores, RecommendedSchool } from "@/lib/types"
 import { enrichSchoolsWithScorecardData, getEnrollmentSize, deduplicateByName, fillGapsFromScorecard } from "@/lib/scorecard";
 import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS, getSchoolRegion } from "@/lib/constants";
 import { SCHOOLS_DATABASE } from "@/lib/schoolDatabase";
+import { getServiceClient } from "@/lib/supabase";
 
 // Disable all Vercel caching — always fetch fresh Scorecard data
 export const dynamic = "force-dynamic";
@@ -79,12 +80,58 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
 
+    // ── Access code authentication ──────────────────────────────────
+    const accessCode = formData.get("accessCode") as string | null;
+    if (!accessCode) {
+      return NextResponse.json(
+        { error: "Access code is required" },
+        { status: 401 }
+      );
+    }
+
+    const supabase = getServiceClient();
+    const { data: codeData, error: codeError } = await supabase
+      .from("access_codes")
+      .select("analyses_remaining")
+      .eq("code", accessCode.toUpperCase())
+      .single();
+
+    if (codeError || !codeData) {
+      return NextResponse.json(
+        { error: "Invalid access code" },
+        { status: 401 }
+      );
+    }
+
+    if (codeData.analyses_remaining <= 0) {
+      return NextResponse.json(
+        { error: "No analyses remaining" },
+        { status: 403 }
+      );
+    }
+
+    // ── File validation ─────────────────────────────────────────────
     const schoolProfileFile = formData.get("schoolProfile") as File | null;
     const transcriptFile = formData.get("transcript") as File | null;
 
     if (!schoolProfileFile || !transcriptFile) {
       return NextResponse.json(
         { error: "Both School Profile and Student Transcript are required" },
+        { status: 400 }
+      );
+    }
+
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    if (schoolProfileFile.size > MAX_FILE_SIZE || transcriptFile.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: "Each file must be under 10MB" },
+        { status: 400 }
+      );
+    }
+
+    if (schoolProfileFile.type !== "application/pdf" || transcriptFile.type !== "application/pdf") {
+      return NextResponse.json(
+        { error: "Only PDF files are accepted" },
         { status: 400 }
       );
     }
@@ -105,9 +152,22 @@ export async function POST(request: NextRequest) {
     // Extract activities text
     const activitiesText = (formData.get("activitiesText") as string) || "";
 
-    // Extract manual GPA override and school count
+    // Extract manual GPA override and school count with validation
     const manualGPA = parseFloat((formData.get("manualGPA") as string) || "0");
+    if (manualGPA < 0 || manualGPA > 5.0) {
+      return NextResponse.json(
+        { error: "GPA must be between 0.0 and 5.0" },
+        { status: 400 }
+      );
+    }
+
     const schoolCount = parseInt((formData.get("schoolCount") as string) || "9");
+    if (schoolCount < 1 || schoolCount > 30) {
+      return NextResponse.json(
+        { error: "School count must be between 1 and 30" },
+        { status: 400 }
+      );
+    }
 
     // Extract text from PDFs
     const schoolProfileBuffer = Buffer.from(await schoolProfileFile.arrayBuffer());

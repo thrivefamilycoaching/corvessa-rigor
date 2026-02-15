@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 
 const SYSTEM_PROMPTS: Record<string, string> = {
   hebron: `You are a friendly, knowledgeable AI assistant for Hebron Christian Academy (HCA), a private Christian school in Dacula, Georgia. You help prospective families, current parents, and visitors learn about the school. Be warm, welcoming, and enthusiastic about HCA. Keep responses concise (2-4 paragraphs max) and use bullet points for lists.
@@ -91,6 +92,16 @@ If you don't know something specific, warmly suggest the family contact admissio
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 5 requests per IP per hour
+    const ip = getClientIp(req.headers);
+    const { allowed, retryAfterSeconds } = checkRateLimit("demo-chat", ip, 5, 60 * 60 * 1000);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Try again later." },
+        { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
+      );
+    }
+
     const { messages, school } = await req.json();
     const systemPrompt = SYSTEM_PROMPTS[school];
 
