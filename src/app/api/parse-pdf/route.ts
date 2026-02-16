@@ -37,29 +37,70 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   return textParts.join("\n");
 }
 
-/** Classify a school for a specific student based on admit rate, GPA, SAT, and leadership. */
+/** Classify a school for a specific student based on admit rate, GPA, SAT, and leadership.
+ *
+ *  Methodology:
+ *  1. Anchor to the school's actual acceptance rate.
+ *  2. Compute a student quality score (-1.0 to +1.0) from GPA, SAT, and leadership.
+ *  3. Map the quality score to a proportional adjustment that scales with the base rate:
+ *     - At selective schools (low base), the upside room is smaller.
+ *     - At accessible schools (high base), a strong student can approach 90%+.
+ *  4. Enforce a hard ceiling so odds never go absurdly higher than the base rate. */
 function classifyForStudent(
   admitRate: number,
   studentGPA: number,
   studentSAT: number | null,
   leadershipScore?: number
 ): { personalizedOdds: number; type: string } {
-  let odds = admitRate * 100;
-  if (studentGPA >= 3.8) odds *= 1.3;
-  else if (studentGPA >= 3.5) odds *= 1.15;
-  else if (studentGPA >= 3.0) odds *= 1.0;
-  else if (studentGPA >= 2.5) odds *= 0.75;
-  else odds *= 0.5;
+  const base = admitRate * 100;
+
+  // ── Student quality score: range roughly -1.0 to +1.0 ──
+  let q = 0;
+
+  // GPA component (-0.5 to +0.4)
+  if (studentGPA >= 3.9) q += 0.40;
+  else if (studentGPA >= 3.7) q += 0.30;
+  else if (studentGPA >= 3.5) q += 0.15;
+  else if (studentGPA >= 3.0) q += 0;
+  else if (studentGPA >= 2.5) q -= 0.20;
+  else q -= 0.50;
+
+  // SAT component (-0.4 to +0.35)
   if (studentSAT) {
-    if (studentSAT >= 1400) odds *= 1.3;
-    else if (studentSAT >= 1200) odds *= 1.1;
-    else if (studentSAT >= 1000) odds *= 0.9;
-    else odds *= 0.7;
+    if (studentSAT >= 1500) q += 0.35;
+    else if (studentSAT >= 1400) q += 0.25;
+    else if (studentSAT >= 1300) q += 0.15;
+    else if (studentSAT >= 1200) q += 0.05;
+    else if (studentSAT >= 1000) q -= 0.10;
+    else q -= 0.40;
   }
+
+  // Leadership component (0 to +0.10)
   if (leadershipScore && leadershipScore > 0) {
-    odds *= 1 + leadershipScore * 0.008;
+    q += Math.min(0.10, leadershipScore * 0.012);
   }
-  odds = Math.min(95, Math.max(1, Math.round(odds)));
+
+  // Clamp quality score
+  q = Math.max(-1.0, Math.min(1.0, q));
+
+  // ── Map quality score to odds ──
+  // Upside room (from base to ceiling) is limited; downside can go to near zero.
+  //   ceiling = base + min(25, base × 0.8)
+  //     UVA 19% → ceiling 34%,  JMU 76% → ceiling 95%,  50% school → ceiling 90%
+  const ceiling = Math.min(95, base + Math.min(25, base * 0.8));
+  const floor = Math.max(1, base * 0.15);
+
+  let odds: number;
+  if (q >= 0) {
+    // Positive quality: interpolate from base toward ceiling
+    odds = base + q * (ceiling - base);
+  } else {
+    // Negative quality: interpolate from base toward floor
+    odds = base + q * (base - floor);
+  }
+
+  odds = Math.max(1, Math.round(odds));
+
   let type: string;
   if (odds < 40) type = "reach";
   else if (odds >= 75) type = "safety";
@@ -546,16 +587,17 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
     }
 
     // ── Leadership score boost for GPT-recommended schools ────────────
+    // Additive bonus: up to +3 percentage points (not multiplicative)
     const leadershipScore = analysis.activitiesAnalysis?.leadershipScore || 0;
     if (leadershipScore > 0 && analysis.recommendedSchools) {
+      const leaderBonus = Math.min(3, Math.round(leadershipScore * 0.4));
       analysis.recommendedSchools = analysis.recommendedSchools.map((s: any) => {
         if (s.acceptanceProbability != null) {
-          const boosted = Math.min(95, Math.max(1, Math.round(s.acceptanceProbability * (1 + leadershipScore * 0.008))));
-          s.acceptanceProbability = boosted;
+          s.acceptanceProbability = Math.min(95, Math.max(1, s.acceptanceProbability + leaderBonus));
         }
         return s;
       });
-      console.log(`[Leadership] Applied leadership boost (score=${leadershipScore}) to GPT schools`);
+      console.log(`[Leadership] Applied leadership boost (+${leaderBonus}pp, score=${leadershipScore}) to GPT schools`);
     }
 
     // ── Unified metadata correction: campusSize + region + testPolicy ────
@@ -756,7 +798,8 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
         const nameMatch = boostNames.some(bn => s.name.includes(bn));
         if (nameMatch && s.acceptanceProbability !== undefined) {
           const orig = s.acceptanceProbability;
-          s.acceptanceProbability = Math.min(95, Math.round(s.acceptanceProbability * 1.7));
+          // Additive in-state bonus: +12 percentage points (not a multiplier)
+          s.acceptanceProbability = Math.min(95, s.acceptanceProbability + 12);
           s.matchReasoning = "[In-State Advantage] " + s.matchReasoning;
           if (s.acceptanceProbability < 40) s.type = "reach";
           else if (s.acceptanceProbability >= 75) s.type = "safety";

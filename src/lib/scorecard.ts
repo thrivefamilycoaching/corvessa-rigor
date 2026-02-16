@@ -289,12 +289,18 @@ export function calculatePersonalizedOdds(
 
   if (admissionRate == null) return -1;
 
-  // ── Base: school admission rate as percentage ──
-  let odds = admissionRate * 100;
+  // ── Base: school's actual acceptance rate as percentage ──
+  const base = admissionRate * 100;
 
-  // ── GPA adjustment (heavy weight) ──
-  // Estimate school's midpoint GPA from selectivity:
-  //   sub-10% admit → ~3.95, 10-20% → ~3.85, 20-40% → ~3.6, 40-60% → ~3.3, 60%+ → ~3.0
+  // ── Hard ceiling: base + bounded bonus (scales with selectivity) ──
+  //   UVA 19% → ceiling 34%,  JMU 76% → ceiling 95%,  50% school → ceiling 90%
+  const ceiling = Math.min(95, base + Math.min(25, base * 0.8));
+  const floor = Math.max(1, base * 0.15);
+
+  // ── Student quality score: range roughly -1.0 to +1.0 ──
+  let q = 0;
+
+  // ── GPA component (-0.50 to +0.40) ──
   const studentGPA = student.gpa ?? 3.0;
   let schoolMidGPA: number;
   if (admissionRate < 0.10) schoolMidGPA = 3.95;
@@ -304,22 +310,18 @@ export function calculatePersonalizedOdds(
   else schoolMidGPA = 3.00;
 
   const gpaDelta = studentGPA - schoolMidGPA;
-  // Each 0.1 GPA above/below midpoint shifts odds by ~8%
-  // Above midpoint: boost; below midpoint: significant decrease
+  // +0.5 GPA above mid → +0.40, -0.5 below → -0.50
   if (gpaDelta > 0) {
-    odds *= 1 + gpaDelta * 0.8; // +0.5 GPA above mid → 1.4x multiplier
+    q += Math.min(0.40, gpaDelta * 0.8);
   } else {
-    odds *= Math.max(0.15, 1 + gpaDelta * 1.2); // -0.5 GPA below mid → 0.4x multiplier
+    q += Math.max(-0.50, gpaDelta * 1.0);
   }
 
-  // ── Rigor score adjustment (moderate weight) ──
-  // Rigor score 0–100. Schools that value rigor give an edge.
+  // ── Rigor component (-0.15 to +0.15) ──
   const rigorScore = student.rigorScore ?? 50;
-  // Normalize: 50 = neutral, 80+ = strong boost, <30 = penalty
-  const rigorDelta = (rigorScore - 50) / 100; // range: -0.5 to +0.5
-  odds *= 1 + rigorDelta * 0.5; // max ±25% adjustment from rigor
+  q += ((rigorScore - 50) / 100) * 0.30; // 80 rigor → +0.09, 30 rigor → -0.06
 
-  // ── SAT adjustment (when available) ──
+  // ── SAT component (-0.40 to +0.35) using school's actual percentiles ──
   const sat25R = scorecard["latest.admissions.sat_scores.25th_percentile.critical_reading"];
   const sat75R = scorecard["latest.admissions.sat_scores.75th_percentile.critical_reading"];
   const sat25M = scorecard["latest.admissions.sat_scores.25th_percentile.math"];
@@ -337,33 +339,37 @@ export function calculatePersonalizedOdds(
     const schoolMid = (school25 + school75) / 2;
 
     if (studentSATTotal < school25) {
-      // Well below school range — significant penalty
+      // Well below school range
       const ratio = Math.max(0, studentSATTotal / school25);
-      odds *= 0.3 + ratio * 0.4; // 0.3x to 0.7x
+      q += -0.40 + ratio * 0.25; // -0.40 to -0.15
     } else if (studentSATTotal <= schoolMid) {
-      // Below midpoint but within range — slight penalty
-      const range = schoolMid - school25;
-      const ratio = range > 0 ? (studentSATTotal - school25) / range : 0.5;
-      odds *= 0.7 + ratio * 0.3; // 0.7x to 1.0x
+      // Below midpoint but in range
+      const range = schoolMid - school25 || 1;
+      const ratio = (studentSATTotal - school25) / range;
+      q += -0.15 + ratio * 0.15; // -0.15 to 0
     } else if (studentSATTotal <= school75) {
-      // Above midpoint within range — boost
-      const range = school75 - schoolMid;
-      const ratio = range > 0 ? (studentSATTotal - schoolMid) / range : 0.5;
-      odds *= 1.0 + ratio * 0.5; // 1.0x to 1.5x
+      // Above midpoint, in range
+      const range = school75 - schoolMid || 1;
+      const ratio = (studentSATTotal - schoolMid) / range;
+      q += ratio * 0.20; // 0 to +0.20
     } else {
-      // Above 75th percentile — strong boost
-      const overshoot = studentSATTotal - school75;
-      const scale = Math.min(overshoot / 200, 1);
-      odds *= 1.5 + scale * 1.0; // 1.5x to 2.5x
+      // Above 75th percentile
+      const overshoot = Math.min(studentSATTotal - school75, 200);
+      q += 0.20 + (overshoot / 200) * 0.15; // +0.20 to +0.35
     }
   }
 
-  // ── Low-admit cap: 18% max for sub-15% admit rate schools ──
-  if (admissionRate < 0.15) {
-    odds = Math.min(odds, 18);
+  // Clamp quality score
+  q = Math.max(-1.0, Math.min(1.0, q));
+
+  // ── Map quality score to odds ──
+  let odds: number;
+  if (q >= 0) {
+    odds = base + q * (ceiling - base);
+  } else {
+    odds = base + q * (base - floor);
   }
 
-  // Clamp to [1, 95]
   return Math.round(Math.max(1, Math.min(95, odds)));
 }
 
