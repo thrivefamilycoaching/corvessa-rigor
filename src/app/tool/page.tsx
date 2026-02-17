@@ -606,6 +606,81 @@ function ToolContent({
             </Card>
           </div>
 
+          {/* Collapsible School Profile Upload */}
+          <div className="mb-6">
+            <button
+              type="button"
+              onClick={() => setShowSchoolProfileUpload(!showSchoolProfileUpload)}
+              className="flex w-full items-center justify-between rounded-lg border border-teal/30 bg-teal/5 px-4 py-3 text-left transition-colors hover:bg-teal/10"
+            >
+              <div className="flex items-center gap-2">
+                <Info className="h-4 w-4 text-teal" />
+                <span className="text-sm font-medium text-charcoal">Want more detailed results?</span>
+                {schoolProfile && <Check className="h-4 w-4 text-teal" />}
+              </div>
+              <ChevronDown className={cn("h-4 w-4 text-teal transition-transform", showSchoolProfileUpload && "rotate-180")} />
+            </button>
+            {(showSchoolProfileUpload || schoolProfile) && (
+              <div className="mt-3 rounded-lg border border-muted px-4 py-4">
+                <p className="mb-3 text-sm text-muted-foreground">
+                  Upload your school&apos;s profile PDF for course-specific recommendations and detailed gap analysis. This may increase processing time.
+                </p>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div
+                      {...schoolProfileDropzone.getRootProps()}
+                      className={cn(
+                        "relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 transition-colors cursor-pointer",
+                        schoolProfileDropzone.isDragActive
+                          ? "border-primary bg-primary/5"
+                          : "border-muted-foreground/25 hover:border-primary/50",
+                        isProcessing && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      <input {...schoolProfileDropzone.getInputProps()} />
+                      {schoolProfile ? (
+                        <>
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal/10">
+                            <Check className="h-5 w-5 text-teal" />
+                          </div>
+                          <p className="mt-2 text-sm font-medium">{schoolProfile.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {(schoolProfile.size / 1024).toFixed(1)} KB
+                          </p>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="mt-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSchoolProfile(null);
+                            }}
+                            disabled={isProcessing}
+                          >
+                            <X className="mr-1 h-4 w-4" />
+                            Remove
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                            <FileText className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                          <p className="mt-2 text-sm font-medium">
+                            School Profile <span className="text-muted-foreground font-normal">(Optional)</span>
+                          </p>
+                          <p className="mt-1 text-center text-xs text-muted-foreground">
+                            Drag & drop or click — PDF only
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </div>
+
           {/* Test Scores */}
           <div className="mb-6">
             <label className="mb-1 block text-sm font-medium">
@@ -690,77 +765,6 @@ function ToolContent({
             </div>
           </div>
 
-          {/* Collapsible School Profile Upload */}
-          <div className="mb-6">
-            <button
-              type="button"
-              onClick={() => setShowSchoolProfileUpload(!showSchoolProfileUpload)}
-              className="flex items-center gap-2 text-sm font-medium text-teal hover:text-teal-dark transition-colors"
-            >
-              <ChevronDown className={cn("h-4 w-4 transition-transform", showSchoolProfileUpload && "rotate-180")} />
-              Want more detailed results?
-              {schoolProfile && <Check className="h-4 w-4 text-teal" />}
-            </button>
-            {(showSchoolProfileUpload || schoolProfile) && (
-              <div className="mt-3">
-                <p className="mb-3 text-sm text-muted-foreground">
-                  Upload your school&apos;s profile PDF for course-specific recommendations and detailed gap analysis. This may increase processing time.
-                </p>
-                <Card>
-                  <CardContent className="pt-6">
-                    <div
-                      {...schoolProfileDropzone.getRootProps()}
-                      className={cn(
-                        "relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 transition-colors cursor-pointer",
-                        schoolProfileDropzone.isDragActive
-                          ? "border-primary bg-primary/5"
-                          : "border-muted-foreground/25 hover:border-primary/50",
-                        isProcessing && "opacity-50 cursor-not-allowed"
-                      )}
-                    >
-                      <input {...schoolProfileDropzone.getInputProps()} />
-                      {schoolProfile ? (
-                        <>
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal/10">
-                            <Check className="h-5 w-5 text-teal" />
-                          </div>
-                          <p className="mt-2 text-sm font-medium">{schoolProfile.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {(schoolProfile.size / 1024).toFixed(1)} KB
-                          </p>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="mt-1"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSchoolProfile(null);
-                            }}
-                            disabled={isProcessing}
-                          >
-                            <X className="mr-1 h-4 w-4" />
-                            Remove
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                            <FileText className="h-5 w-5 text-muted-foreground" />
-                          </div>
-                          <p className="mt-2 text-sm font-medium">
-                            School Profile <span className="text-muted-foreground font-normal">(Optional)</span>
-                          </p>
-                          <p className="mt-1 text-center text-xs text-muted-foreground">
-                            Drag & drop or click — PDF only
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-          </div>
 
           {/* Extracurricular Activities */}
           <div className="mt-6">
