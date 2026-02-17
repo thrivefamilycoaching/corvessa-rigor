@@ -42,3 +42,8 @@ next-env.d.ts
 
 .vercel
 .env*.local
+
+# NCES raw data downloads
+scripts/pss2122/
+scripts/pss2122.zip
+scripts/pss_data.csv

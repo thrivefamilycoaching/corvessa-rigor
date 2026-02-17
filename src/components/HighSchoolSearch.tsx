@@ -84,13 +84,22 @@ export function HighSchoolSearch({ onSelect, disabled, initialState }: HighSchoo
       .finally(() => setLoading(false));
   }, [state]);
 
-  // Filter schools based on query
-  const filtered = query.length >= 2
-    ? schools.filter((s) =>
-        s.name.toLowerCase().includes(query.toLowerCase()) ||
-        s.city.toLowerCase().includes(query.toLowerCase())
-      ).slice(0, 8)
-    : [];
+  // Filter schools: prioritize name matches over city-only matches
+  const filtered = (() => {
+    if (query.length < 2) return [];
+    const q = query.toLowerCase();
+    const nameMatches: SchoolEntry[] = [];
+    const cityOnlyMatches: SchoolEntry[] = [];
+    for (const s of schools) {
+      if (s.name.toLowerCase().includes(q)) {
+        nameMatches.push(s);
+      } else if (s.city.toLowerCase().includes(q)) {
+        cityOnlyMatches.push(s);
+      }
+    }
+    // Show name matches first, then fill remaining slots with city matches
+    return [...nameMatches, ...cityOnlyMatches].slice(0, 8);
+  })();
 
   // Close dropdown on outside click
   useEffect(() => {
