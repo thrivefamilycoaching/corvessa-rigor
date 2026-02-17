@@ -93,7 +93,7 @@ export default function LandingPage() {
               {
                 icon: <Upload className="h-8 w-8 text-teal" />,
                 title: "Upload Your Documents",
-                desc: "Upload a transcript PDF to get started. For the best results, upload your school\u2019s profile too \u2014 it helps the AI analyze course offerings and provide more specific recommendations.",
+                desc: "Upload your student\u2019s transcript PDF. Want even more detailed results? Optionally add your school\u2019s profile for course-specific recommendations.",
               },
               {
                 icon: <Sparkles className="h-8 w-8 text-teal" />,
@@ -125,7 +125,7 @@ export default function LandingPage() {
           <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
             <iframe
               className="absolute inset-0 w-full h-full rounded-xl shadow-lg"
-              src="https://www.youtube.com/embed/b_a-wx0o0O0"
+              src="https://www.youtube.com/embed/aHLI357FZxQ"
               title="My School List — How It Works"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
