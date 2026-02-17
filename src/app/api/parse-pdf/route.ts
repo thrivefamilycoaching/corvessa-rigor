@@ -241,8 +241,20 @@ export async function POST(request: NextRequest) {
     let schoolProfileText: string;
     let transcriptText: string;
 
-    if (schoolProfileFile) {
-      // PDF upload takes priority — richest data source
+    if (schoolProfileFile && schoolName) {
+      // BOTH dropdown and PDF — use dropdown as the identity anchor, PDF for course details
+      // Cap the PDF text to avoid excessively long prompts since the school is already identified
+      const schoolProfileBuffer = Buffer.from(await schoolProfileFile.arrayBuffer());
+      const [spText, tText] = await Promise.all([
+        extractTextFromPDF(schoolProfileBuffer).then(trimPdfText),
+        extractTextFromPDF(transcriptBuffer).then(trimPdfText),
+      ]);
+      const cappedProfileText = spText.length > 3000 ? spText.slice(0, 3000) + "\n[... remainder of school profile trimmed for efficiency]" : spText;
+      schoolProfileText = `School: ${schoolName}${schoolCity ? `, ${schoolCity}` : ""}${schoolState ? `, ${schoolState}` : ""} (confirmed by user).\n\nDetailed course offerings from uploaded school profile:\n${cappedProfileText}`;
+      transcriptText = tText;
+      console.log(`[SchoolDropdown+PDF] Using dropdown identity + PDF course details for: ${schoolName}, ${schoolCity}, ${schoolState} (profile text: ${spText.length} chars, capped to ${cappedProfileText.length})`);
+    } else if (schoolProfileFile) {
+      // PDF only — original flow
       const schoolProfileBuffer = Buffer.from(await schoolProfileFile.arrayBuffer());
       const [spText, tText] = await Promise.all([
         extractTextFromPDF(schoolProfileBuffer).then(trimPdfText),
