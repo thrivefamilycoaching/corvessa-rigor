@@ -377,7 +377,7 @@ export function calculatePersonalizedOdds(
 //
 // RULE 1 — Top 30 Elite: MANDATORY REACH (GPA ≤ 3.7). Never Match or Safety.
 // RULE 2 — Admission rate < 0.25: FORCED REACH (any school, any student).
-// RULE 3 — Odds-to-label sync: <40% → Reach, 40-74% → Match, ≥75% → Safety.
+// RULE 3 — Odds-to-label sync: <30% → Reach, 30-65% → Match, >65% → Safety.
 // RULE 4 — Admit rate 0.25–0.50: Match ceiling (cannot be Safety).
 // RULE 5 — Safety only if admit_rate > 0.50 AND GPA > 3.5.
 //
@@ -401,8 +401,8 @@ function classifyDeterministic(
 
   // RULE 3 — Odds dictate category
   let category: "reach" | "match" | "safety";
-  if (personalizedOdds >= 75) category = "safety";
-  else if (personalizedOdds >= 40) category = "match";
+  if (personalizedOdds > 65) category = "safety";
+  else if (personalizedOdds >= 30) category = "match";
   else category = "reach";
 
   // RULE 4 — Admit rate 0.25–0.50: ceiling is Match
@@ -502,20 +502,20 @@ export async function enrichSchoolsWithScorecardData(
       finalOdds = Math.min(finalOdds, 20);
     }
 
-    // Sub-25% admit rate → cap at 39% (guaranteed Reach via <40% guard)
+    // Sub-25% admit rate → cap at 29% (guaranteed Reach via <30% guard)
     if (admissionRate < 0.25) {
-      finalOdds = Math.min(finalOdds, 39);
+      finalOdds = Math.min(finalOdds, 29);
     }
 
     // DETERMINISTIC CLASSIFICATION — data overrides AI, no exceptions
     const type = classifyDeterministic(school.name, finalOdds, admissionRate, studentGPA);
 
-    // FINAL SAFETY NET: if odds < 40%, label CANNOT be Safety or Match
+    // FINAL SAFETY NET: if odds < 30%, label CANNOT be Safety or Match
     // This prevents any "9% chance — Safety" anomalies
-    if (finalOdds < 40 && type !== "reach") {
+    if (finalOdds < 30 && type !== "reach") {
       console.log(`[Scorecard] ${school.name}: SAFETY NET — odds=${finalOdds}% too low for "${type}", forcing reach`);
     }
-    const guardedType = finalOdds < 40 ? "reach" : type;
+    const guardedType = finalOdds < 30 ? "reach" : type;
 
     console.log(
       `[Scorecard] ${school.name}: admit_rate=${(admissionRate * 100).toFixed(1)}% GPA=${studentGPA} → YOUR ODDS=${finalOdds}% (${guardedType})`
@@ -685,16 +685,16 @@ function normalizeDisplayOdds(school: RecommendedSchool): RecommendedSchool {
   let displayOdds = odds;
 
   if (school.type === "match") {
-    if (odds < 40 || odds >= 75) {
-      displayOdds = 40 + (nameHash(school.name) % 35); // 40–74
+    if (odds < 30 || odds > 65) {
+      displayOdds = 30 + (nameHash(school.name) % 36); // 30–65
     }
   } else if (school.type === "reach") {
-    if (odds >= 40) {
-      displayOdds = 5 + (nameHash(school.name) % 35); // 5–39
+    if (odds >= 30) {
+      displayOdds = 5 + (nameHash(school.name) % 25); // 5–29
     }
   } else if (school.type === "safety") {
-    if (odds < 75) {
-      displayOdds = 75 + (nameHash(school.name) % 21); // 75–95
+    if (odds <= 65) {
+      displayOdds = 66 + (nameHash(school.name) % 30); // 66–95
     }
   }
 
@@ -748,7 +748,7 @@ function pick343(pool: RecommendedSchool[]): RecommendedSchool[] {
   // Backfill: guarantee exactly 3-3-3 by pulling the closest unused school
   // into whichever bucket is short.  Proximity is measured by distance from
   // the category's midpoint odds (reach≈20, match≈45, safety≈80).
-  const MIDPOINTS: Record<string, number> = { reach: 20, match: 45, safety: 80 };
+  const MIDPOINTS: Record<string, number> = { reach: 15, match: 48, safety: 80 };
 
   while (result.length < 9) {
     const unused = pool.filter((s) => !usedKeys.has(normalizeSchoolName(s.name)));

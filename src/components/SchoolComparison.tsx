@@ -139,9 +139,9 @@ export function SchoolComparison({ schools }: SchoolComparisonProps) {
       render: (school) => (
         <span className={`text-sm font-medium ${
           school.acceptanceProbability !== undefined
-            ? school.acceptanceProbability < 40
+            ? school.acceptanceProbability < 30
               ? "text-coral"
-              : school.acceptanceProbability >= 75
+              : school.acceptanceProbability > 65
                 ? "text-safegreen-dark"
                 : "text-teal"
             : "text-gray-400"

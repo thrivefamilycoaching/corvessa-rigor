@@ -102,8 +102,8 @@ function classifyForStudent(
   odds = Math.max(1, Math.round(odds));
 
   let type: string;
-  if (odds < 40) type = "reach";
-  else if (odds >= 75) type = "safety";
+  if (odds < 30) type = "reach";
+  else if (odds > 65) type = "safety";
   else type = "match";
   return { personalizedOdds: odds, type };
 }
@@ -460,9 +460,9 @@ Focus the gap analysis on whether the student appears to be taking the most rigo
         - HARD CAP: Maximum 95% (never guarantee admission, even for safeties)
         - HARD FLOOR: Minimum 1% for Ivy-plus and ultra-selective reaches (sub-10% acceptance rate schools)
         - CATEGORY THRESHOLDS (use acceptanceProbability to assign type):
-          * Reach: acceptanceProbability < 40%
-          * Match: acceptanceProbability 40%-74%
-          * Safety: acceptanceProbability >= 75%
+          * Reach: acceptanceProbability < 30%
+          * Match: acceptanceProbability 30%-65%
+          * Safety: acceptanceProbability > 65%
         - Be precise — output an integer like 62, not a range
 
         TEST SCORE INTEGRATION (when provided):
@@ -841,8 +841,8 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
           // Additive in-state bonus: +12 percentage points (not a multiplier)
           s.acceptanceProbability = Math.min(95, s.acceptanceProbability + 12);
           s.matchReasoning = "[In-State Advantage] " + s.matchReasoning;
-          if (s.acceptanceProbability < 40) s.type = "reach";
-          else if (s.acceptanceProbability >= 75) s.type = "safety";
+          if (s.acceptanceProbability < 30) s.type = "reach";
+          else if (s.acceptanceProbability > 65) s.type = "safety";
           else s.type = "match";
           console.log("[InState] " + s.name + ": odds " + orig + "% → " + s.acceptanceProbability + "% (" + homeState + " resident)");
         }
@@ -853,8 +853,8 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
     // Reclassify ALL schools based on actual odds — this overrides any incorrect hardcoded types
     analysis.recommendedSchools = analysis.recommendedSchools.map((s: any) => {
       if (s.acceptanceProbability != null) {
-        if (s.acceptanceProbability < 40) s.type = "reach";
-        else if (s.acceptanceProbability >= 75) s.type = "safety";
+        if (s.acceptanceProbability < 30) s.type = "reach";
+        else if (s.acceptanceProbability > 65) s.type = "safety";
         else s.type = "match";
       }
       return s;

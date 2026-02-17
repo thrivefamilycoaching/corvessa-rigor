@@ -593,6 +593,56 @@ function ToolContent({
             </div>
           </div>
 
+          {/* Test Scores */}
+          <div className="mb-6">
+            <label className="mb-1 block text-sm font-medium">
+              Test Scores <span className="text-xs text-muted-foreground">(optional)</span>
+            </label>
+            <div className="flex flex-wrap gap-4 items-end">
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">SAT R/W</label>
+                <input
+                  type="number"
+                  min={200}
+                  max={800}
+                  placeholder="200-800"
+                  value={testScores.satReading}
+                  onChange={(e) => handleScoreChange("satReading", e.target.value)}
+                  className="w-full max-w-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">SAT Math</label>
+                <input
+                  type="number"
+                  min={200}
+                  max={800}
+                  placeholder="200-800"
+                  value={testScores.satMath}
+                  onChange={(e) => handleScoreChange("satMath", e.target.value)}
+                  className="w-full max-w-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">ACT Composite</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={36}
+                  placeholder="1-36"
+                  value={testScores.actComposite}
+                  onChange={(e) => handleScoreChange("actComposite", e.target.value)}
+                  className="w-full max-w-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              {getSatTotal() ? (
+                <p className="text-xs text-muted-foreground pb-2">
+                  SAT Total: <span className="font-semibold text-foreground">{getSatTotal()}</span>
+                </p>
+              ) : null}
+            </div>
+          </div>
+
           <div className="grid gap-6 md:grid-cols-2">
             {/* School Profile Upload */}
             <Card>
@@ -699,56 +749,6 @@ function ToolContent({
                 </div>
               </CardContent>
             </Card>
-          </div>
-
-          {/* Test Scores */}
-          <div className="mt-6">
-            <label className="mb-1 block text-sm font-medium">
-              Test Scores <span className="text-xs text-muted-foreground">(optional)</span>
-            </label>
-            <div className="flex flex-wrap gap-4 items-end">
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">SAT R/W</label>
-                <input
-                  type="number"
-                  min={200}
-                  max={800}
-                  placeholder="200-800"
-                  value={testScores.satReading}
-                  onChange={(e) => handleScoreChange("satReading", e.target.value)}
-                  className="w-full max-w-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">SAT Math</label>
-                <input
-                  type="number"
-                  min={200}
-                  max={800}
-                  placeholder="200-800"
-                  value={testScores.satMath}
-                  onChange={(e) => handleScoreChange("satMath", e.target.value)}
-                  className="w-full max-w-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">ACT Composite</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={36}
-                  placeholder="1-36"
-                  value={testScores.actComposite}
-                  onChange={(e) => handleScoreChange("actComposite", e.target.value)}
-                  className="w-full max-w-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-              {getSatTotal() ? (
-                <p className="text-xs text-muted-foreground pb-2">
-                  SAT Total: <span className="font-semibold text-foreground">{getSatTotal()}</span>
-                </p>
-              ) : null}
-            </div>
           </div>
 
           {/* Extracurricular Activities */}

@@ -148,7 +148,7 @@ export async function GET(request: NextRequest) {
   const results = matches.map(s => {
     const region = STATE_TO_REGION[s.state] || "Other";
     const odds = Math.round(s.admitRate * 100);
-    const type = odds < 40 ? "reach" : odds >= 75 ? "safety" : "match";
+    const type = odds < 30 ? "reach" : odds > 65 ? "safety" : "match";
     return {
       name: s.name,
       url: `https://${s.url}`,
