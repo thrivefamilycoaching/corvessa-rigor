@@ -123,7 +123,7 @@ export default function LandingPage() {
           <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
             <iframe
               className="absolute inset-0 w-full h-full rounded-xl shadow-lg"
-              src="https://www.youtube.com/embed/8a2AG2_RJr0"
+              src="https://www.youtube.com/embed/BG2BLS9exOQ"
               title="My School List — How It Works"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
