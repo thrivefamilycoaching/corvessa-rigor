@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
       transcriptText = await extractTextFromPDF(transcriptBuffer).then(trimPdfText);
       schoolProfileText = `School: ${schoolName}${schoolCity ? `, ${schoolCity}` : ""}${schoolState ? `, ${schoolState}` : ""}.
 Detailed course catalog not available — this school was selected from the national database.
-Analyze based on your knowledge of this school's academic offerings, typical curriculum for a public high school in ${schoolState || "this state"}, and the student's transcript.
+Analyze based on your knowledge of this school's academic offerings, typical curriculum for a high school in ${schoolState || "this state"}, and the student's transcript.
 Focus the gap analysis on whether the student appears to be taking the most rigorous courses available based on the progression shown in their transcript.`;
       console.log(`[SchoolDropdown] Using synthetic profile for: ${schoolName}, ${schoolCity}, ${schoolState}`);
     }

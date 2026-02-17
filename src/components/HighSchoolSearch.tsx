@@ -6,6 +6,7 @@ import { Search, X, School, ChevronDown } from "lucide-react";
 interface SchoolEntry {
   name: string;
   city: string;
+  type?: "public" | "private";
 }
 
 export interface SelectedSchool {
@@ -221,6 +222,11 @@ export function HighSchoolSearch({ onSelect, disabled, initialState }: HighSchoo
                 >
                   <span className="font-medium">{school.name}</span>
                   <span className="text-muted-foreground ml-2">{school.city}</span>
+                  {school.type === "private" && (
+                    <span className="ml-2 inline-block text-[10px] font-medium text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded">
+                      Private
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -236,7 +242,7 @@ export function HighSchoolSearch({ onSelect, disabled, initialState }: HighSchoo
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Don&apos;t see your school? Private and specialized schools may not be listed.
+        Includes public and private schools. Don&apos;t see yours?
         You can skip this and upload your school&apos;s profile PDF below instead.
       </p>
     </div>
