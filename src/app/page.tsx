@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Upload,
-  ListChecks,
+  Search,
   Sparkles,
   CheckCircle2,
   ChevronDown,
@@ -84,19 +84,19 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
               {
-                icon: <Upload className="h-8 w-8 text-teal" />,
-                title: "Upload Documents",
-                desc: "Add your school\u2019s profile and student transcript as PDFs. Optionally add SAT/ACT scores.",
+                icon: <Search className="h-8 w-8 text-teal" />,
+                title: "Find Your School",
+                desc: "Select your state and high school from our database of thousands of public and private schools nationwide.",
               },
               {
-                icon: <ListChecks className="h-8 w-8 text-teal" />,
-                title: "Add Activities",
-                desc: "Select extracurriculars and leadership roles from our database of 100+ activities.",
+                icon: <Upload className="h-8 w-8 text-teal" />,
+                title: "Upload Your Transcript",
+                desc: "Upload a transcript PDF. For the most detailed analysis, you can optionally upload your school\u2019s profile too.",
               },
               {
                 icon: <Sparkles className="h-8 w-8 text-teal" />,
-                title: "Get Your List",
-                desc: "Receive a personalized list of safety, match, and reach schools with admission odds for each.",
+                title: "Get Your Personalized List",
+                desc: "In under a minute, receive safety, match, and reach schools with your estimated admission odds.",
               },
             ].map((card) => (
               <div
