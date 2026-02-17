@@ -13,8 +13,8 @@ import {
 
 const faqs = [
   {
-    q: "What documents do I need?",
-    a: "Your high school\u2019s school profile (PDF) and your student\u2019s transcript (PDF). Test scores are optional but improve accuracy.",
+    q: "What do I need to get started?",
+    a: "Just select your state and high school from our dropdown, then upload your student\u2019s transcript as a PDF. For the best results, you can also upload your school\u2019s profile \u2014 it helps the AI analyze course offerings in more detail. Test scores are optional but improve accuracy.",
   },
   {
     q: "How accurate are the admission odds?",
