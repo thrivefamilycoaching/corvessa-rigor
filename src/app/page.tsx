@@ -90,8 +90,8 @@ export default function LandingPage() {
               },
               {
                 icon: <Upload className="h-8 w-8 text-teal" />,
-                title: "Upload Your Transcript",
-                desc: "Upload a transcript PDF. For the most detailed analysis, you can optionally upload your school\u2019s profile too.",
+                title: "Upload Your Documents",
+                desc: "Upload a transcript PDF to get started. For the best results, upload your school\u2019s profile too \u2014 it helps the AI analyze course offerings and provide more specific recommendations.",
               },
               {
                 icon: <Sparkles className="h-8 w-8 text-teal" />,
