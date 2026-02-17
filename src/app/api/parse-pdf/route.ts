@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
         extractTextFromPDF(schoolProfileBuffer).then(trimPdfText),
         extractTextFromPDF(transcriptBuffer).then(trimPdfText),
       ]);
-      const cappedProfileText = spText.length > 1500 ? spText.slice(0, 1500) + "\n[... remainder of school profile trimmed for efficiency]" : spText;
+      const cappedProfileText = spText.length > 3000 ? spText.slice(0, 3000) + "\n[... remainder of school profile trimmed for efficiency]" : spText;
       schoolProfileText = `School: ${schoolName}${schoolCity ? `, ${schoolCity}` : ""}${schoolState ? `, ${schoolState}` : ""} (confirmed by user).\n\nDetailed course offerings from uploaded school profile:\n${cappedProfileText}`;
       transcriptText = tText;
       console.log(`[Timer] ${elapsed()} — PDF extraction complete (dropdown+PDF, profile: ${spText.length} chars capped to ${cappedProfileText.length})`);
@@ -532,6 +532,7 @@ Focus the gap analysis on whether the student appears to be taking the most rigo
         - Be thorough and strict. It is better to flag a potential missed opportunity than to miss one.
         - A course is "taken" ONLY if its EXACT course title appears in the TRANSCRIPT PDF with an associated grade or mark
         - SOURCE ISOLATION: The School Profile tells you what is OFFERED. The Transcript tells you what is TAKEN. Never copy a course from "offered" into "taken" unless the TRANSCRIPT independently confirms it with a grade
+        - CRITICAL: For the gap analysis, ONLY reference courses that are explicitly listed in the school profile document. Do NOT hallucinate, invent, or assume courses exist based on general knowledge of similar schools. If the school profile does not list specific course offerings, state that detailed course data was not available and skip the missed opportunities for that subject.
 
         ${activitiesText ? `ACTIVITIES & LEADERSHIP SCORING (when activities are provided):
         - Assign a leadershipScore from 1-10 based on:
