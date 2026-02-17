@@ -156,30 +156,54 @@ export async function POST(request: NextRequest) {
     const schoolProfileFile = formData.get("schoolProfile") as File | null;
     const transcriptFile = formData.get("transcript") as File | null;
 
-    if (!schoolProfileFile || !transcriptFile) {
+    // School can be identified by PDF upload OR by name (from dropdown)
+    const schoolName = (formData.get("schoolName") as string) || null;
+    const schoolCity = (formData.get("schoolCity") as string) || null;
+    const schoolState = (formData.get("schoolState") as string) || null;
+
+    if (!schoolProfileFile && !schoolName) {
       return NextResponse.json(
-        { error: "Both School Profile and Student Transcript are required" },
+        { error: "Either a School Profile PDF or a school selection is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!transcriptFile) {
+      return NextResponse.json(
+        { error: "Student Transcript is required" },
         { status: 400 }
       );
     }
 
     const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-    if (schoolProfileFile.size > MAX_FILE_SIZE || transcriptFile.size > MAX_FILE_SIZE) {
+    if (schoolProfileFile && schoolProfileFile.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { error: "Each file must be under 10MB" },
+        { error: "School profile file must be under 10MB" },
+        { status: 400 }
+      );
+    }
+    if (transcriptFile.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: "Transcript file must be under 10MB" },
         { status: 400 }
       );
     }
 
-    if (schoolProfileFile.type !== "application/pdf" || transcriptFile.type !== "application/pdf") {
+    if (schoolProfileFile && schoolProfileFile.type !== "application/pdf") {
       return NextResponse.json(
-        { error: "Only PDF files are accepted" },
+        { error: "Only PDF files are accepted for school profile" },
+        { status: 400 }
+      );
+    }
+    if (transcriptFile.type !== "application/pdf") {
+      return NextResponse.json(
+        { error: "Only PDF files are accepted for transcript" },
         { status: 400 }
       );
     }
 
     // Extract home state from formData (may not be sent by parent portal yet)
-    const homeState = (formData.get("homeState") as string) || null;
+    const homeState = (formData.get("homeState") as string) || schoolState || null;
 
     // Extract test scores from formData
     const testScores: TestScores = {};
@@ -211,14 +235,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Extract text from PDFs
-    const schoolProfileBuffer = Buffer.from(await schoolProfileFile.arrayBuffer());
+    // Extract text from PDFs (school profile is optional if school was selected from dropdown)
     const transcriptBuffer = Buffer.from(await transcriptFile.arrayBuffer());
 
-    const [schoolProfileText, transcriptText] = await Promise.all([
-      extractTextFromPDF(schoolProfileBuffer).then(trimPdfText),
-      extractTextFromPDF(transcriptBuffer).then(trimPdfText),
-    ]);
+    let schoolProfileText: string;
+    let transcriptText: string;
+
+    if (schoolProfileFile) {
+      // PDF upload takes priority — richest data source
+      const schoolProfileBuffer = Buffer.from(await schoolProfileFile.arrayBuffer());
+      const [spText, tText] = await Promise.all([
+        extractTextFromPDF(schoolProfileBuffer).then(trimPdfText),
+        extractTextFromPDF(transcriptBuffer).then(trimPdfText),
+      ]);
+      schoolProfileText = spText;
+      transcriptText = tText;
+    } else {
+      // No PDF — generate synthetic profile from dropdown selection
+      transcriptText = await extractTextFromPDF(transcriptBuffer).then(trimPdfText);
+      schoolProfileText = `School: ${schoolName}${schoolCity ? `, ${schoolCity}` : ""}${schoolState ? `, ${schoolState}` : ""}.
+Detailed course catalog not available — this school was selected from the national database.
+Analyze based on your knowledge of this school's academic offerings, typical curriculum for a public high school in ${schoolState || "this state"}, and the student's transcript.
+Focus the gap analysis on whether the student appears to be taking the most rigorous courses available based on the progression shown in their transcript.`;
+      console.log(`[SchoolDropdown] Using synthetic profile for: ${schoolName}, ${schoolCity}, ${schoolState}`);
+    }
 
     // Initialize OpenAI client
     const openai = new OpenAI({

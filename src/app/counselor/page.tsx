@@ -12,6 +12,7 @@ import {
   X,
   AlertCircle,
   ArrowRight,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AnalysisResult } from "@/lib/types";
@@ -23,6 +24,7 @@ import { RecommendedSchools } from "@/components/RecommendedSchools";
 import { GapAnalysis } from "@/components/GapAnalysis";
 import { ActivitiesInput } from "@/components/ActivitiesInput";
 import { ActivitiesProfile } from "@/components/ActivitiesProfile";
+import { HighSchoolSearch, type SelectedSchool } from "@/components/HighSchoolSearch";
 
 
 interface TestScores {
@@ -56,6 +58,7 @@ export default function MySchoolListCounselor() {
   const [schoolProfile, setSchoolProfile] = useState<File | null>(null);
   const [transcript, setTranscript] = useState<File | null>(null);
   const [homeState, setHomeState] = useState("");
+  const [selectedSchool, setSelectedSchool] = useState<SelectedSchool | null>(null);
   const [testScores, setTestScores] = useState<TestScores>({
     satReading: "",
     satMath: "",
@@ -92,7 +95,7 @@ export default function MySchoolListCounselor() {
   });
 
   const handleAnalyze = async () => {
-    if (!schoolProfile || !transcript) return;
+    if ((!schoolProfile && !selectedSchool) || !transcript) return;
 
     setIsProcessing(true);
     setError(null);
@@ -100,8 +103,17 @@ export default function MySchoolListCounselor() {
 
     try {
       const formData = new FormData();
-      formData.append("schoolProfile", schoolProfile);
+      if (schoolProfile) {
+        formData.append("schoolProfile", schoolProfile);
+      }
       formData.append("transcript", transcript);
+
+      // Send selected school info for dropdown-based analysis
+      if (selectedSchool) {
+        formData.append("schoolName", selectedSchool.name);
+        formData.append("schoolCity", selectedSchool.city);
+        formData.append("schoolState", selectedSchool.state);
+      }
 
       if (homeState) {
         formData.append("homeState", homeState);
@@ -160,7 +172,7 @@ export default function MySchoolListCounselor() {
     return rw + m > 0 ? rw + m : null;
   };
 
-  const canAnalyze = schoolProfile && transcript && !isProcessing;
+  const canAnalyze = (schoolProfile || selectedSchool) && transcript && !isProcessing;
 
   return (
     <div className="min-h-screen bg-warmgray-50">
@@ -190,6 +202,31 @@ export default function MySchoolListCounselor() {
         {/* Upload Section */}
         <section className="mb-8">
           <h2 className="mb-4 text-lg font-semibold text-charcoal">Upload Documents & Enter Scores</h2>
+
+          {/* High School Search */}
+          <div className="mb-6">
+            <label className="mb-2 block text-sm font-medium">
+              Find Student&apos;s High School
+            </label>
+            <HighSchoolSearch
+              onSelect={(school) => {
+                setSelectedSchool(school);
+                if (school) setHomeState(school.state);
+              }}
+              disabled={isProcessing}
+              initialState={homeState}
+            />
+          </div>
+
+          {/* Encouragement to upload PDF when school selected from dropdown */}
+          {selectedSchool && !schoolProfile && (
+            <div className="mb-6 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+              <Info className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-900 leading-relaxed">
+                For the most detailed analysis including course-specific recommendations, upload the school&apos;s profile PDF as well. This is usually available on the school&apos;s website or from the guidance office.
+              </p>
+            </div>
+          )}
 
           {/* Home State Selector */}
           <div className="mb-6">
@@ -284,7 +321,9 @@ export default function MySchoolListCounselor() {
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
                         <FileText className="h-5 w-5 text-muted-foreground" />
                       </div>
-                      <p className="mt-2 text-sm font-medium">School Profile</p>
+                      <p className="mt-2 text-sm font-medium">
+                        School Profile {selectedSchool ? <span className="text-muted-foreground font-normal">(Optional)</span> : null}
+                      </p>
                       <p className="mt-1 text-center text-xs text-muted-foreground">
                         Drag & drop or click — PDF only
                       </p>
