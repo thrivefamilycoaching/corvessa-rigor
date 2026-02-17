@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
         extractTextFromPDF(schoolProfileBuffer).then(trimPdfText),
         extractTextFromPDF(transcriptBuffer).then(trimPdfText),
       ]);
-      const cappedProfileText = spText.length > 3000 ? spText.slice(0, 3000) + "\n[... remainder of school profile trimmed for efficiency]" : spText;
+      const cappedProfileText = spText.length > 1500 ? spText.slice(0, 1500) + "\n[... remainder of school profile trimmed for efficiency]" : spText;
       schoolProfileText = `School: ${schoolName}${schoolCity ? `, ${schoolCity}` : ""}${schoolState ? `, ${schoolState}` : ""} (confirmed by user).\n\nDetailed course offerings from uploaded school profile:\n${cappedProfileText}`;
       transcriptText = tText;
       console.log(`[Timer] ${elapsed()} — PDF extraction complete (dropdown+PDF, profile: ${spText.length} chars capped to ${cappedProfileText.length})`);
@@ -288,7 +288,7 @@ Focus the gap analysis on whether the student appears to be taking the most rigo
     // Initialize OpenAI client
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
-      timeout: 120_000, // 120-second hard timeout on all OpenAI calls
+      timeout: 240_000, // 240-second hard timeout on all OpenAI calls
     });
 
     // Generate analysis using OpenAI

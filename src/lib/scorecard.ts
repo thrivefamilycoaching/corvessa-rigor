@@ -157,30 +157,41 @@ interface ScorecardResponse {
 // If a school matches this list, it is ALWAYS "Reach" for any student with
 // GPA ≤ 3.7. No Match. No Safety. No exceptions. This is the rulebook.
 
-const ELITE_TOP_30 = [
-  "Princeton", "MIT", "Massachusetts Institute of Technology",
-  "Harvard", "Stanford", "Yale",
-  "University of Chicago", "UChicago",
-  "Duke", "Johns Hopkins",
-  "Northwestern", "University of Pennsylvania", "Penn", "UPenn",
-  "Caltech", "California Institute of Technology",
-  "Cornell", "Brown", "Dartmouth", "Columbia",
-  "UC Berkeley", "University of California, Berkeley",
-  "Rice", "UCLA", "University of California, Los Angeles",
-  "Vanderbilt", "Carnegie Mellon", "CMU",
-  "University of Michigan", "Notre Dame", "University of Notre Dame",
-  "Washington University", "WashU", "WUSTL",
-  "Emory", "Georgetown",
-  "University of North Carolina", "UNC",
-  "University of Virginia", "UVA",
-  "University of Southern California", "USC",
-  "UC San Diego", "University of California, San Diego",
-  "University of Florida",
-];
+const ELITE_TOP_30 = new Set([
+  "princeton university",
+  "massachusetts institute of technology", "mit",
+  "harvard university",
+  "stanford university",
+  "yale university",
+  "university of chicago",
+  "duke university",
+  "johns hopkins university",
+  "northwestern university",
+  "university of pennsylvania",
+  "california institute of technology", "caltech",
+  "cornell university",
+  "brown university",
+  "dartmouth college",
+  "columbia university",
+  "university of california, berkeley", "uc berkeley",
+  "rice university",
+  "university of california, los angeles", "ucla",
+  "vanderbilt university",
+  "carnegie mellon university",
+  "university of michigan",
+  "university of notre dame", "notre dame",
+  "washington university in st. louis", "washu",
+  "emory university",
+  "georgetown university",
+  "university of north carolina at chapel hill", "unc chapel hill",
+  "university of virginia",
+  "university of southern california",
+  "university of california, san diego", "uc san diego",
+  "university of florida",
+]);
 
 export function isTop30Elite(name: string): boolean {
-  const lower = name.toLowerCase();
-  return ELITE_TOP_30.some((e) => lower.includes(e.toLowerCase()));
+  return ELITE_TOP_30.has(name.toLowerCase().trim());
 }
 
 // ── Name variants for API search ─────────────────────────────────────────────
