@@ -259,12 +259,14 @@ const RAW: R[] = [
   ["Creighton University", "creighton.edu", "NE", 4500, 0.65, "Test Optional"],
   ["Xavier University", "xavier.edu", "OH", 5200, 0.78, "Test Optional"],
   ["DePaul University", "depaul.edu", "IL", 13000, 0.70, "Test Optional"],
+  ["University of Chicago", "uchicago.edu", "IL", 7500, 0.05, "Test Required"],
   ["Loyola University Chicago", "luc.edu", "IL", 12000, 0.67, "Test Optional"],
   ["Drake University", "drake.edu", "IA", 5000, 0.68, "Test Optional"],
   ["Bradley University", "bradley.edu", "IL", 5000, 0.72, "Test Optional"],
   ["Valparaiso University", "valpo.edu", "IN", 4500, 0.82, "Test Optional"],
 
   // West — Medium
+  ["California Institute of Technology", "caltech.edu", "CA", 1000, 0.03, "Test Required"],
   ["Stanford University", "stanford.edu", "CA", 8100, 0.04, "Test Required"],
   ["Santa Clara University", "scu.edu", "CA", 6200, 0.49, "Test Optional"],
   ["Pepperdine University", "pepperdine.edu", "CA", 5500, 0.37, "Test Optional"],
@@ -772,6 +774,8 @@ const NCAA_DIVISIONS: Record<string, string> = {
   "Nebraska Wesleyan University": "DIII",
   // NEWMAC & NE DIII
   "MIT": "DIII",
+  "University of Chicago": "DIII",
+  "California Institute of Technology": "DIII",
   "Wellesley College": "DIII",
   "Smith College": "DIII",
   "Mount Holyoke College": "DIII",

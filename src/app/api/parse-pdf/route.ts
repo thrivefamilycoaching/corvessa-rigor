@@ -6,6 +6,7 @@ import type { AnalysisResult, TestScores, RecommendedSchool } from "@/lib/types"
 import { enrichSchoolsWithScorecardData, getEnrollmentSize, deduplicateByName, fillGapsFromScorecard } from "@/lib/scorecard";
 import { isTestRequiredSchool, TEST_REQUIRED_SCHOOLS, getSchoolRegion } from "@/lib/constants";
 import { SCHOOLS_DATABASE } from "@/lib/schoolDatabase";
+import { isTop30Elite } from "@/lib/scorecard";
 import { getServiceClient } from "@/lib/supabase";
 import { hmacHash } from "@/lib/encryption";
 
@@ -886,6 +887,31 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
         if (s.acceptanceProbability < 30) s.type = "reach";
         else if (s.acceptanceProbability > 65) s.type = "safety";
         else s.type = "match";
+      }
+      return s;
+    });
+
+    // ── Elite school safety net ──────────────────────────────────────────
+    // Top-30 elite schools (sub-10% admit rate) must ALWAYS be Reach.
+    // If AI hallucinated high odds or enrichment timed out, force correct values.
+    // Also cap odds for any school in the database with admitRate < 0.15.
+    const dbByNameLower = new Map(SCHOOLS_DATABASE.map((r) => [r.name.toLowerCase(), r]));
+    analysis.recommendedSchools = analysis.recommendedSchools.map((s: any) => {
+      // Check 1: ELITE_TOP_30 — always Reach, cap at 18%
+      if (isTop30Elite(s.name)) {
+        if (s.type !== "reach" || s.acceptanceProbability > 18) {
+          console.log(`[EliteGuard] ${s.name}: was ${s.type}@${s.acceptanceProbability}% → reach@${Math.min(s.acceptanceProbability ?? 10, 18)}%`);
+          s.acceptanceProbability = Math.min(s.acceptanceProbability ?? 10, 18);
+          s.type = "reach";
+        }
+        return s;
+      }
+      // Check 2: Any school in DB with admitRate < 0.15 — cap at 25%, force Reach
+      const dbRec = dbByNameLower.get(s.name.toLowerCase());
+      if (dbRec && dbRec.admitRate < 0.15 && (s.type !== "reach" || s.acceptanceProbability > 25)) {
+        console.log(`[EliteGuard] ${s.name}: admitRate=${dbRec.admitRate}, was ${s.type}@${s.acceptanceProbability}% → reach@${Math.min(s.acceptanceProbability ?? 15, 25)}%`);
+        s.acceptanceProbability = Math.min(s.acceptanceProbability ?? 15, 25);
+        s.type = "reach";
       }
       return s;
     });
