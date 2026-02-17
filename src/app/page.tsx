@@ -9,6 +9,8 @@ import {
   CheckCircle2,
   ChevronDown,
   ShieldCheck,
+  Instagram,
+  Linkedin,
 } from "lucide-react";
 
 const faqs = [
@@ -402,7 +404,15 @@ export default function LandingPage() {
             <span className="hidden sm:inline">|</span>
             <a href="mailto:info@corvessapartners.com" className="hover:text-white transition-colors">Contact: info@corvessapartners.com</a>
           </div>
-          <p className="mt-6 text-xs text-warmgray-200">
+          <div className="mt-6 flex items-center justify-center gap-4">
+            <a href="https://instagram.com/myschoollist" target="_blank" rel="noopener noreferrer" className="text-warmgray-300 hover:text-white transition-colors">
+              <Instagram className="h-5 w-5" />
+            </a>
+            <a href="https://linkedin.com/in/peteryoung-va" target="_blank" rel="noopener noreferrer" className="text-warmgray-300 hover:text-white transition-colors">
+              <Linkedin className="h-5 w-5" />
+            </a>
+          </div>
+          <p className="mt-4 text-xs text-warmgray-200">
             &copy; 2026 Corvessa Partners LLC. All rights reserved.
           </p>
         </div>
