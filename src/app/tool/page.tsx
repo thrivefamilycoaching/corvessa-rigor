@@ -15,6 +15,7 @@ import {
   KeyRound,
   Loader2,
   Info,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AnalysisResult } from "@/lib/types";
@@ -343,6 +344,7 @@ function ToolContent({
   const [manualGPA, setManualGPA] = useState("");
   const [schoolCount, setSchoolCount] = useState(9);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [showSchoolProfileUpload, setShowSchoolProfileUpload] = useState(false);
 
   const onDropSchoolProfile = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles[0]) setSchoolProfile(acceptedFiles[0]);
@@ -367,7 +369,7 @@ function ToolContent({
   });
 
   const handleAnalyze = async () => {
-    if ((!schoolProfile && !selectedSchool) || !transcript) return;
+    if (!selectedSchool || !transcript) return;
 
     // Check analyses remaining
     if (analysesRemaining <= 0) {
@@ -476,7 +478,7 @@ function ToolContent({
     return rw + m > 0 ? rw + m : null;
   };
 
-  const canAnalyze = (schoolProfile || selectedSchool) && transcript && !isProcessing;
+  const canAnalyze = selectedSchool && transcript && !isProcessing;
 
   return (
     <div className="min-h-screen bg-warmgray-50">
@@ -509,8 +511,8 @@ function ToolContent({
         {/* Header */}
         <div className="mb-8 text-center">
           <p className="mx-auto max-w-2xl text-muted-foreground">
-            Upload the school profile, your child&apos;s transcript, and test scores
-            to analyze course rigor and to discover personalized college recommendations.
+            Find your high school, upload your transcript, and enter test scores
+            to analyze course rigor and discover personalized college recommendations.
           </p>
         </div>
 
@@ -533,16 +535,6 @@ function ToolContent({
             />
           </div>
 
-          {/* Encouragement to upload PDF when school selected from dropdown */}
-          {selectedSchool && !schoolProfile && (
-            <div className="mb-6 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-              <Info className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-amber-900 leading-relaxed">
-                For the most detailed analysis including course-specific recommendations, upload your school&apos;s profile PDF as well. You can usually find this on your school&apos;s website or request it from your guidance counselor.
-              </p>
-            </div>
-          )}
-
           {/* Home State Selector */}
           <div className="mb-6">
             <label className="mb-1 block text-sm font-medium">
@@ -559,38 +551,59 @@ function ToolContent({
             </select>
           </div>
 
-          {/* GPA Override & School Count */}
-          <div className="mb-6 flex flex-wrap gap-6">
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                GPA Override <span className="text-xs text-muted-foreground">(optional — use if tool misreads transcript)</span>
-              </label>
-              <input
-                type="number"
-                step={0.01}
-                min={0}
-                max={4.0}
-                placeholder="e.g. 3.45"
-                value={manualGPA}
-                onChange={(e) => setManualGPA(e.target.value)}
-                className="w-full max-w-[180px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Number of Schools to Display
-              </label>
-              <select
-                value={schoolCount}
-                onChange={(e) => setSchoolCount(parseInt(e.target.value))}
-                className="w-full max-w-[180px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              >
-                <option value={9}>9 (3/3/3)</option>
-                <option value={12}>12 (4/4/4)</option>
-                <option value={15}>15 (5/5/5)</option>
-                <option value={18}>18 (6/6/6)</option>
-              </select>
-            </div>
+          {/* Student Transcript Upload — prominent full-width card */}
+          <div className="mb-6">
+            <label className="mb-2 block text-sm font-medium">Upload Student Transcript</label>
+            <Card>
+              <CardContent className="pt-6">
+                <div
+                  {...transcriptDropzone.getRootProps()}
+                  className={cn(
+                    "relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 transition-colors cursor-pointer",
+                    transcriptDropzone.isDragActive
+                      ? "border-primary bg-primary/5"
+                      : "border-muted-foreground/25 hover:border-primary/50",
+                    isProcessing && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <input {...transcriptDropzone.getInputProps()} />
+                  {transcript ? (
+                    <>
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal/10">
+                        <Check className="h-5 w-5 text-teal" />
+                      </div>
+                      <p className="mt-2 text-sm font-medium">{transcript.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {(transcript.size / 1024).toFixed(1)} KB
+                      </p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="mt-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTranscript(null);
+                        }}
+                        disabled={isProcessing}
+                      >
+                        <X className="mr-1 h-4 w-4" />
+                        Remove
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                        <FileText className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <p className="mt-2 text-sm font-medium">Student Transcript</p>
+                      <p className="mt-1 text-center text-xs text-muted-foreground">
+                        Drag & drop or click — PDF only
+                      </p>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Test Scores */}
@@ -643,112 +656,110 @@ function ToolContent({
             </div>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* School Profile Upload */}
-            <Card>
-              <CardContent className="pt-6">
-                <div
-                  {...schoolProfileDropzone.getRootProps()}
-                  className={cn(
-                    "relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 transition-colors cursor-pointer",
-                    schoolProfileDropzone.isDragActive
-                      ? "border-primary bg-primary/5"
-                      : "border-muted-foreground/25 hover:border-primary/50",
-                    isProcessing && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  <input {...schoolProfileDropzone.getInputProps()} />
-                  {schoolProfile ? (
-                    <>
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal/10">
-                        <Check className="h-5 w-5 text-teal" />
-                      </div>
-                      <p className="mt-2 text-sm font-medium">{schoolProfile.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {(schoolProfile.size / 1024).toFixed(1)} KB
-                      </p>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="mt-1"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSchoolProfile(null);
-                        }}
-                        disabled={isProcessing}
-                      >
-                        <X className="mr-1 h-4 w-4" />
-                        Remove
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                        <FileText className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                      <p className="mt-2 text-sm font-medium">
-                        School Profile {selectedSchool ? <span className="text-muted-foreground font-normal">(Optional)</span> : null}
-                      </p>
-                      <p className="mt-1 text-center text-xs text-muted-foreground">
-                        Drag & drop or click — PDF only
-                      </p>
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+          {/* GPA Override & School Count */}
+          <div className="mb-6 flex flex-wrap gap-6">
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                GPA Override <span className="text-xs text-muted-foreground">(optional — use if tool misreads transcript)</span>
+              </label>
+              <input
+                type="number"
+                step={0.01}
+                min={0}
+                max={4.0}
+                placeholder="e.g. 3.45"
+                value={manualGPA}
+                onChange={(e) => setManualGPA(e.target.value)}
+                className="w-full max-w-[180px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                Number of Schools to Display
+              </label>
+              <select
+                value={schoolCount}
+                onChange={(e) => setSchoolCount(parseInt(e.target.value))}
+                className="w-full max-w-[180px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value={9}>9 (3/3/3)</option>
+                <option value={12}>12 (4/4/4)</option>
+                <option value={15}>15 (5/5/5)</option>
+                <option value={18}>18 (6/6/6)</option>
+              </select>
+            </div>
+          </div>
 
-            {/* Student Transcript Upload */}
-            <Card>
-              <CardContent className="pt-6">
-                <div
-                  {...transcriptDropzone.getRootProps()}
-                  className={cn(
-                    "relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 transition-colors cursor-pointer",
-                    transcriptDropzone.isDragActive
-                      ? "border-primary bg-primary/5"
-                      : "border-muted-foreground/25 hover:border-primary/50",
-                    isProcessing && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  <input {...transcriptDropzone.getInputProps()} />
-                  {transcript ? (
-                    <>
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal/10">
-                        <Check className="h-5 w-5 text-teal" />
-                      </div>
-                      <p className="mt-2 text-sm font-medium">{transcript.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {(transcript.size / 1024).toFixed(1)} KB
-                      </p>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="mt-1"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setTranscript(null);
-                        }}
-                        disabled={isProcessing}
-                      >
-                        <X className="mr-1 h-4 w-4" />
-                        Remove
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                        <FileText className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                      <p className="mt-2 text-sm font-medium">Student Transcript</p>
-                      <p className="mt-1 text-center text-xs text-muted-foreground">
-                        Drag & drop or click — PDF only
-                      </p>
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+          {/* Collapsible School Profile Upload */}
+          <div className="mb-6">
+            <button
+              type="button"
+              onClick={() => setShowSchoolProfileUpload(!showSchoolProfileUpload)}
+              className="flex items-center gap-2 text-sm font-medium text-teal hover:text-teal-dark transition-colors"
+            >
+              <ChevronDown className={cn("h-4 w-4 transition-transform", showSchoolProfileUpload && "rotate-180")} />
+              Want more detailed results?
+              {schoolProfile && <Check className="h-4 w-4 text-teal" />}
+            </button>
+            {(showSchoolProfileUpload || schoolProfile) && (
+              <div className="mt-3">
+                <p className="mb-3 text-sm text-muted-foreground">
+                  Upload your school&apos;s profile PDF for course-specific recommendations and detailed gap analysis. This may increase processing time.
+                </p>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div
+                      {...schoolProfileDropzone.getRootProps()}
+                      className={cn(
+                        "relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 transition-colors cursor-pointer",
+                        schoolProfileDropzone.isDragActive
+                          ? "border-primary bg-primary/5"
+                          : "border-muted-foreground/25 hover:border-primary/50",
+                        isProcessing && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      <input {...schoolProfileDropzone.getInputProps()} />
+                      {schoolProfile ? (
+                        <>
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal/10">
+                            <Check className="h-5 w-5 text-teal" />
+                          </div>
+                          <p className="mt-2 text-sm font-medium">{schoolProfile.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {(schoolProfile.size / 1024).toFixed(1)} KB
+                          </p>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="mt-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSchoolProfile(null);
+                            }}
+                            disabled={isProcessing}
+                          >
+                            <X className="mr-1 h-4 w-4" />
+                            Remove
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                            <FileText className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                          <p className="mt-2 text-sm font-medium">
+                            School Profile <span className="text-muted-foreground font-normal">(Optional)</span>
+                          </p>
+                          <p className="mt-1 text-center text-xs text-muted-foreground">
+                            Drag & drop or click — PDF only
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </div>
 
           {/* Extracurricular Activities */}
