@@ -119,8 +119,12 @@ function trimPdfText(raw: string): string {
 }
 
 export async function POST(request: NextRequest) {
+  const t0 = Date.now();
+  const elapsed = () => `${((Date.now() - t0) / 1000).toFixed(1)}s`;
+
   try {
     const formData = await request.formData();
+    console.log(`[Timer] Request started`);
 
     // ── Access code authentication ──────────────────────────────────
     const accessCode = formData.get("accessCode") as string | null;
@@ -236,6 +240,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract text from PDFs (school profile is optional if school was selected from dropdown)
+    console.log(`[Timer] ${elapsed()} — Starting PDF extraction`);
     const transcriptBuffer = Buffer.from(await transcriptFile.arrayBuffer());
 
     let schoolProfileText: string;
@@ -252,7 +257,7 @@ export async function POST(request: NextRequest) {
       const cappedProfileText = spText.length > 3000 ? spText.slice(0, 3000) + "\n[... remainder of school profile trimmed for efficiency]" : spText;
       schoolProfileText = `School: ${schoolName}${schoolCity ? `, ${schoolCity}` : ""}${schoolState ? `, ${schoolState}` : ""} (confirmed by user).\n\nDetailed course offerings from uploaded school profile:\n${cappedProfileText}`;
       transcriptText = tText;
-      console.log(`[SchoolDropdown+PDF] Using dropdown identity + PDF course details for: ${schoolName}, ${schoolCity}, ${schoolState} (profile text: ${spText.length} chars, capped to ${cappedProfileText.length})`);
+      console.log(`[Timer] ${elapsed()} — PDF extraction complete (dropdown+PDF, profile: ${spText.length} chars capped to ${cappedProfileText.length})`);
     } else if (schoolProfileFile) {
       // PDF only — original flow
       const schoolProfileBuffer = Buffer.from(await schoolProfileFile.arrayBuffer());
@@ -262,6 +267,7 @@ export async function POST(request: NextRequest) {
       ]);
       schoolProfileText = spText;
       transcriptText = tText;
+      console.log(`[Timer] ${elapsed()} — PDF extraction complete (PDF-only, profile: ${spText.length} chars)`);
     } else {
       // No PDF — generate synthetic profile from dropdown selection
       transcriptText = await extractTextFromPDF(transcriptBuffer).then(trimPdfText);
@@ -269,15 +275,23 @@ export async function POST(request: NextRequest) {
 Detailed course catalog not available — this school was selected from the national database.
 Analyze based on your knowledge of this school's academic offerings, typical curriculum for a high school in ${schoolState || "this state"}, and the student's transcript.
 Focus the gap analysis on whether the student appears to be taking the most rigorous courses available based on the progression shown in their transcript.`;
-      console.log(`[SchoolDropdown] Using synthetic profile for: ${schoolName}, ${schoolCity}, ${schoolState}`);
+      console.log(`[Timer] ${elapsed()} — PDF extraction complete (dropdown-only, transcript: ${transcriptText.length} chars)`);
     }
+
+    // When the school was identified via dropdown, the full 500+ school database
+    // gets merged in later — so we only need 15 AI-generated seeds (cuts output
+    // tokens roughly in half and speeds up the OpenAI call significantly).
+    const aiSchoolCount = schoolName ? 15 : 30;
+    const aiSchoolPerType = schoolName ? 5 : 10;
 
     // Initialize OpenAI client
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
+      timeout: 120_000, // 120-second hard timeout on all OpenAI calls
     });
 
     // Generate analysis using OpenAI
+    console.log(`[Timer] ${elapsed()} — Starting OpenAI call (model: gpt-4o-mini)`);
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -386,10 +400,10 @@ Focus the gap analysis on whether the student appears to be taking the most rigo
 
         For recommendedSchools:
         - Conduct a NATIONAL search across the entire United States - do NOT limit to any single state or region
-        - Generate exactly 30 recommended colleges in the recommendedSchools array:
-          * 10 reach, 10 match, 10 safety
-          * At least 2 schools per region (Northeast, Mid-Atlantic, South, Midwest, West) — that's at least 10 schools spread across regions
-          * At least 2 schools per size category (Micro, Small, Medium, Large, Mega) — that's at least 10 schools spread across sizes
+        - Generate exactly ${aiSchoolCount} recommended colleges in the recommendedSchools array:
+          * ${aiSchoolPerType} reach, ${aiSchoolPerType} match, ${aiSchoolPerType} safety
+          * At least 2 schools per region (Northeast, Mid-Atlantic, South, Midwest, West)
+          * At least 2 schools per size category (Micro, Small, Medium, Large, Mega)
           * Every region+size combination does not need to be covered, but ensure broad coverage
         - This large pool allows client-side filtering. The UI will show 9 schools (3/3/3) from this pool.
         - Specifically value independent school rigor and challenging curricula
@@ -565,6 +579,7 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
       temperature: 0.3,
     });
 
+    console.log(`[Timer] ${elapsed()} — OpenAI call complete`);
     const content = response.choices[0]?.message?.content;
     if (!content) {
       return NextResponse.json(
@@ -574,6 +589,7 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
     }
 
     const analysis = JSON.parse(content) as AnalysisResult;
+    console.log(`[Timer] ${elapsed()} — Response parsed (${analysis.recommendedSchools?.length ?? 0} AI schools)`);
 
     // Apply manual GPA override if provided
     if (manualGPA > 0) {
@@ -700,6 +716,7 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
     }
 
     // Enrich all schools with Scorecard data (test policy, odds) but do NOT reduce to 9
+    console.log(`[Timer] ${elapsed()} — Starting Scorecard enrichment`);
     const studentProfile = {
       testScores,
       gpa: analysis.recalculatedGPA,
@@ -713,9 +730,9 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
 
     if (enrichedPool) {
       analysis.recommendedSchools = enrichedPool;
-      console.log("[Enrichment] Enriched pool:", analysis.recommendedSchools.length, "schools");
+      console.log(`[Timer] ${elapsed()} — Enrichment complete (${analysis.recommendedSchools.length} schools)`);
     } else {
-      console.log("[Enrichment] Timeout, keeping unenriched pool");
+      console.log(`[Timer] ${elapsed()} — Enrichment timeout, keeping unenriched pool`);
     }
 
     // ── Final metadata re-correction + dedup ────────────
@@ -738,6 +755,7 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
     }
 
     // ── Merge SCHOOLS_DATABASE into pool ────────────────────────────────
+    console.log(`[Timer] ${elapsed()} — Starting database merge`);
     const gptNames = new Set(
       analysis.recommendedSchools.map((s: any) => s.name.toLowerCase())
     );
@@ -893,9 +911,10 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
       programs: { ...DEFAULT_PROGRAMS, ...(s.programs || {}) },
     }));
 
+    console.log(`[Timer] ${elapsed()} — Sending response (${analysis.recommendedSchools.length} total schools)`);
     return NextResponse.json(analysis);
   } catch (error) {
-    console.error("Analysis error:", error);
+    console.error(`[Timer] ${elapsed()} — CAUGHT ERROR:`, error);
 
     // Always return valid JSON — never let Next.js fall through to an HTML
     // error page.
