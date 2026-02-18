@@ -17,8 +17,28 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "My School List",
-  description: "Analyze student course rigor, generate counselor narratives, and discover personalized college recommendations",
+  title: "My School List — AI-Powered College Recommendations Based on Your Transcript",
+  description:
+    "Upload your high school transcript and get personalized college recommendations with real admission odds. Safety, match, and reach schools in under a minute. Starting at $19.",
+  keywords:
+    "college recommendations, college list, admission odds, college admissions tool, AI college counselor, safety match reach schools, transcript analysis, course rigor, college search, personalized college list",
+  alternates: {
+    canonical: "https://getmyschoollist.com",
+  },
+  openGraph: {
+    title: "My School List — Your Personalized College List in Minutes",
+    description:
+      "Upload a transcript. Get safety, match, and reach schools with real admission odds. AI-powered college recommendations starting at $19.",
+    type: "website",
+    url: "https://getmyschoollist.com",
+    siteName: "My School List",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "My School List — Your Personalized College List in Minutes",
+    description:
+      "Upload a transcript. Get safety, match, and reach schools with real admission odds.",
+  },
 };
 
 export default function RootLayout({
