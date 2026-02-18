@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Upload,
@@ -11,7 +11,18 @@ import {
   ShieldCheck,
   Instagram,
   Linkedin,
+  Menu,
+  X,
 } from "lucide-react";
+
+const navLinks = [
+  { label: "How It Works", href: "#how-it-works" },
+  { label: "See It in Action", href: "#see-it-in-action" },
+  { label: "What's In Your Report", href: "#whats-in-your-report" },
+  { label: "Testimonials", href: "#testimonials" },
+  { label: "Pricing", href: "#pricing" },
+  { label: "FAQ", href: "#faq" },
+];
 
 const faqs = [
   {
@@ -42,45 +53,151 @@ const faqs = [
 
 export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 10);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollTo = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    href: string
+  ) => {
+    e.preventDefault();
+    setMobileMenuOpen(false);
+    const el = document.querySelector(href);
+    if (el) el.scrollIntoView({ behavior: "smooth" });
+  };
 
   return (
     <div className="min-h-screen font-sans text-charcoal">
-      {/* SECTION 1 — HERO */}
-      <section className="min-h-screen bg-warmgray-50 flex flex-col">
-        {/* Header */}
-        <header className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto w-full">
-          <span className="text-2xl font-bold text-teal">My School List</span>
-          <Link
-            href="/tool"
-            className="bg-teal text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-teal-dark transition-colors"
+      {/* STICKY NAV */}
+      <nav
+        className={`fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-warmgray-200 transition-shadow ${
+          scrolled ? "shadow-md" : ""
+        }`}
+      >
+        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between h-16">
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className="text-3xl font-extrabold text-teal tracking-tight"
           >
-            Get Started
-          </Link>
-        </header>
+            My School List
+          </a>
 
-        {/* Hero Content */}
-        <div className="flex-1 flex flex-col items-center justify-center text-center px-4 pb-16">
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold max-w-4xl leading-tight">
+          {/* Desktop links */}
+          <div className="hidden lg:flex items-center gap-6">
+            {navLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                onClick={(e) => scrollTo(e, link.href)}
+                className="text-sm font-medium text-charcoal hover:text-teal transition-colors"
+              >
+                {link.label}
+              </a>
+            ))}
+            <Link
+              href="/tool"
+              className="ml-2 bg-teal text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-teal-dark transition-colors"
+            >
+              Get Started
+            </Link>
+          </div>
+
+          {/* Mobile hamburger */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="lg:hidden p-2 text-charcoal"
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
+          </button>
+        </div>
+
+        {/* Mobile dropdown */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden bg-white border-t border-warmgray-200 px-6 py-4 space-y-3">
+            {navLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                onClick={(e) => scrollTo(e, link.href)}
+                className="block text-sm font-medium text-charcoal hover:text-teal transition-colors py-1"
+              >
+                {link.label}
+              </a>
+            ))}
+            <Link
+              href="/tool"
+              className="block text-center bg-teal text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-teal-dark transition-colors mt-3"
+            >
+              Get Started
+            </Link>
+          </div>
+        )}
+      </nav>
+
+      {/* SECTION 1 — HERO */}
+      <section className="bg-warmgray-50 pt-28 pb-14 md:pt-36 md:pb-20">
+        <div className="max-w-4xl mx-auto text-center px-4">
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight">
             Your Personalized College List in Minutes
           </h1>
-          <p className="mt-6 text-xl md:text-2xl font-semibold max-w-3xl">
-            Find the right colleges for your child &mdash; with real admission odds based on an actual transcript.
+          <p className="mt-6 text-xl md:text-2xl font-semibold max-w-3xl mx-auto">
+            Find the right colleges for your child &mdash; with real admission
+            odds based on an actual transcript.
           </p>
           <a
-            href="#how-it-works"
+            href="#see-it-in-action"
+            onClick={(e) => scrollTo(e, "#see-it-in-action")}
             className="mt-8 inline-flex items-center gap-2 text-teal hover:text-teal-dark text-lg font-medium transition-colors"
           >
             See How It Works
             <ChevronDown className="h-5 w-5" />
           </a>
-
         </div>
       </section>
 
-      {/* SECTION 2 — HOW IT WORKS */}
-      <section id="how-it-works" className="bg-white py-20 px-4">
+      {/* SECTION 2 — SEE IT IN ACTION (YouTube Demo) */}
+      <section
+        id="see-it-in-action"
+        className="bg-white py-12 px-4 scroll-mt-20"
+      >
+        <div className="max-w-[800px] mx-auto">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-8">
+            See It in Action
+          </h2>
+          <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+            <iframe
+              className="absolute inset-0 w-full h-full rounded-xl shadow-lg"
+              src="https://www.youtube.com/embed/aHLI357FZxQ"
+              title="My School List — How It Works"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 3 — HOW IT WORKS */}
+      <section
+        id="how-it-works"
+        className="bg-warmgray-50 py-12 px-4 scroll-mt-20"
+      >
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-8">
             How It Works
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -103,7 +220,7 @@ export default function LandingPage() {
             ].map((card) => (
               <div
                 key={card.title}
-                className="bg-warmgray-50 rounded-xl p-8 shadow-sm text-center"
+                className="bg-white rounded-xl p-8 shadow-sm text-center"
               >
                 <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-teal/10 mb-5">
                   {card.icon}
@@ -116,28 +233,13 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* SEE IT IN ACTION — YouTube Demo */}
-      <section className="bg-warmgray-50 py-20 px-4">
-        <div className="max-w-[800px] mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-8">
-            See It in Action
-          </h2>
-          <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
-            <iframe
-              className="absolute inset-0 w-full h-full rounded-xl shadow-lg"
-              src="https://www.youtube.com/embed/aHLI357FZxQ"
-              title="My School List — How It Works"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* SECTION 3 — WHAT YOU GET */}
-      <section className="bg-warmgray-50 py-20 px-4">
+      {/* SECTION 4 — WHAT'S IN YOUR REPORT */}
+      <section
+        id="whats-in-your-report"
+        className="bg-white py-12 px-4 scroll-mt-20"
+      >
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-8">
             What&apos;s In Your Report
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -180,7 +282,7 @@ export default function LandingPage() {
       </section>
 
       {/* PRIMARY CTA */}
-      <section className="bg-white py-16 px-4">
+      <section className="bg-warmgray-50 py-10 px-4">
         <div className="max-w-3xl mx-auto text-center">
           <Link
             href="/tool"
@@ -191,10 +293,13 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* SECTION 4 — TESTIMONIALS */}
-      <section className="bg-white py-20 px-4">
+      {/* SECTION 5 — TESTIMONIALS */}
+      <section
+        id="testimonials"
+        className="bg-white py-12 px-4 scroll-mt-20"
+      >
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-8">
             What Parents Are Saying
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -232,22 +337,27 @@ export default function LandingPage() {
       </section>
 
       {/* PRIVACY TRUST BANNER */}
-      <section className="bg-charcoal py-16 px-4">
+      <section className="bg-charcoal py-10 px-4">
         <div className="max-w-3xl mx-auto text-center">
           <ShieldCheck className="h-10 w-10 text-teal mx-auto mb-4" />
           <p className="text-xl md:text-2xl font-semibold text-white leading-relaxed">
             Your data stays yours.
           </p>
           <p className="mt-3 text-base md:text-lg text-warmgray-300 leading-relaxed">
-            We don&apos;t store your documents, sell your information, or train AI on your uploads. Once your analysis is complete, your files are gone.
+            We don&apos;t store your documents, sell your information, or train
+            AI on your uploads. Once your analysis is complete, your files are
+            gone.
           </p>
         </div>
       </section>
 
-      {/* SECTION 5 — PRICING */}
-      <section id="pricing" className="bg-warmgray-50 py-20 px-4">
+      {/* SECTION 6 — PRICING */}
+      <section
+        id="pricing"
+        className="bg-warmgray-50 py-12 px-4 scroll-mt-20"
+      >
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-8">
             Simple Pricing
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
@@ -356,10 +466,10 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* SECTION 6 — FAQ */}
-      <section className="bg-white py-20 px-4">
+      {/* SECTION 7 — FAQ */}
+      <section id="faq" className="bg-white py-12 px-4 scroll-mt-20">
         <div className="max-w-3xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-8">
             Frequently Asked Questions
           </h2>
           <div className="space-y-3">
@@ -390,25 +500,50 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* SECTION 7 — FOOTER */}
-      <footer className="bg-charcoal text-white py-12 px-4">
+      {/* SECTION 8 — FOOTER */}
+      <footer className="bg-charcoal text-white py-10 px-4">
         <div className="max-w-6xl mx-auto text-center">
           <p className="text-xl font-bold">My School List</p>
           <p className="mt-2 text-warmgray-300 text-sm">
             A Corvessa Partners product
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-warmgray-300">
-            <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
+            <Link
+              href="/terms"
+              className="hover:text-white transition-colors"
+            >
+              Terms of Service
+            </Link>
             <span className="hidden sm:inline">|</span>
-            <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
+            <Link
+              href="/privacy"
+              className="hover:text-white transition-colors"
+            >
+              Privacy Policy
+            </Link>
             <span className="hidden sm:inline">|</span>
-            <a href="mailto:info@corvessapartners.com" className="hover:text-white transition-colors">Contact: info@corvessapartners.com</a>
+            <a
+              href="mailto:info@corvessapartners.com"
+              className="hover:text-white transition-colors"
+            >
+              Contact: info@corvessapartners.com
+            </a>
           </div>
           <div className="mt-6 flex items-center justify-center gap-4">
-            <a href="https://instagram.com/myschoollist" target="_blank" rel="noopener noreferrer" className="text-warmgray-300 hover:text-white transition-colors">
+            <a
+              href="https://instagram.com/myschoollist"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-warmgray-300 hover:text-white transition-colors"
+            >
               <Instagram className="h-5 w-5" />
             </a>
-            <a href="https://linkedin.com/in/peteryoung-va" target="_blank" rel="noopener noreferrer" className="text-warmgray-300 hover:text-white transition-colors">
+            <a
+              href="https://linkedin.com/in/peteryoung-va"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-warmgray-300 hover:text-white transition-colors"
+            >
               <Linkedin className="h-5 w-5" />
             </a>
           </div>
