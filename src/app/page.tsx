@@ -304,7 +304,7 @@ export default function LandingPage() {
               {
                 quote:
                   "We\u2019re just starting the process of looking at colleges for our sophomore daughter. This tool narrowed it down fast and let us search any school to see her chances. It\u2019s like having a college counselor on demand.",
-                author: "Leah, Langley School Parent",
+                author: "Parent, Roslyn, NY",
               },
               {
                 quote:
