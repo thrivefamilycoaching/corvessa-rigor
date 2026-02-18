@@ -16,8 +16,8 @@ import {
 } from "lucide-react";
 
 const navLinks = [
-  { label: "How It Works", href: "#how-it-works" },
   { label: "See It in Action", href: "#see-it-in-action" },
+  { label: "How It Works", href: "#how-it-works" },
   { label: "What's In Your Report", href: "#whats-in-your-report" },
   { label: "Testimonials", href: "#testimonials" },
   { label: "Pricing", href: "#pricing" },
