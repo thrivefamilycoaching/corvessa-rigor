@@ -159,14 +159,6 @@ export default function LandingPage() {
             Find the right colleges for your child &mdash; with real admission
             odds based on an actual transcript.
           </p>
-          <a
-            href="#see-it-in-action"
-            onClick={(e) => scrollTo(e, "#see-it-in-action")}
-            className="mt-8 inline-flex items-center gap-2 text-teal hover:text-teal-dark text-lg font-medium transition-colors"
-          >
-            See How It Works
-            <ChevronDown className="h-5 w-5" />
-          </a>
         </div>
       </section>
 
