@@ -888,6 +888,7 @@ const REGION_STATES: Record<RegionType, string[]> = {
   "South": ["TX", "GA", "NC", "FL", "TN", "SC", "AL", "LA"],
   "Midwest": ["IL", "MI", "OH", "WI", "MN", "IN", "IA", "MO"],
   "West": ["CA", "OR", "WA", "CO", "AZ", "UT", "NV"],
+  "Canada": ["ON", "BC", "AB", "QC", "MB", "SK", "NS", "NB", "NL", "PE"],
 };
 
 const STATE_TO_REGION: Record<string, RegionType> = {};

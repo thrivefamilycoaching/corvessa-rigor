@@ -1,4 +1,4 @@
-export type RegionType = "Northeast" | "Mid-Atlantic" | "South" | "Midwest" | "West";
+export type RegionType = "Northeast" | "Mid-Atlantic" | "South" | "Midwest" | "West" | "Canada";
 export type CampusSizeType = "Micro" | "Small" | "Medium" | "Large" | "Mega";
 export type TestPolicyType = "Test Optional" | "Test Required" | "Test Blind";
 

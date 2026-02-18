@@ -1,6 +1,6 @@
 import type { RegionType, CampusSizeType, TestPolicyType, SchoolPrograms } from "./types";
 
-export const REGIONS: RegionType[] = ["Northeast", "Mid-Atlantic", "South", "Midwest", "West"];
+export const REGIONS: RegionType[] = ["Northeast", "Mid-Atlantic", "South", "Midwest", "West", "Canada"];
 
 export const CAMPUS_SIZES: { value: CampusSizeType; label: string; range: string }[] = [
   { value: "Micro", label: "Micro", range: "<2K" },

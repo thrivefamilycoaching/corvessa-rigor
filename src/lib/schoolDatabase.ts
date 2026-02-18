@@ -26,9 +26,9 @@ const STATE_TO_REGION: Record<string, string> = {
   CA: "West", OR: "West", WA: "West", CO: "West", AZ: "West", UT: "West",
   NV: "West", NM: "West", MT: "West", WY: "West", ID: "West", HI: "West", AK: "West",
   // Canadian provinces
-  ON: "Canada-Ontario", BC: "Canada-West", AB: "Canada-West", QC: "Canada-Quebec",
-  MB: "Canada-Prairies", SK: "Canada-Prairies", NS: "Canada-Atlantic", NB: "Canada-Atlantic",
-  NL: "Canada-Atlantic", PE: "Canada-Atlantic",
+  ON: "Canada", BC: "Canada", AB: "Canada", QC: "Canada",
+  MB: "Canada", SK: "Canada", NS: "Canada", NB: "Canada",
+  NL: "Canada", PE: "Canada",
 };
 
 function getRegion(state: string): string {
