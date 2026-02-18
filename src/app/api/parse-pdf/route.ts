@@ -864,7 +864,8 @@ Provide your comprehensive rigor analysis in the specified JSON format.`,
       "MO": ["University of Missouri"],
     };
 
-    if (homeState) {
+    const CANADIAN_PROVINCES = new Set(["AB", "BC", "MB", "NB", "NL", "NS", "ON", "PE", "QC", "SK"]);
+    if (homeState && !CANADIAN_PROVINCES.has(homeState)) {
       const boostNames = STATE_TO_PUBLIC_BOOST[homeState] || [];
       analysis.recommendedSchools = analysis.recommendedSchools.map((s: any) => {
         const nameMatch = boostNames.some(bn => s.name.includes(bn));

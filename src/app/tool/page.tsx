@@ -58,6 +58,14 @@ const US_STATES = [
   { value: "WV", label: "West Virginia" }, { value: "WI", label: "Wisconsin" }, { value: "WY", label: "Wyoming" },
 ];
 
+const CA_PROVINCES = [
+  { value: "AB", label: "Alberta" }, { value: "BC", label: "British Columbia" },
+  { value: "MB", label: "Manitoba" }, { value: "NB", label: "New Brunswick" },
+  { value: "NL", label: "Newfoundland and Labrador" }, { value: "NS", label: "Nova Scotia" },
+  { value: "ON", label: "Ontario" }, { value: "PE", label: "Prince Edward Island" },
+  { value: "QC", label: "Quebec" }, { value: "SK", label: "Saskatchewan" },
+];
+
 // ─── Access Code Gate ────────────────────────────────────────────────────────
 
 function AccessCodeGate({ onValidated }: { onValidated: (code: string, remaining: number, tier: string) => void }) {
@@ -535,10 +543,10 @@ function ToolContent({
             />
           </div>
 
-          {/* Home State Selector */}
+          {/* Home State / Province Selector */}
           <div className="mb-6">
             <label className="mb-1 block text-sm font-medium">
-              Student Home State <span className="text-xs text-muted-foreground">(for in-state admission boost)</span>
+              Student Home State or Province <span className="text-xs text-muted-foreground">(for in-state admission boost)</span>
             </label>
             <select
               value={homeState}
@@ -547,6 +555,10 @@ function ToolContent({
             >
               {US_STATES.map((s) => (
                 <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+              <option disabled>── Canada ──</option>
+              {CA_PROVINCES.map((p) => (
+                <option key={p.value} value={p.value}>{p.label}</option>
               ))}
             </select>
           </div>
