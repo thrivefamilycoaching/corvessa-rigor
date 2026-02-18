@@ -22,7 +22,7 @@ interface HighSchoolSearchProps {
 }
 
 const US_STATES = [
-  { value: "", label: "Select state or province..." },
+  { value: "", label: "Select state..." },
   { value: "AL", label: "Alabama" }, { value: "AK", label: "Alaska" }, { value: "AZ", label: "Arizona" },
   { value: "AR", label: "Arkansas" }, { value: "CA", label: "California" }, { value: "CO", label: "Colorado" },
   { value: "CT", label: "Connecticut" }, { value: "DE", label: "Delaware" }, { value: "DC", label: "District of Columbia" },
@@ -40,14 +40,6 @@ const US_STATES = [
   { value: "TN", label: "Tennessee" }, { value: "TX", label: "Texas" }, { value: "UT", label: "Utah" },
   { value: "VT", label: "Vermont" }, { value: "VA", label: "Virginia" }, { value: "WA", label: "Washington" },
   { value: "WV", label: "West Virginia" }, { value: "WI", label: "Wisconsin" }, { value: "WY", label: "Wyoming" },
-];
-
-const CA_PROVINCES = [
-  { value: "AB", label: "Alberta" }, { value: "BC", label: "British Columbia" },
-  { value: "MB", label: "Manitoba" }, { value: "NB", label: "New Brunswick" },
-  { value: "NL", label: "Newfoundland and Labrador" }, { value: "NS", label: "Nova Scotia" },
-  { value: "ON", label: "Ontario" }, { value: "PE", label: "Prince Edward Island" },
-  { value: "QC", label: "Quebec" }, { value: "SK", label: "Saskatchewan" },
 ];
 
 // Cache loaded state data so we don't re-fetch
@@ -190,10 +182,6 @@ export function HighSchoolSearch({ onSelect, disabled, initialState }: HighSchoo
           >
             {US_STATES.map((s) => (
               <option key={s.value} value={s.value}>{s.label}</option>
-            ))}
-            <option disabled>── Canada ──</option>
-            {CA_PROVINCES.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
             ))}
           </select>
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
