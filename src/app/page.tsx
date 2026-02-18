@@ -299,7 +299,7 @@ export default function LandingPage() {
               {
                 quote:
                   "I uploaded my daughter\u2019s transcript and within minutes had a personalized list of schools I hadn\u2019t even considered. The admission odds gave us a realistic picture of where she stands \u2014 it completely changed how we\u2019re approaching her college search.",
-                author: "Peter, Potomac School Parent",
+                author: "Peter, Boston, MA",
               },
               {
                 quote:
